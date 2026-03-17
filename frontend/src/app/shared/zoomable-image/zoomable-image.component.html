@@ -1,0 +1,28 @@
+<div class="zoomable-image-wrapper">
+  <div class="zoomable-toolbar">
+    <button type="button" class="btn-zoom" (click)="zoomIn()" title="Zoom in">+</button>
+    <button type="button" class="btn-zoom" (click)="zoomOut()" title="Zoom out">−</button>
+    <button type="button" class="btn-zoom btn-reset" (click)="reset()" title="Reset view">⟲</button>
+    <button type="button" class="btn-zoom btn-fullscreen" (click)="toggleFullscreen()" [title]="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'">
+      {{ isFullscreen ? '✕' : '⛶' }}
+    </button>
+    <span class="zoom-level">{{ Math.round(scale * 100) }}%</span>
+  </div>
+  <div
+    #imageContainer
+    class="zoomable-container"
+    (mousedown)="onMouseDown($event)"
+    [class.dragging]="isDragging"
+  >
+    <img
+      #image
+      [src]="src"
+      [alt]="alt"
+      [title]="title"
+      class="zoomable-img"
+      [style.transform]="transformStyle"
+      draggable="false"
+    />
+  </div>
+  <p class="zoomable-hint">Scroll to zoom · Drag to pan</p>
+</div>

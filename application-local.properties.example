@@ -1,0 +1,14 @@
+# Local Development Configuration
+# Copy this file to application-local.properties and fill in your MongoDB connection details
+# This file is gitignored and will not be committed
+
+# MongoDB Connection - Use full connection string
+mongo_uri=mongodb+srv://username:password@hostname/database
+
+# OR use individual properties:
+# mongo_db_hostname=your-hostname.mongodb.net
+# mongo_db_username=your-username
+# mongo_db_password=your-password
+# mongo_db_name=your-database-name
+# mongo_db_password_encrypted=false
+

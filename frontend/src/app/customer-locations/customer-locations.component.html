@@ -1,0 +1,88 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Customer Locations</h1>
+      <p class="page-subtitle">View all customer locations on map</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="page-subtitle" *ngIf="status === 'loading'">Loading...</p>
+    <p class="status-text failed" *ngIf="status === 'failed' && message">{{ message }}</p>
+    <p class="status-text failed" *ngIf="status === 'idle' && message">{{ message }}</p>
+
+    <div *ngIf="status === 'idle' && customers.length > 0">
+      <div class="map-controls">
+        <div class="search-control">
+          <label class="search-label">
+            <span class="label-text">Search Customers</span>
+            <div class="search-input-wrapper">
+              <input
+                type="text"
+                [value]="searchQuery"
+                (input)="onSearchChange($any($event.target).value)"
+                placeholder="Search by name, phone, or address..."
+                class="search-input"
+              />
+              <button
+                type="button"
+                class="btn btn-clear-x"
+                *ngIf="searchQuery"
+                (click)="clearSearch()"
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            </div>
+          </label>
+        </div>
+        <div class="map-stats">
+          <div class="stat-item">
+            <span class="stat-label">Total Customers</span>
+            <span class="stat-value">{{ customers.length }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Showing</span>
+            <span class="stat-value">{{ filteredCustomers.length }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="map-container-wrapper">
+        <div #mapContainer class="customer-map"></div>
+      </div>
+
+      <div class="customer-list" *ngIf="filteredCustomers.length > 0">
+        <h3 class="list-title">Customers ({{ filteredCustomers.length }})</h3>
+        <div class="customer-list-grid">
+          <div
+            class="customer-list-item"
+            *ngFor="let customer of filteredCustomers"
+            (click)="openCustomerDetails(customer)"
+          >
+            <div class="customer-list-header">
+              <h4 class="customer-name">{{ customer.customerName }}</h4>
+              <span class="location-badge" *ngIf="customer.latitude && customer.longitude">📍</span>
+            </div>
+            <div class="customer-list-details">
+              <p class="customer-phone" *ngIf="customer.phoneNumber">{{ customer.phoneNumber }}</p>
+              <p class="customer-address" *ngIf="customer.address">{{ customer.address }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mumbai rail network map -->
+      <div class="rail-map-section">
+        <div class="rail-map-card">
+          <h3 class="rail-map-title">Mumbai Western, Central & Harbour Local Rail Network</h3>
+          <app-zoomable-image
+            src="assets/images/mumbai-train-map.png"
+            alt="Mumbai Western, Central, Harbour local rail network map"
+            title="Mumbai local train network"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

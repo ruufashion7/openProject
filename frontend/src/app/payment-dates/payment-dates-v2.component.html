@@ -1,0 +1,496 @@
+<section class="payment-dates-page">
+  <!-- Header -->
+  <div class="page-header-modern">
+    <div class="header-content">
+      <div>
+        <h1 class="page-title-modern">Payment Dates</h1>
+        <p class="page-subtitle-modern">Manage outstanding payments and customer follow-ups</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn-icon" (click)="toggleViewMode()" [title]="viewMode === 'grid' ? 'Switch to List View' : 'Switch to Grid View'">
+          <span>{{ viewMode === 'grid' ? '☰' : '⊞' }}</span>
+        </button>
+        <button class="btn-icon" (click)="showFilters = !showFilters" [class.active]="showFilters" title="Toggle Filters">
+          <span>🔍</span>
+        </button>
+        <button class="btn-primary-modern" (click)="downloadExcel()" title="Download Excel">
+          <span>📥</span>
+          <span>Excel</span>
+        </button>
+        <button class="btn-primary-modern" (click)="downloadPDF()" title="Download PDF">
+          <span>📄</span>
+          <span>PDF</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="stats-grid" *ngIf="status === 'idle'">
+    <div class="stat-card stat-primary">
+      <div class="stat-icon">💰</div>
+      <div class="stat-content">
+        <div class="stat-label">Total Amount</div>
+        <div class="stat-value">₹{{ totalAmount | number:'1.0-0' }}</div>
+      </div>
+    </div>
+    <div class="stat-card stat-secondary">
+      <div class="stat-icon">👥</div>
+      <div class="stat-content">
+        <div class="stat-label">Customers</div>
+        <div class="stat-value">{{ totalCustomers }}</div>
+      </div>
+    </div>
+    <div class="stat-card stat-info">
+      <div class="stat-icon">📊</div>
+      <div class="stat-content">
+        <div class="stat-label">Showing</div>
+        <div class="stat-value">{{ filteredCards.length }} / {{ cards.length }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search and Filters Bar -->
+  <div class="search-filters-bar" *ngIf="status === 'idle'">
+    <!-- Search -->
+    <div class="search-container">
+      <div class="search-input-wrapper">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          class="search-input-modern"
+          [(ngModel)]="searchQuery"
+          (input)="onSearchChange($event.target?.value || '')"
+          (focus)="updateSearchSuggestions()"
+          placeholder="Search by customer name or phone..."
+        />
+        <button
+          class="btn-clear-search"
+          *ngIf="searchQuery"
+          (click)="clearSearch()"
+          title="Clear search"
+        >
+          ×
+        </button>
+      </div>
+      <div class="search-suggestions" *ngIf="showSuggestions && searchSuggestions.length">
+        <div
+          class="suggestion-item"
+          *ngFor="let suggestion of searchSuggestions"
+          (click)="selectSuggestion(suggestion)"
+        >
+          {{ suggestion }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Filters -->
+    <div class="active-filters" *ngIf="hasActiveFilters()">
+      <span class="filter-chip" *ngIf="filters.paymentDate !== 'all'">
+        Payment: {{ filters.paymentDate }}
+        <button (click)="setFilter('paymentDate', 'all')">×</button>
+      </span>
+      <span class="filter-chip" *ngIf="filters.whatsappStatus !== 'all'">
+        WhatsApp: {{ filters.whatsappStatus }}
+        <button (click)="setFilter('whatsappStatus', 'all')">×</button>
+      </span>
+      <span class="filter-chip" *ngIf="filters.customerCategory !== 'all'">
+        Category: {{ filters.customerCategory }}
+        <button (click)="setFilter('customerCategory', 'all')">×</button>
+      </span>
+      <span class="filter-chip" *ngIf="filters.followUp !== 'all'">
+        Follow-up: {{ filters.followUp }}
+        <button (click)="setFilter('followUp', 'all')">×</button>
+      </span>
+      <span class="filter-chip" *ngIf="filters.places.length > 0">
+        Place: {{ filters.places.join(', ') }}
+        <button (click)="clearPlaceFilter()">×</button>
+      </span>
+      <button class="btn-clear-all" (click)="clearFilters()">Clear All</button>
+    </div>
+  </div>
+
+  <!-- Filters Panel -->
+  <div class="filters-panel" *ngIf="showFilters && status === 'idle'">
+    <div class="filter-group">
+      <label class="filter-group-label">Payment Date</label>
+      <div class="filter-buttons">
+        <button
+          class="filter-btn"
+          [class.active]="filters.paymentDate === 'all'"
+          (click)="setFilter('paymentDate', 'all')"
+        >
+          All
+        </button>
+        <button
+          class="filter-btn filter-past"
+          [class.active]="filters.paymentDate === 'past'"
+          (click)="setFilter('paymentDate', 'past')"
+        >
+          Past
+        </button>
+        <button
+          class="filter-btn filter-today"
+          [class.active]="filters.paymentDate === 'today'"
+          (click)="setFilter('paymentDate', 'today')"
+        >
+          Today
+        </button>
+        <button
+          class="filter-btn filter-future"
+          [class.active]="filters.paymentDate === 'future'"
+          (click)="setFilter('paymentDate', 'future')"
+        >
+          Future
+        </button>
+        <button
+          class="filter-btn filter-none"
+          [class.active]="filters.paymentDate === 'none'"
+          (click)="setFilter('paymentDate', 'none')"
+        >
+          No Date
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-group-label">WhatsApp Status</label>
+      <div class="filter-buttons">
+        <button
+          class="filter-btn"
+          [class.active]="filters.whatsappStatus === 'all'"
+          (click)="setFilter('whatsappStatus', 'all')"
+        >
+          All
+        </button>
+        <button
+          class="filter-btn"
+          [class.active]="filters.whatsappStatus === 'not sent'"
+          (click)="setFilter('whatsappStatus', 'not sent')"
+        >
+          Not Sent
+        </button>
+        <button
+          class="filter-btn"
+          [class.active]="filters.whatsappStatus === 'sent'"
+          (click)="setFilter('whatsappStatus', 'sent')"
+        >
+          Sent
+        </button>
+        <button
+          class="filter-btn"
+          [class.active]="filters.whatsappStatus === 'delivered'"
+          (click)="setFilter('whatsappStatus', 'delivered')"
+        >
+          Delivered
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-group-label">Customer Category</label>
+      <div class="filter-buttons">
+        <button
+          class="filter-btn filter-category-all"
+          [class.active]="filters.customerCategory === 'all'"
+          (click)="setFilter('customerCategory', 'all')"
+        >
+          All
+        </button>
+        <button
+          class="filter-btn filter-category-semi-wholesale"
+          [class.active]="filters.customerCategory === 'semi-wholesale'"
+          (click)="setFilter('customerCategory', 'semi-wholesale')"
+        >
+          Semi-wholesale
+        </button>
+        <button
+          class="filter-btn filter-category-a"
+          [class.active]="filters.customerCategory === 'A'"
+          (click)="setFilter('customerCategory', 'A')"
+        >
+          A
+        </button>
+        <button
+          class="filter-btn filter-category-b"
+          [class.active]="filters.customerCategory === 'B'"
+          (click)="setFilter('customerCategory', 'B')"
+        >
+          B
+        </button>
+        <button
+          class="filter-btn filter-category-c"
+          [class.active]="filters.customerCategory === 'C'"
+          (click)="setFilter('customerCategory', 'C')"
+        >
+          C
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-group-label">Follow-up</label>
+      <div class="filter-buttons">
+        <button
+          class="filter-btn"
+          [class.active]="filters.followUp === 'all'"
+          (click)="setFilter('followUp', 'all')"
+        >
+          All
+        </button>
+        <button
+          class="filter-btn"
+          [class.active]="filters.followUp === 'needed'"
+          (click)="setFilter('followUp', 'needed')"
+        >
+          Needed
+        </button>
+        <button
+          class="filter-btn"
+          [class.active]="filters.followUp === 'not-needed'"
+          (click)="setFilter('followUp', 'not-needed')"
+        >
+          Not Needed
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group place-autocomplete-wrap">
+      <label class="filter-group-label">Place</label>
+      <div class="place-input-with-chevron">
+        <input
+          type="text"
+          class="place-autocomplete-input"
+          placeholder="Select place..."
+          [(ngModel)]="placeSearchQuery"
+          (ngModelChange)="onPlaceSearchChange()"
+          (focus)="onPlaceInputFocus()"
+          (blur)="onPlaceInputBlur()"
+          (keydown)="onPlaceKeydown($event)"
+          autocomplete="off"
+        />
+        <span class="place-chevron" (mousedown)="onPlaceInputFocus(); $event.preventDefault()">▼</span>
+      </div>
+      <div
+        class="place-suggestions"
+        *ngIf="placeSuggestionsOpen && placeSuggestions.length > 0"
+        (scroll)="onPlaceSuggestionsScroll($event)"
+      >
+        <button
+          type="button"
+          class="place-suggestion-item"
+          *ngFor="let p of placeSuggestionsSlice"
+          (mousedown)="addPlaceFromDropdown(p); $event.preventDefault()"
+        >
+          {{ p }}
+        </button>
+      </div>
+      <div class="selected-places-list" *ngIf="filters.places.length > 0">
+        <span class="selected-place-chip" *ngFor="let p of filters.places">
+          <button type="button" class="chip-remove" (click)="removePlace(p)" title="Remove">×</button>
+          <span class="chip-text">{{ p }}</span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="status === 'loading'">
+    <div class="spinner"></div>
+    <p>Loading payment data...</p>
+  </div>
+
+  <!-- Error State -->
+  <div class="error-state" *ngIf="status === 'failed'">
+    <div class="error-icon">⚠️</div>
+    <p>{{ message }}</p>
+    <button class="btn-primary-modern" (click)="loadData()">Retry</button>
+  </div>
+
+  <!-- Empty State -->
+  <div class="empty-state" *ngIf="status === 'idle' && filteredCards.length === 0 && cards.length > 0">
+    <div class="empty-icon">🔍</div>
+    <p>No customers match your filters</p>
+    <button class="btn-primary-modern" (click)="clearFilters()">Clear Filters</button>
+  </div>
+
+  <!-- Cards Grid -->
+  <div class="cards-container" *ngIf="status === 'idle' && filteredCards.length > 0" [class.grid-view]="viewMode === 'grid'" [class.list-view]="viewMode === 'list'">
+    <div
+      class="customer-card"
+      *ngFor="let card of filteredCards"
+      [class.tone-past]="getPaymentDateTone(card) === 'past'"
+      [class.tone-today]="getPaymentDateTone(card) === 'today'"
+      [class.tone-future]="getPaymentDateTone(card) === 'future'"
+      [class.tone-none]="getPaymentDateTone(card) === 'none'"
+      (click)="openCustomerDetails(card)"
+    >
+      <div class="card-header">
+        <div class="customer-info">
+          <h3 class="customer-name">{{ card.customer }}</h3>
+          <div class="customer-phone-container" *ngIf="card.phoneNumber">
+            <p class="customer-phone">{{ card.phoneNumber }}</p>
+            <div class="phone-actions-small">
+              <button
+                type="button"
+                class="btn btn-call-small"
+                (click)="callCustomer(card.phoneNumber!); $event.stopPropagation()"
+                title="Call customer"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="btn btn-copy-phone-small"
+                (click)="copyPhoneNumber(card.phoneNumber!); $event.stopPropagation()"
+                title="Copy phone number"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="card-badges">
+          <span class="badge-location" *ngIf="card.address || (card.latitude && card.longitude)" (click)="openCustomerDetails(card); $event.stopPropagation()" title="View Location">
+            📍
+          </span>
+          <span class="badge-followup" *ngIf="followUpFlags[card.customer || '']" title="Follow-up Needed">
+            🚩
+          </span>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <div class="amount-section">
+          <div class="amount-label">Amount Due</div>
+          <div class="amount-value">₹{{ card.totalAmount | number:'1.0-0' }}</div>
+        </div>
+
+        <div class="payment-date-section" [class]="getPaymentDateBorderClass(card)">
+          <label class="date-label">Payment Date</label>
+          <input
+            type="text"
+            class="date-input-modern"
+            [value]="dateEdits[card.customer || '']"
+            (input)="onDateChange(card, $event)"
+            (click)="$event.stopPropagation()"
+            [disabled]="!canEditPaymentDate"
+            placeholder="DD-MM"
+            maxlength="5"
+          />
+        </div>
+
+        <div class="whatsapp-section" [class]="getWhatsAppStatusBorderClass(card)">
+          <div class="whatsapp-label">WhatsApp Status ({{ getWhatsAppStatusDisplay(card) }})</div>
+          <div class="whatsapp-radios">
+            <label class="radio-option" (click)="$event.stopPropagation()">
+              <input
+                type="radio"
+                [name]="'whatsapp-' + card.customer"
+                [checked]="whatsappStatuses[card.customer || ''] === 'not sent'"
+                [disabled]="!canChangeWhatsappDate"
+                (change)="onWhatsAppStatusChange(card, 'not sent')"
+              />
+              <span class="radio-dot radio-grey"></span>
+              <span class="radio-label">Not Sent</span>
+            </label>
+            <label class="radio-option" (click)="$event.stopPropagation()">
+              <input
+                type="radio"
+                [name]="'whatsapp-' + card.customer"
+                [checked]="whatsappStatuses[card.customer || ''] === 'sent'"
+                [disabled]="!canChangeWhatsappDate"
+                (change)="onWhatsAppStatusChange(card, 'sent')"
+              />
+              <span class="radio-dot radio-yellow"></span>
+              <span class="radio-label">Sent</span>
+            </label>
+            <label class="radio-option" (click)="$event.stopPropagation()">
+              <input
+                type="radio"
+                [name]="'whatsapp-' + card.customer"
+                [checked]="whatsappStatuses[card.customer || ''] === 'delivered'"
+                [disabled]="!canChangeWhatsappDate"
+                (change)="onWhatsAppStatusChange(card, 'delivered')"
+              />
+              <span class="radio-dot radio-green"></span>
+              <span class="radio-label">Delivered</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="customer-category-section" [class]="getCustomerCategoryBorderClass(card)">
+          <label class="category-label">Category ({{ getCustomerCategoryDisplay(card) }})</label>
+          <div class="category-radios">
+            <label class="radio-option" (click)="$event.stopPropagation()" title="Semi-wholesale">
+              <input
+                type="radio"
+                [name]="'category-' + card.customer"
+                [checked]="getCustomerCategory(card) === 'semi-wholesale'"
+                (change)="onCustomerCategoryChange(card, 'semi-wholesale')"
+              />
+              <span class="radio-dot radio-blue"></span>
+              <span class="radio-label">Semi-wholesale</span>
+            </label>
+            <label class="radio-option" (click)="$event.stopPropagation()" title="A">
+              <input
+                type="radio"
+                [name]="'category-' + card.customer"
+                [checked]="getCustomerCategory(card) === 'A'"
+                (change)="onCustomerCategoryChange(card, 'A')"
+              />
+              <span class="radio-dot radio-green"></span>
+              <span class="radio-label">A</span>
+            </label>
+            <label class="radio-option" (click)="$event.stopPropagation()" title="B">
+              <input
+                type="radio"
+                [name]="'category-' + card.customer"
+                [checked]="getCustomerCategory(card) === 'B'"
+                (change)="onCustomerCategoryChange(card, 'B')"
+              />
+              <span class="radio-dot radio-yellow"></span>
+              <span class="radio-label">B</span>
+            </label>
+            <label class="radio-option" (click)="$event.stopPropagation()" title="C">
+              <input
+                type="radio"
+                [name]="'category-' + card.customer"
+                [checked]="getCustomerCategory(card) === 'C'"
+                (change)="onCustomerCategoryChange(card, 'C')"
+              />
+              <span class="radio-dot radio-red"></span>
+              <span class="radio-label">C</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="followup-section">
+          <label class="followup-toggle-label">
+            <input
+              type="checkbox"
+              [checked]="followUpFlags[card.customer || '']"
+              [disabled]="!canChangeFollowUp"
+              (change)="onFollowUpToggle(card)"
+              (click)="$event.stopPropagation()"
+            />
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Follow-up Needed</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card-footer">
+        <button class="btn-card-action" (click)="openCustomerDetails(card); $event.stopPropagation()">
+          View Details →
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+

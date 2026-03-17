@@ -1,0 +1,58 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Welcome {{ displayName || 'Akash' }}!</h1>
+      <p class="page-subtitle">Choose what you want to do next.</p>
+    </div>
+  </div>
+
+  <div class="card welcome-card">
+    <div class="welcome-grid">
+      <div class="card card-muted welcome-tile" *ngIf="canUpload">
+        <h2>Upload Files</h2>
+        <p class="page-subtitle">Send the latest two Excel files.</p>
+        <button type="button" class="btn btn-primary" (click)="goToUpload()">Go to Upload</button>
+      </div>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessInvoicePage">
+        <h2>Invoice Details</h2>
+        <p class="page-subtitle">View detailed sales information and reports.</p>
+        <button
+          type="button"
+          class="btn btn-soft"
+          [disabled]="!analyticsEnabled"
+          (click)="goToSalesDetails()"
+        >
+          Open Invoice Details
+        </button>
+        <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
+      </div>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessDetailsPage">
+        <h2>Details</h2>
+        <p class="page-subtitle">View summary insights and trends.</p>
+        <button
+          type="button"
+          class="btn btn-soft"
+          [disabled]="!analyticsEnabled"
+          (click)="goToOutstanding()"
+        >
+          Open Details
+        </button>
+        <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
+      </div>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessOutstandingPage">
+        <h2>Outstanding</h2>
+        <p class="page-subtitle">Manage customer payment dates and status.</p>
+        <button
+          type="button"
+          class="btn btn-soft"
+          [disabled]="!analyticsEnabled"
+          (click)="goToPaymentDates()"
+        >
+          Open Outstanding
+        </button>
+        <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
+      </div>
+    </div>
+  </div>
+</section>
+

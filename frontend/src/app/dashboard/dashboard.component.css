@@ -1,0 +1,55 @@
+.health {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.card {
+  padding: 16px;
+}
+
+.label {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.value {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.highlights {
+  padding: 20px 24px;
+}
+
+.highlights h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.highlights ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+}
+
+.loading {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+}
+

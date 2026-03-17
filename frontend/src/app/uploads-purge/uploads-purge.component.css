@@ -1,0 +1,14 @@
+.confirm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  color: #475569;
+  font-size: 14px;
+}
+
+.result {
+  margin-top: 12px;
+  color: #475569;
+}
+

@@ -1,0 +1,254 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Access Control Management</h1>
+      <p class="page-subtitle">Manage user accounts and permissions</p>
+    </div>
+    <div class="page-actions">
+      <a routerLink="/sessions" class="btn btn-secondary" *ngIf="!isCreating && !isEditing">
+        <span>🔐</span>
+        <span>Manage Sessions</span>
+      </a>
+      <button class="btn btn-primary" (click)="startCreate()" *ngIf="!isCreating && !isEditing">
+        <span>➕</span>
+        <span>Create New User</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Create User Form -->
+  <div class="card" *ngIf="isCreating">
+    <div class="form-header">
+      <h2 class="form-title">Create New User</h2>
+      <p class="form-subtitle">Add a new user to the system</p>
+    </div>
+    <form (ngSubmit)="createUser()">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Username *</label>
+          <input type="text" [(ngModel)]="newUser.username" name="username" required placeholder="Enter username">
+        </div>
+        <div class="form-group">
+          <label>Password *</label>
+          <input type="password" [(ngModel)]="newUser.password" name="password" required placeholder="Enter password">
+        </div>
+        <div class="form-group">
+          <label>Display Name *</label>
+          <input type="text" [(ngModel)]="newUser.displayName" name="displayName" required placeholder="Enter display name">
+        </div>
+      </div>
+      
+      <div class="form-group admin-toggle">
+        <label class="checkbox-label">
+          <input 
+            type="checkbox" 
+            [(ngModel)]="newUser.isAdmin" 
+            name="isAdmin"
+            [disabled]="hasAdmin()"
+            class="checkbox-input">
+          <span class="checkbox-custom"></span>
+          <div class="checkbox-content">
+            <span class="checkbox-title">Admin User</span>
+            <span class="checkbox-description">Full system access with all permissions</span>
+          </div>
+        </label>
+        <div class="form-help" *ngIf="hasAdmin()">
+          <span class="help-icon">⚠️</span>
+          <span>An admin already exists. Creating a new admin will demote the current admin.</span>
+        </div>
+      </div>
+
+      <div class="permissions-section" *ngIf="!newUser.isAdmin">
+        <div class="permissions-header">
+          <h3 class="permissions-title">Permissions</h3>
+          <button type="button" class="btn btn-ghost btn-sm" (click)="toggleAllPermissions(true)">
+            Toggle All
+          </button>
+        </div>
+        <div class="permissions-grid">
+          <label class="permission-item" *ngFor="let perm of getPermissionsList()">
+            <input 
+              type="checkbox" 
+              [name]="perm.key"
+              [checked]="newUser.permissions[perm.key]"
+              (change)="newUser.permissions[perm.key] = !newUser.permissions[perm.key]"
+              class="permission-checkbox">
+            <span class="permission-label">{{ perm.label }}</span>
+            <span class="permission-description" *ngIf="perm.description">{{ perm.description }}</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+          <span>✓</span>
+          <span>Create User</span>
+        </button>
+        <button type="button" class="btn btn-ghost" (click)="cancelCreate()">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Edit User Form -->
+  <div class="card" *ngIf="isEditing && selectedUser">
+    <div class="form-header">
+      <h2 class="form-title">Edit User</h2>
+      <p class="form-subtitle">{{ selectedUser.username }}</p>
+    </div>
+    <form (ngSubmit)="updateUser()">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" [value]="selectedUser.username" disabled class="input-disabled">
+        </div>
+        <div class="form-group">
+          <label>Display Name</label>
+          <input type="text" [(ngModel)]="editedUser.displayName" name="displayName" required placeholder="Enter display name">
+        </div>
+      </div>
+      
+      <div class="form-group admin-toggle">
+        <label class="checkbox-label">
+          <input 
+            type="checkbox" 
+            [(ngModel)]="editedUser.isAdmin" 
+            name="isAdmin"
+            [disabled]="hasAdmin() && selectedUser && selectedUser.id !== currentAdmin?.id"
+            class="checkbox-input">
+          <span class="checkbox-custom"></span>
+          <div class="checkbox-content">
+            <span class="checkbox-title">Admin User</span>
+            <span class="checkbox-description">Full system access with all permissions</span>
+          </div>
+        </label>
+        <div class="form-help" *ngIf="hasAdmin() && selectedUser && selectedUser.id !== currentAdmin?.id">
+          <span class="help-icon">⚠️</span>
+          <span>An admin already exists. Only the current admin can be modified.</span>
+        </div>
+        <div class="form-help warning" *ngIf="selectedUser && selectedUser.isAdmin && editedUser.isAdmin === false">
+          <span class="help-icon">⚠️</span>
+          <span>Removing admin access from yourself will revoke your admin privileges.</span>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label class="checkbox-label" [class.disabled-label]="selectedUser.isAdmin">
+          <input 
+            type="checkbox" 
+            [(ngModel)]="editedUser.active" 
+            name="active" 
+            class="checkbox-input"
+            [disabled]="selectedUser.isAdmin"
+            [checked]="selectedUser.isAdmin ? true : editedUser.active">
+          <span class="checkbox-custom"></span>
+          <div class="checkbox-content">
+            <span class="checkbox-title">Active</span>
+            <span class="checkbox-description" *ngIf="!selectedUser.isAdmin">User account is active and can log in</span>
+            <span class="checkbox-description super-user-text" *ngIf="selectedUser.isAdmin">Super user - Always active</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="permissions-section" *ngIf="!editedUser.isAdmin">
+        <div class="permissions-header">
+          <h3 class="permissions-title">Permissions</h3>
+          <button type="button" class="btn btn-ghost btn-sm" (click)="toggleAllPermissions(false)">
+            Toggle All
+          </button>
+        </div>
+        <div class="permissions-grid" *ngIf="editedUser.permissions">
+          <label class="permission-item" *ngFor="let perm of getPermissionsList()">
+            <input 
+              type="checkbox" 
+              [name]="perm.key"
+              [checked]="editedUser.permissions[perm.key]"
+              (change)="editedUser.permissions![perm.key] = !editedUser.permissions[perm.key]"
+              class="permission-checkbox">
+            <span class="permission-label">{{ perm.label }}</span>
+            <span class="permission-description" *ngIf="perm.description">{{ perm.description }}</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+          <span>💾</span>
+          <span>Update User</span>
+        </button>
+        <button type="button" class="btn btn-ghost" (click)="cancelEdit()">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Users List -->
+  <div class="card" *ngIf="!isCreating && !isEditing">
+    <div class="table-header">
+      <h3 class="table-title">Users</h3>
+      <span class="table-count">{{ users.length }} {{ users.length === 1 ? 'user' : 'users' }}</span>
+    </div>
+    <div class="table-container">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th class="actions-header">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let user of users" [class.inactive-row]="!user.active" [class.admin-row]="user.isAdmin">
+            <td>
+              <div class="user-info">
+                <div class="user-name">{{ user.displayName }}</div>
+                <div class="user-username">{{ user.username }}</div>
+              </div>
+            </td>
+            <td>
+              <span class="badge" [class.badge-admin]="user.isAdmin" [class.badge-user]="!user.isAdmin">
+                {{ user.isAdmin ? 'Admin' : 'User' }}
+              </span>
+            </td>
+            <td>
+              <div class="status-info" *ngIf="user.active">
+                <span class="badge badge-active">Active</span>
+                <span class="status-description">User account is active and can log in</span>
+              </div>
+              <span class="badge badge-inactive" *ngIf="!user.active">Inactive</span>
+            </td>
+            <td>
+              <span class="date-text">{{ user.createdAt | date:'MMM d, y' }}</span>
+            </td>
+            <td class="actions">
+              <button class="btn btn-sm btn-ghost" (click)="startEdit(user)" title="Edit user">
+                <span>✏️</span>
+                <span>Edit</span>
+              </button>
+              <button 
+                class="btn btn-sm" 
+                [class.btn-danger]="user.active" 
+                [class.btn-success]="!user.active"
+                [disabled]="user.isAdmin && user.active && currentAdmin?.id === user.id"
+                [title]="user.isAdmin && user.active && currentAdmin?.id === user.id ? 'Cannot deactivate the last admin' : (user.active ? 'Deactivate user' : 'Activate user')"
+                (click)="user.active ? deleteUser(user) : activateUser(user)">
+                <span>{{ user.active ? '🔒' : '🔓' }}</span>
+                <span>{{ user.active ? 'Deactivate' : 'Activate' }}</span>
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="users.length === 0">
+            <td colspan="5" class="no-data">
+              <div class="empty-state">
+                <span class="empty-icon">👥</span>
+                <p class="empty-text">No users found</p>
+                <p class="empty-subtext">Create your first user to get started</p>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+

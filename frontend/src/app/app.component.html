@@ -1,0 +1,9 @@
+<div class="app-container">
+  <app-notification />
+  <app-top-header *ngIf="showSidebar" />
+  <app-sidebar *ngIf="showSidebar" />
+  <main class="app-content" [class.with-sidebar]="showSidebar" [class.with-header]="showSidebar">
+    <router-outlet />
+  </main>
+  <app-scroll-button />
+</div>

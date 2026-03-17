@@ -1,0 +1,700 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Details</h1>
+      <p class="page-subtitle">Search for customers and view their details.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="status-text failed" *ngIf="status === 'failed' && message">{{ message }}</p>
+    <p class="page-subtitle" *ngIf="status === 'loading'">Loading...</p>
+
+    <div *ngIf="status === 'idle'">
+      <p class="status-text" [class.success]="ready" [class.failed]="!ready" *ngIf="message">
+        {{ message }}
+      </p>
+
+      <div class="card card-muted analytics-search" *ngIf="!selectedCustomerName && !selectedPhoneNumber">
+        <div class="customer-search-wrapper">
+          <label class="customer-search-label">
+            <span class="label-text">Customer or Phone Number</span>
+            <div class="autocomplete-container">
+              <input
+                type="text"
+                #customerInput
+                [value]="customerQuery"
+                (input)="onCustomerQueryChange($any($event.target).value)"
+                (keydown)="onCustomerKeydown($event)"
+                (focus)="onCustomerInputFocus()"
+                (blur)="onCustomerInputBlur()"
+                [disabled]="!ready"
+                placeholder="Type customer name or phone number (at least 3 characters)..."
+                class="customer-input"
+                [class.has-suggestions]="customerSuggestions.length > 0 || phoneSuggestions.length > 0"
+              />
+              <div class="input-icon" *ngIf="!customerQuery">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+              </div>
+              <div class="input-loading" *ngIf="customerStatus === 'Searching...'">
+                <div class="spinner"></div>
+              </div>
+            </div>
+          </label>
+          <p class="status-text" [class.failed]="customerStatusIsError" [class.info]="!customerStatusIsError" *ngIf="customerStatus && customerStatus !== 'Searching...'">
+            {{ customerStatus }}
+          </p>
+
+          <div class="suggestions-container" *ngIf="(customerSuggestions.length > 0 || phoneSuggestions.length > 0)" [class.show]="showSuggestions">
+            <ul class="suggestions">
+              <li 
+                *ngFor="let customer of customerSuggestions; let i = index"
+                [class.highlighted]="highlightedIndex === i"
+              >
+                <button 
+                  type="button" 
+                  class="btn btn-suggestion" 
+                  (click)="selectCustomer(customer)"
+                  (mouseenter)="highlightedIndex = i"
+                >
+                  <span class="suggestion-text" [innerHTML]="highlightMatch(customer, customerQuery)"></span>
+                </button>
+              </li>
+              <li 
+                *ngFor="let phone of phoneSuggestions; let i = index"
+                [class.highlighted]="highlightedIndex === customerSuggestions.length + i"
+              >
+                <button 
+                  type="button" 
+                  class="btn btn-suggestion" 
+                  (click)="selectPhone(phone)"
+                  (mouseenter)="highlightedIndex = customerSuggestions.length + i"
+                >
+                  <span class="suggestion-text" [innerHTML]="highlightMatch(phone, customerQuery)"></span>
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <!-- All matches: shown whenever there are suggestions, no need to click a specific customer -->
+          <div class="all-matches-section" *ngIf="(customerSuggestions.length > 0 || phoneSuggestions.length > 0) && customerQuery.trim().length >= 3">
+            <h3 class="all-matches-title">All matches for &quot;{{ customerQuery.trim() }}&quot;</h3>
+            <p class="all-matches-hint">Click a customer to view their details.</p>
+            <ul class="all-matches-list">
+              <li *ngFor="let customer of customerSuggestions">
+                <button
+                  type="button"
+                  class="btn btn-match"
+                  (click)="selectCustomer(customer)"
+                >
+                  <span class="match-text" [innerHTML]="highlightMatch(customer, customerQuery)"></span>
+                </button>
+              </li>
+              <li *ngFor="let phone of phoneSuggestions">
+                <button
+                  type="button"
+                  class="btn btn-match"
+                  (click)="selectPhone(phone)"
+                >
+                  <span class="match-text" [innerHTML]="highlightMatch(phone, customerQuery)"></span>
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="customer-highlight-card" *ngIf="selectedCustomerName || selectedPhoneNumber">
+        <div class="highlight-card-content">
+          <h2 class="highlighted-name">{{ selectedCustomerName || selectedPhoneNumber }}</h2>
+          <button type="button" class="btn btn-close-highlight" (click)="clearCustomerSelection()" aria-label="Close">
+            ×
+          </button>
+        </div>
+      </div>
+
+        <div class="amount-card" *ngIf="customerSummary?.found">
+          <div class="summary-grid">
+            <div class="summary-tile">
+              <p class="summary-label">Phone Number</p>
+              <div class="phone-number-container" *ngIf="customerSummary?.phoneNumber">
+                <p class="summary-value">{{ customerSummary?.phoneNumber }}</p>
+                <div class="phone-actions">
+                  <button
+                    type="button"
+                    class="btn btn-call"
+                    (click)="callCustomer(customerSummary?.phoneNumber ?? '')"
+                    title="Call customer"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-copy-phone"
+                    (click)="copyPhoneNumber(customerSummary?.phoneNumber ?? '')"
+                    title="Copy phone number"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <p class="summary-value" *ngIf="!customerSummary?.phoneNumber">Not available</p>
+            </div>
+            <div class="summary-tile">
+              <p class="summary-label">Total Amount</p>
+              <p
+                class="summary-amount"
+                [class.green]="customerSummary?.within45Days"
+                [class.red]="!customerSummary?.within45Days"
+              >
+                ₹{{ customerSummary?.totalAmount | number:'1.2-2' }}
+              </p>
+            </div>
+          </div>
+
+          <div class="bucket-grid">
+            <div class="bucket">
+              <span class="bucket-label">1-45 Days</span>
+              <span class="bucket-value green">₹{{ customerSummary?.withinAmount | number:'1.2-2' }}</span>
+            </div>
+            <div class="bucket">
+              <span class="bucket-label">46-85 Days</span>
+              <span class="bucket-value yellow">₹{{ customerSummary?.midAmount | number:'1.2-2' }}</span>
+            </div>
+            <div class="bucket">
+              <span class="bucket-label">>85 Days</span>
+              <span class="bucket-value red">₹{{ customerSummary?.beyondAmount | number:'1.2-2' }}</span>
+            </div>
+            <div class="bucket" *ngIf="(customerSummary?.unknownAmount ?? 0) > 0">
+              <span class="bucket-label">Unknown</span>
+              <span class="bucket-value">₹{{ customerSummary?.unknownAmount | number:'1.2-2' }}</span>
+            </div>
+          </div>
+
+          <div class="info-cards-grid">
+            <div class="info-card payment-date-card" 
+                 [class.border-grey]="getPaymentDateBorderClass() === 'border-grey'"
+                 [class.border-red]="getPaymentDateBorderClass() === 'border-red'"
+                 [class.border-yellow]="getPaymentDateBorderClass() === 'border-yellow'"
+                 [class.border-green]="getPaymentDateBorderClass() === 'border-green'">
+              <p class="info-card-label">Payment Date</p>
+              <div class="payment-date">
+                <div class="payment-date-input">
+                  <input
+                    type="text"
+                    #dateInput
+                    class="payment-date-picker"
+                    [value]="paymentDateEdit"
+                    (keydown)="onDateKeydown($event)"
+                    (input)="onPaymentDateInput($event, dateInput)"
+                    (focus)="openDatePicker($event, dateInput)"
+                    (change)="onDateChange($event, dateInput)"
+                    (blur)="onDateInputBlur($event, dateInput)"
+                    placeholder="DD-MM"
+                    [disabled]="!ready"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-clear-x"
+                    *ngIf="paymentDateEdit"
+                    (click)="clearPaymentDate()"
+                    aria-label="Clear date"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="info-card whatsapp-status-card"
+                 [class.border-grey]="getWhatsAppStatusBorderClass() === 'border-grey'"
+                 [class.border-yellow]="getWhatsAppStatusBorderClass() === 'border-yellow'"
+                 [class.border-green]="getWhatsAppStatusBorderClass() === 'border-green'">
+              <p class="info-card-label">WhatsApp Status</p>
+              <div class="whatsapp-status-radios">
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    name="whatsapp-status-edit"
+                    [checked]="whatsappStatusEdit === 'not sent'"
+                    (change)="onWhatsAppStatusChange('not sent')"
+                    class="radio-grey"
+                  />
+                  <span class="radio-button grey"></span>
+                  <span class="radio-label-text">Not Sent</span>
+                </label>
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    name="whatsapp-status-edit"
+                    [checked]="whatsappStatusEdit === 'sent'"
+                    (change)="onWhatsAppStatusChange('sent')"
+                    class="radio-yellow"
+                  />
+                  <span class="radio-button yellow"></span>
+                  <span class="radio-label-text">Sent</span>
+                </label>
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    name="whatsapp-status-edit"
+                    [checked]="whatsappStatusEdit === 'delivered'"
+                    (change)="onWhatsAppStatusChange('delivered')"
+                    class="radio-green"
+                  />
+                  <span class="radio-button green"></span>
+                  <span class="radio-label-text">Delivered</span>
+                </label>
+              </div>
+            </div>
+            <div class="info-card customer-category-card"
+                 [class.border-blue]="getCustomerCategoryBorderClass() === 'border-blue'"
+                 [class.border-green]="getCustomerCategoryBorderClass() === 'border-green'"
+                 [class.border-yellow]="getCustomerCategoryBorderClass() === 'border-yellow'"
+                 [class.border-red]="getCustomerCategoryBorderClass() === 'border-red'">
+              <p class="info-card-label">Customer Category</p>
+              <div class="customer-category-radios">
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    name="customer-category-edit"
+                    [checked]="customerCategoryEdit === 'semi-wholesale'"
+                    (change)="onCustomerCategoryChange('semi-wholesale')"
+                    class="radio-blue"
+                  />
+                  <span class="radio-button blue"></span>
+                  <span class="radio-label-text">Semi-wholesale</span>
+                </label>
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    name="customer-category-edit"
+                    [checked]="customerCategoryEdit === 'A'"
+                    (change)="onCustomerCategoryChange('A')"
+                    class="radio-green"
+                  />
+                  <span class="radio-button green"></span>
+                  <span class="radio-label-text">A</span>
+                </label>
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    name="customer-category-edit"
+                    [checked]="customerCategoryEdit === 'B'"
+                    (change)="onCustomerCategoryChange('B')"
+                    class="radio-yellow"
+                  />
+                  <span class="radio-button yellow"></span>
+                  <span class="radio-label-text">B</span>
+                </label>
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    name="customer-category-edit"
+                    [checked]="customerCategoryEdit === 'C'"
+                    (change)="onCustomerCategoryChange('C')"
+                    class="radio-red"
+                  />
+                  <span class="radio-button red"></span>
+                  <span class="radio-label-text">C</span>
+                </label>
+              </div>
+            </div>
+            <div class="info-card follow-up-card"
+                 [class.border-orange]="followUpFlagEdit">
+              <p class="info-card-label">Follow-up Needed</p>
+              <button
+                type="button"
+                class="btn btn-follow-up"
+                [class.active]="followUpFlagEdit"
+                (click)="onFollowUpToggle()"
+                [title]="followUpFlagEdit ? 'Follow-up needed' : 'Mark for follow-up'"
+                aria-label="Toggle follow-up flag"
+              >
+                <span class="follow-up-icon" [class.active]="followUpFlagEdit">🚩</span>
+                <span class="follow-up-text">{{ followUpFlagEdit ? 'Yes' : 'No' }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Location and Notes Row -->
+          <div class="location-notes-row" *ngIf="customerSummary?.found">
+            <div class="info-card location-card">
+              <p class="info-card-label">Location</p>
+              <div class="location-content">
+                <!-- Address Section -->
+                <div class="location-section">
+                  <div class="location-section-header" (click)="toggleAddress()" [class.has-location]="customerSummary?.address">
+                    <span class="section-label">ADDRESS</span>
+                    <button
+                      type="button"
+                      class="btn-toggle"
+                      [class.expanded]="addressExpanded"
+                      title="{{ addressExpanded ? 'Collapse' : 'Expand' }}"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </button>
+                  </div>
+                  <div class="address-display" [class.expanded]="addressExpanded" *ngIf="addressExpanded">
+                    <div *ngIf="customerSummary?.address; else noAddress">
+                      <p class="address-text">{{ customerSummary?.address }}</p>
+                      <button
+                        type="button"
+                        class="btn btn-copy"
+                        (click)="copyAddress(); $event.stopPropagation()"
+                        title="Copy address"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                      </button>
+                    </div>
+                    <ng-template #noAddress>
+                      <p class="no-location-text">No address set</p>
+                    </ng-template>
+                  </div>
+                </div>
+                
+                <!-- Map View Section -->
+                <div class="location-section">
+                  <div class="location-section-header" (click)="toggleMap()" [class.has-location]="customerSummary?.latitude && customerSummary?.longitude">
+                    <span class="section-label">MAP VIEW</span>
+                    <button
+                      type="button"
+                      class="btn-toggle"
+                      [class.expanded]="mapExpanded"
+                      title="{{ mapExpanded ? 'Collapse map' : 'Expand map' }}"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </button>
+                  </div>
+                  <div class="map-preview-container" [class.expanded]="mapExpanded" *ngIf="mapExpanded">
+                    <div *ngIf="customerSummary?.latitude && customerSummary?.longitude; else noMap">
+                      <div #locationMapPreview class="location-map-preview"></div>
+                    </div>
+                    <ng-template #noMap>
+                      <div class="no-location-map">
+                        <p class="no-location-text">No map location set</p>
+                      </div>
+                    </ng-template>
+                  </div>
+                </div>
+                
+                <div class="location-actions">
+                  <button
+                    type="button"
+                    class="btn btn-edit-location"
+                    (click)="editLocation()"
+                    [disabled]="!ready"
+                  >
+                    {{ (customerSummary?.address || (customerSummary?.latitude && customerSummary?.longitude)) ? 'Edit Location' : 'Add Location' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-delete-location"
+                    (click)="deleteLocation()"
+                    [disabled]="!ready || (!customerSummary?.address && !customerSummary?.latitude && !customerSummary?.longitude)"
+                    title="Delete location"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+        <!-- Customer Notes Section -->
+        <div class="info-card notes-card">
+          <div class="notes-content">
+            <div class="notes-header" (click)="toggleNotes()">
+              <span class="section-label">NOTES</span>
+              <div class="notes-count-badge" *ngIf="customerNotes.length > 0">{{ customerNotes.length }}</div>
+              <button
+                type="button"
+                class="btn-toggle"
+                [class.expanded]="notesExpanded"
+                title="{{ notesExpanded ? 'Collapse' : 'Expand' }}"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+            </div>
+            <div class="notes-list-container" [class.expanded]="notesExpanded" *ngIf="notesExpanded">
+              <div class="notes-loading" *ngIf="isLoadingNotes">
+                <div class="spinner-small"></div>
+                <span>Loading notes...</span>
+              </div>
+              <div class="notes-list" *ngIf="!isLoadingNotes">
+                <div class="note-item" *ngFor="let note of customerNotes">
+                  <div class="note-content" *ngIf="editingNoteId !== note.id">
+                    <p class="note-text">{{ note.note }}</p>
+                    <div class="note-meta">
+                      <span class="note-author">By {{ note.createdBy }}</span>
+                      <span class="note-date">{{ formatDate(note.createdAt) }}</span>
+                      <span class="note-updated" *ngIf="note.updatedAt !== note.createdAt">
+                        (Updated {{ formatDate(note.updatedAt) }})
+                      </span>
+                    </div>
+                  </div>
+                  <div class="note-edit-form" *ngIf="editingNoteId === note.id">
+                    <textarea
+                      [(ngModel)]="editingNoteContent"
+                      class="note-edit-textarea"
+                      rows="3"
+                      placeholder="Edit note..."
+                    ></textarea>
+                    <div class="note-edit-actions">
+                      <button type="button" class="btn btn-save-note" (click)="saveNote()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Save
+                      </button>
+                      <button type="button" class="btn btn-cancel-note" (click)="cancelEditingNote()">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                  <div class="note-actions" *ngIf="editingNoteId !== note.id">
+                    <button
+                      type="button"
+                      class="btn btn-edit-note"
+                      (click)="startEditingNote(note)"
+                      title="Edit note"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-delete-note"
+                      (click)="deleteNote(note.id)"
+                      title="Delete note"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="no-notes" *ngIf="customerNotes.length === 0">
+                  <p class="no-notes-text">No notes yet. Add your first note below.</p>
+                </div>
+              </div>
+              <div class="add-note-section">
+                <textarea
+                  [(ngModel)]="newNoteContent"
+                  class="new-note-textarea"
+                  rows="3"
+                  placeholder="Add a new note..."
+                ></textarea>
+                <button
+                  type="button"
+                  class="btn btn-add-note"
+                  (click)="addNote()"
+                  [disabled]="!newNoteContent.trim()"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  Add Note
+                </button>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+
+        <!-- Location Input Modal -->
+        <div class="location-edit-modal" *ngIf="editingLocation">
+          <div class="location-edit-content">
+            <div class="location-edit-header">
+              <h3>{{ (customerSummary?.address || (customerSummary?.latitude && customerSummary?.longitude)) ? 'Edit Location' : 'Add Location' }}</h3>
+              <button type="button" class="btn-close" (click)="cancelLocationEdit()" aria-label="Close">
+                ×
+              </button>
+            </div>
+            <div class="location-edit-body">
+              <app-location-input
+                [initialAddress]="locationAddress"
+                [initialLatitude]="locationLatitude"
+                [initialLongitude]="locationLongitude"
+                (locationSelected)="saveLocation($event)"
+                (cancelled)="cancelLocationEdit()"
+              ></app-location-input>
+            </div>
+          </div>
+        </div>
+
+        <div class="ledger-actions" *ngIf="customerSummary?.found">
+          <div class="filter-buttons">
+            <button
+              type="button"
+              class="btn btn-all"
+              [class.active]="ledgerFilter === 'all'"
+              (click)="setLedgerFilter('all')"
+            >
+              All
+            </button>
+            <button
+              type="button"
+              class="btn btn-paid"
+              [class.active]="ledgerFilter === 'paid'"
+              (click)="setLedgerFilter('paid')"
+            >
+              Paid
+            </button>
+            <button
+              type="button"
+              class="btn btn-unpaid"
+              [class.active]="ledgerFilter === 'unpaid'"
+              (click)="setLedgerFilter('unpaid')"
+            >
+              Unpaid
+            </button>
+          </div>
+          <div class="download-buttons" *ngIf="canDownloadWholeProject">
+            <button
+              type="button"
+              class="btn btn-download btn-download-excel"
+              (click)="downloadExcel()"
+              [disabled]="!filteredLedger().length"
+              title="Download as Excel"
+            >
+              <svg class="download-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Excel</span>
+            </button>
+            <button
+              type="button"
+              class="btn btn-download btn-download-pdf"
+              (click)="downloadPDF()"
+              [disabled]="!filteredLedger().length"
+              title="Download as PDF"
+            >
+              <svg class="download-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>PDF</span>
+            </button>
+          </div>
+        </div>
+
+        <table class="ledger-table" *ngIf="filteredLedger().length">
+          <thead>
+            <tr>
+              <th>
+                <div>Invoice Date</div>
+                <div 
+                  class="header-summary-value"
+                  *ngIf="customerSummary?.found"
+                >
+                  {{ getCustomerSince() }}
+                </div>
+              </th>
+              <th>
+                <div>Voucher No.</div>
+                <div 
+                  class="header-summary-value"
+                  *ngIf="customerSummary?.found"
+                >
+                  {{ getTotalInvoiceCount() }} invoices
+                </div>
+              </th>
+              <th>
+                <div>Ageing Days</div>
+                <div 
+                  class="header-summary-value"
+                  *ngIf="customerSummary?.found"
+                  [class.green]="getAverageAgeingColorClass() === 'green'"
+                  [class.yellow]="getAverageAgeingColorClass() === 'yellow'"
+                  [class.red]="getAverageAgeingColorClass() === 'red'"
+                >
+                  {{ getAverageAgeing() != null ? (getAverageAgeing() + ' days') : '-' }}
+                </div>
+              </th>
+              <th *ngIf="ledgerFilter === 'paid'">
+                <div>Received Amount</div>
+                <div 
+                  class="header-summary-value"
+                  *ngIf="customerSummary?.found"
+                >
+                  ₹{{ getTotalReceivedAmount() | number:'1.2-2' }}
+                </div>
+              </th>
+              <th *ngIf="ledgerFilter === 'unpaid'">
+                <div>Current Due</div>
+                <div 
+                  class="header-summary-value"
+                  *ngIf="customerSummary?.found"
+                >
+                  ₹{{ getTotalCurrentDue() | number:'1.2-2' }}
+                </div>
+              </th>
+              <th *ngIf="ledgerFilter === 'all'">
+                <div>Received Amount</div>
+                <div 
+                  class="header-summary-value"
+                  *ngIf="customerSummary?.found"
+                >
+                  ₹{{ getTotalReceivedAmount() | number:'1.2-2' }}
+                </div>
+              </th>
+              <th *ngIf="ledgerFilter === 'all'">
+                <div>Current Due</div>
+                <div 
+                  class="header-summary-value"
+                  *ngIf="customerSummary?.found"
+                >
+                  ₹{{ getTotalCurrentDue() | number:'1.2-2' }}
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of filteredLedger()">
+              <td>{{ row.invoiceDate || '-' }}</td>
+              <td>{{ row.voucherNo || '-' }}</td>
+              <td *ngIf="!isPaid(row.currentDue)" [class.ageing-days]="row.ageingDays != null" [class.green]="getAgeingDaysColorClass(row.ageingDays) === 'green'" [class.yellow]="getAgeingDaysColorClass(row.ageingDays) === 'yellow'" [class.red]="getAgeingDaysColorClass(row.ageingDays) === 'red'">
+                {{ row.ageingDays ?? '-' }}
+              </td>
+              <td *ngIf="isPaid(row.currentDue)">-</td>
+              <td *ngIf="ledgerFilter === 'paid'" class="received-amount" [class.green]="toAmount(row.receivedAmount) > 0">₹{{ toAmount(row.receivedAmount) | number:'1.2-2' }}</td>
+              <td *ngIf="ledgerFilter === 'unpaid'" class="current-due" [class.red]="toAmount(row.currentDue) > 0">₹{{ toAmount(row.currentDue) | number:'1.2-2' }}</td>
+              <td *ngIf="ledgerFilter === 'all'" class="received-amount" [class.green]="toAmount(row.receivedAmount) > 0">₹{{ toAmount(row.receivedAmount) | number:'1.2-2' }}</td>
+              <td *ngIf="ledgerFilter === 'all'" class="current-due" [class.red]="toAmount(row.currentDue) > 0">₹{{ toAmount(row.currentDue) | number:'1.2-2' }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="status-text failed" *ngIf="customerLedger.length && !filteredLedger().length">
+          No {{ ledgerFilter }} records found.
+        </p>
+    </div>
+  </div>
+</section>
+

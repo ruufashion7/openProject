@@ -1,0 +1,49 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">System Dashboard</h1>
+      <p class="page-subtitle">Live snapshot from the backend API</p>
+    </div>
+  </div>
+    <div class="health" *ngIf="health$ | async as health">
+    <span class="badge" [class.success]="health.status === 'ok'">
+        {{ health.status | uppercase }}
+      </span>
+      <span class="timestamp">{{ health.timestamp | date:'medium' }}</span>
+    </div>
+
+  <ng-container *ngIf="summary$ | async as summary; else loading">
+    <div class="cards">
+      <div class="card">
+        <span class="label">Total Users</span>
+        <span class="value">{{ summary.totalUsers }}</span>
+      </div>
+      <div class="card">
+        <span class="label">Active Sessions</span>
+        <span class="value">{{ summary.activeSessions }}</span>
+      </div>
+      <div class="card">
+        <span class="label">System Load</span>
+        <span class="value">{{ summary.systemLoad | number:'1.0-2' }}</span>
+      </div>
+      <div class="card">
+        <span class="label">Generated</span>
+        <span class="value">{{ summary.generatedAt | date:'medium' }}</span>
+      </div>
+    </div>
+
+    <section class="highlights">
+      <h2>Highlights</h2>
+      <ul>
+        <li *ngFor="let highlight of summary.highlights">
+          {{ highlight }}
+        </li>
+      </ul>
+    </section>
+  </ng-container>
+
+  <ng-template #loading>
+    <div class="loading">Loading dashboard data...</div>
+  </ng-template>
+</section>
+

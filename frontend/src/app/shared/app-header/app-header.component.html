@@ -1,0 +1,20 @@
+<header class="app-header">
+  <div>
+    <h1 class="page-title">{{ title }}</h1>
+    <p class="page-subtitle" *ngIf="subtitle">{{ subtitle }}</p>
+  </div>
+  <div class="header-actions">
+    <nav class="header-nav">
+      <a routerLink="/welcome" routerLinkActive="active" class="btn btn-ghost">Welcome</a>
+      <a routerLink="/upload" routerLinkActive="active" class="btn btn-ghost">Upload Files</a>
+      <a routerLink="/sales-details" routerLinkActive="active" class="btn btn-ghost">Invoice Details</a>
+      <a routerLink="/outstanding" routerLinkActive="active" class="btn btn-ghost">Details</a>
+      <a routerLink="/payment-dates" routerLinkActive="active" class="btn btn-ghost">Outstanding</a>
+    </nav>
+    <div class="session-logout-wrapper">
+      <app-session-banner />
+      <button type="button" class="btn btn-ghost" (click)="logout()">Logout</button>
+    </div>
+  </div>
+</header>
+

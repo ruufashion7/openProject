@@ -1,0 +1,47 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Upload Audit Trail</h1>
+      <p class="page-subtitle">History of all uploads across both files.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="inline-actions">
+      <a routerLink="/uploads" class="btn btn-ghost">Back to Latest</a>
+      <a routerLink="/uploads-purge" class="btn btn-ghost">Hard Delete</a>
+    </div>
+    <p class="status-text failed" *ngIf="status === 'failed'">{{ message }}</p>
+    <p class="page-subtitle" *ngIf="status === 'loading'">Loading...</p>
+
+    <table *ngIf="entries.length">
+      <thead>
+        <tr>
+          <th>Action</th>
+          <th>Type</th>
+          <th>File</th>
+          <th>Uploaded At</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let entry of entries">
+          <td>
+            <span class="badge" [class.warning]="entry.action === 'DELETED'">
+              {{ entry.action }}
+            </span>
+          </td>
+          <td>
+            <span class="badge" [class.success]="entry.type === 'detailed'">
+              {{ entry.type }}
+            </span>
+          </td>
+          <td>{{ entry.originalFilename }}</td>
+          <td>{{ entry.uploadedAt | date: 'medium' }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p *ngIf="!entries.length && status === 'idle'">No audit entries yet.</p>
+  </div>
+</section>
+

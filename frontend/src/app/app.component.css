@@ -1,0 +1,40 @@
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-container:hover ::ng-deep app-top-header .top-header {
+  left: 280px;
+}
+
+.app-content {
+  flex: 1;
+  min-height: 100vh;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding-top 0.3s ease;
+  width: 100%;
+}
+
+.app-content.with-sidebar {
+  margin-left: 280px;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-content.with-header {
+  padding-top: 64px;
+}
+
+@media (max-width: 768px) {
+  .app-content.with-sidebar {
+    margin-left: 0;
+  }
+  
+  .app-content.with-header {
+    padding-top: 60px;
+  }
+  
+  .app-container:hover ::ng-deep app-top-header .top-header {
+    left: 0;
+  }
+}

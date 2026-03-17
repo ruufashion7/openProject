@@ -1,0 +1,107 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Session Management</h1>
+      <p class="page-subtitle">Manage active user sessions</p>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-secondary" (click)="extendAllSessions(30)" [disabled]="sessions.length === 0 || status === 'loading'">
+        <span>⏱️</span>
+        <span>Extend All (+30 min)</span>
+      </button>
+      <button class="btn btn-secondary" (click)="extendAllSessions(60)" [disabled]="sessions.length === 0 || status === 'loading'">
+        <span>⏱️</span>
+        <span>Extend All (+1 hour)</span>
+      </button>
+      <button class="btn btn-primary" (click)="loadSessions()" [disabled]="status === 'loading'">
+        <span>🔄</span>
+        <span>Refresh</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Status Message -->
+  <div class="message" *ngIf="message" [class.error]="status === 'failed'">
+    {{ message }}
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading" *ngIf="status === 'loading'">
+    <p>Loading sessions...</p>
+  </div>
+
+  <!-- Sessions Table -->
+  <div class="card" *ngIf="status === 'idle' && sessions.length > 0">
+    <div class="table-container">
+      <table class="sessions-table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Role</th>
+            <th>Expires At</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let session of sessions" [class.expired]="session.isExpired" [class.expiring-soon]="!session.isExpired && isExpiringSoon(session.expiresAt)">
+            <td>
+              <div class="user-info">
+                <span class="user-name">{{ session.displayName }}</span>
+                <span class="user-id" *ngIf="session.userId">ID: {{ session.userId.substring(0, 8) }}...</span>
+              </div>
+            </td>
+            <td>
+              <span class="badge" [class.badge-admin]="session.isAdmin" [class.badge-user]="!session.isAdmin">
+                {{ session.isAdmin ? 'Admin' : 'User' }}
+              </span>
+            </td>
+            <td>
+              <div *ngIf="editingToken !== session.token">
+                {{ formatDate(session.expiresAt) }}
+              </div>
+              <div *ngIf="editingToken === session.token" class="edit-form">
+                <input type="date" [(ngModel)]="newExpiryDate" class="date-input">
+                <input type="time" [(ngModel)]="newExpiryTime" class="time-input">
+              </div>
+            </td>
+            <td>
+              <span class="badge" [class.badge-active]="!session.isExpired" [class.badge-expired]="session.isExpired">
+                {{ session.isExpired ? 'Expired' : 'Active' }}
+              </span>
+            </td>
+            <td>
+              <div class="action-buttons" *ngIf="editingToken !== session.token">
+                <button class="btn btn-sm btn-secondary" (click)="startEdit(session)" [disabled]="session.isExpired">
+                  ✏️ Edit
+                </button>
+                <button class="btn btn-sm btn-danger" (click)="deleteSession(session.token)">
+                  🗑️ Delete
+                </button>
+              </div>
+              <div class="action-buttons" *ngIf="editingToken === session.token">
+                <button class="btn btn-sm btn-primary" (click)="saveSession(session.token)">
+                  💾 Save
+                </button>
+                <button class="btn btn-sm btn-secondary" (click)="cancelEdit()">
+                  ❌ Cancel
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div class="card empty-state" *ngIf="status === 'idle' && sessions.length === 0">
+    <p>No active sessions found.</p>
+  </div>
+
+  <!-- Navigation -->
+  <div class="navigation">
+    <a routerLink="/access-control" class="btn btn-ghost">← Back to Access Control</a>
+  </div>
+</section>
+

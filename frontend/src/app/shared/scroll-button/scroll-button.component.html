@@ -1,0 +1,10 @@
+<button
+  *ngIf="showButton"
+  class="scroll-button"
+  [class.at-bottom]="isAtBottom"
+  (click)="handleClick()"
+  [title]="buttonTitle"
+  [attr.aria-label]="buttonTitle">
+  <span class="scroll-icon">{{ buttonIcon }}</span>
+</button>
+

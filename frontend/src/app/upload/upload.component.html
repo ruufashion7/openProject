@@ -1,0 +1,44 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Upload Files</h1>
+      <p class="page-subtitle">Upload two Excel Files in one action.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="inline-actions">
+      <a routerLink="/uploads" class="btn btn-ghost">View Latest</a>
+      <a routerLink="/uploads-audit" class="btn btn-ghost">Audit Trail</a>
+      <a routerLink="/uploads-purge" class="btn btn-ghost">Hard Delete</a>
+    </div>
+    <div class="inputs">
+      <label>
+        DetailedSalesInvoices
+        <input type="file" (change)="onFileChange($event, 'file1')" />
+        <span class="filename">{{ file1?.name || 'No file selected' }}</span>
+      </label>
+      <label>
+        ReceivableAgeingReport
+        <input type="file" (change)="onFileChange($event, 'file2')" />
+        <span class="filename">{{ file2?.name || 'No file selected' }}</span>
+      </label>
+    </div>
+
+    <button class="btn btn-primary" type="button" (click)="submit()" [disabled]="status === 'loading' || !canUpload">
+      {{ status === 'loading' ? 'Uploading...' : 'Upload Files' }}
+    </button>
+
+    <div class="status-block" *ngIf="status !== 'idle'">
+      <p class="status-text" [class.success]="status === 'success'" [class.failed]="status === 'failed'">
+        {{ message }}
+      </p>
+      <ul *ngIf="uploadedFiles.length">
+        <li *ngFor="let file of uploadedFiles">
+          {{ file.filename }} (id: {{ file.id }})
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+

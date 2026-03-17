@@ -1,0 +1,36 @@
+.inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+input[type="file"] {
+  padding: 10px;
+  border: 1px dashed #cbd5f5;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.filename {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.status-block {
+  margin-top: 18px;
+}
+
+.status-block ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #374151;
+}
+

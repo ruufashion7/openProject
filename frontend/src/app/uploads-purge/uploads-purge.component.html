@@ -1,0 +1,32 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Hard Delete Uploads</h1>
+      <p class="page-subtitle">Deletes all current data for both files. Audit trail remains.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="inline-actions">
+      <a routerLink="/uploads" class="btn btn-ghost">Back to Latest</a>
+      <a routerLink="/uploads-audit" class="btn btn-ghost">Audit Trail</a>
+    </div>
+    <label class="confirm">
+      <input type="checkbox" [(ngModel)]="confirm" />
+      I understand this deletes current data for both files.
+    </label>
+
+    <button type="button" class="btn btn-danger" (click)="purge()" [disabled]="status === 'loading' || !canDelete">
+      {{ status === 'loading' ? 'Deleting...' : 'Delete Both Files Data' }}
+    </button>
+
+    <p class="status-text success" *ngIf="status === 'success'">{{ message }}</p>
+    <p class="status-text failed" *ngIf="status === 'failed'">{{ message }}</p>
+
+    <div *ngIf="result" class="result">
+      <p>Detailed deleted: {{ result.detailedDeleted }}</p>
+      <p>Receivable deleted: {{ result.receivableDeleted }}</p>
+    </div>
+  </div>
+</section>
+

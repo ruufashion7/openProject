@@ -1,0 +1,57 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Latest Uploads</h1>
+      <p class="page-subtitle">Only the most recent files are available for download.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="inline-actions">
+      <a routerLink="/upload" class="btn btn-ghost">Back to Upload</a>
+      <a routerLink="/uploads-audit" class="btn btn-ghost">Audit Trail</a>
+      <a routerLink="/uploads-purge" class="btn btn-ghost">Hard Delete</a>
+    </div>
+    <p class="status-text failed" *ngIf="status === 'failed'">{{ message }}</p>
+    <p class="page-subtitle" *ngIf="status === 'loading'">Loading...</p>
+
+    <div class="latest-grid" *ngIf="status !== 'loading'">
+      <div class="card card-muted">
+        <div class="latest-header">
+          <span class="badge">Detailed</span>
+          <button class="btn btn-primary" type="button" (click)="downloadLatest('detailed')"
+                  [disabled]="!getEntry('detailed')">
+            Download Latest
+          </button>
+        </div>
+        <div *ngIf="getEntry('detailed') as entry; else noDetailed">
+          <p class="latest-file">{{ entry.originalFilename }}</p>
+          <p class="page-subtitle">Uploaded {{ entry.uploadedAt | date:'medium' }}</p>
+          <p class="mono">{{ entry.id }}</p>
+        </div>
+        <ng-template #noDetailed>
+          <p class="page-subtitle">No detailed upload yet.</p>
+        </ng-template>
+      </div>
+
+      <div class="card card-muted">
+        <div class="latest-header">
+          <span class="badge">Receivable</span>
+          <button class="btn btn-primary" type="button" (click)="downloadLatest('receivable')"
+                  [disabled]="!getEntry('receivable')">
+            Download Latest
+          </button>
+        </div>
+        <div *ngIf="getEntry('receivable') as entry; else noReceivable">
+          <p class="latest-file">{{ entry.originalFilename }}</p>
+          <p class="page-subtitle">Uploaded {{ entry.uploadedAt | date:'medium' }}</p>
+          <p class="mono">{{ entry.id }}</p>
+        </div>
+        <ng-template #noReceivable>
+          <p class="page-subtitle">No receivable upload yet.</p>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+</section>
+

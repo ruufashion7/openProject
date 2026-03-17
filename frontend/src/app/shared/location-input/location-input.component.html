@@ -1,0 +1,145 @@
+<div class="location-input">
+  <div class="address-input-section">
+    <label class="address-label">
+      <span class="label-text">Address</span>
+      <div class="address-input-wrapper">
+        <div class="address-input-container">
+          <input
+            type="text"
+            [(ngModel)]="address"
+            (input)="onAddressInput()"
+            (blur)="onAddressBlur()"
+            (keydown.enter)="geocodeAddress()"
+            (focus)="searchAddressSuggestions()"
+            placeholder="Enter address or click 'Use Map' to pick location"
+            class="address-input"
+            [disabled]="isGeocoding"
+          />
+          <!-- Address Suggestions Dropdown -->
+          <div class="address-suggestions" *ngIf="showAddressSuggestions && addressSuggestions.length > 0">
+            <div
+              class="address-suggestion-item"
+              *ngFor="let suggestion of addressSuggestions"
+              (click)="selectAddressSuggestion(suggestion)"
+            >
+              {{ suggestion.display_name }}
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          class="btn btn-map"
+          (click)="openMapPicker()"
+          title="Pick location on map"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+          Use Map
+        </button>
+      </div>
+      <div class="geocoding-status" *ngIf="isGeocoding">
+        <div class="spinner"></div>
+        <span>Finding location...</span>
+      </div>
+      <!-- Save Button -->
+      <div class="address-actions" *ngIf="hasLocationData()">
+        <button
+          type="button"
+          class="btn btn-save-location"
+          (click)="saveLocation()"
+          [disabled]="isGeocoding"
+        >
+          Save Location
+        </button>
+      </div>
+    </label>
+  </div>
+
+  <!-- Map Picker Modal -->
+  <div class="map-picker-modal" *ngIf="showMapPicker" (click)="closeMapPicker()">
+    <div class="map-picker-content" (click)="$event.stopPropagation()">
+      <div class="map-picker-header">
+        <h3>Pick Location on Map</h3>
+        <button type="button" class="btn-close" (click)="closeMapPicker()" aria-label="Close">
+          ×
+        </button>
+      </div>
+      
+      <div class="map-picker-body">
+        <div class="map-search-bar">
+          <input
+            id="map-search-input"
+            type="text"
+            [(ngModel)]="searchQuery"
+            (input)="onSearchInput()"
+            (keydown)="onSearchKeydown($event)"
+            placeholder="Search for address..."
+            class="map-search-input"
+          />
+          <button
+            type="button"
+            class="btn btn-search"
+            (click)="searchAddress()"
+            title="Search"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="btn btn-location"
+            (click)="useCurrentLocation()"
+            title="Use current location"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v4"></path>
+              <path d="M12 18v4"></path>
+              <path d="M4.93 4.93l2.83 2.83"></path>
+              <path d="M16.24 16.24l2.83 2.83"></path>
+              <path d="M2 12h4"></path>
+              <path d="M18 12h4"></path>
+              <path d="M4.93 19.07l2.83-2.83"></path>
+              <path d="M16.24 7.76l2.83-2.83"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Search Results Dropdown -->
+        <div class="search-results" *ngIf="searchResults.length > 0">
+          <div
+            class="search-result-item"
+            *ngFor="let result of searchResults"
+            (click)="selectSearchResult(result)"
+          >
+            {{ result.display_name }}
+          </div>
+        </div>
+
+        <div #mapContainer class="map-container"></div>
+
+        <div class="map-picker-footer">
+          <div class="location-preview" *ngIf="address">
+            <strong>Selected:</strong> {{ address }}
+          </div>
+          <div class="map-picker-actions">
+            <button type="button" class="btn btn-cancel" (click)="cancel()">
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-save"
+              (click)="saveLocation()"
+              [disabled]="!address || latitude === null || longitude === null"
+            >
+              Save Location
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,37 @@
+<header class="top-header">
+  <div class="header-content">
+    <div class="header-left">
+      <button class="mobile-menu-btn" (click)="toggleMobileMenu()" aria-label="Toggle menu">
+        <span class="hamburger-icon">☰</span>
+      </button>
+      <div class="brand-section">
+        <div class="brand-icon">📦</div>
+        <span class="brand-text">RUU FASHION</span>
+      </div>
+    </div>
+    
+    <div class="header-right" *ngIf="displayName">
+      <div class="session-wrapper">
+        <app-session-banner />
+      </div>
+      
+      <div class="user-section">
+        <div class="user-avatar" [title]="displayName">
+          <span>{{ displayName.charAt(0).toUpperCase() }}</span>
+        </div>
+        <div class="user-info">
+          <div class="user-name" [title]="displayName">{{ displayName }}</div>
+        </div>
+      </div>
+      
+      <button 
+        class="logout-btn" 
+        (click)="logout()"
+        title="Logout">
+        <span class="logout-icon">🚪</span>
+        <span class="logout-text">Logout</span>
+      </button>
+    </div>
+  </div>
+</header>
+
