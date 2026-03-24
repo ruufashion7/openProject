@@ -54,4 +54,3 @@ The app can be deployed for free so the world can use it:
 4. **Frontend on Vercel**: At [vercel.com](https://vercel.com), import your repo. Set **Root Directory** to `frontend`, **Build Command** to `npm run build`, **Output Directory** to `dist/frontend/browser`. In `frontend/vercel.json`, set the rewrite `destination` to your Render backend URL (e.g. `https://openproject-backend.onrender.com`). Deploy.
 
 5. **CORS**: Ensure Render has `CORS_ALLOWED_ORIGINS` set to your Vercel URL (e.g. `https://your-project.vercel.app`).
-
