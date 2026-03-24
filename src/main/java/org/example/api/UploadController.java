@@ -12,6 +12,13 @@ import org.example.upload.ReceivableAgeingReportUploadRepository;
 import org.example.upload.UploadAuditEntry;
 import org.example.upload.UploadAuditEntryRepository;
 import org.example.upload.UploadResponse;
+import org.example.upload.UploadAsyncStateResponse;
+import org.example.upload.UploadCancelResponse;
+import org.example.upload.UploadConflictResponse;
+import org.example.upload.UploadJobAcceptedResponse;
+import org.example.upload.UploadJobPollResult;
+import org.example.upload.UploadJobService;
+import org.example.upload.UploadJobStatusResponse;
 import org.example.upload.UploadStorageService;
 import org.example.upload.UploadedExcelFileDownloadResponse;
 import org.example.upload.UploadedExcelFileEntryResponse;
@@ -31,9 +38,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.dao.DataAccessException;
-
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -45,6 +52,7 @@ public class UploadController {
     private static final Logger logger = LoggerFactory.getLogger(UploadController.class);
     private final AuthSessionService authSessionService;
     private final UploadStorageService uploadStorageService;
+    private final UploadJobService uploadJobService;
     private final DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository;
     private final ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository;
     private final UploadAuditEntryRepository uploadAuditEntryRepository;
@@ -61,6 +69,7 @@ public class UploadController {
 
     public UploadController(AuthSessionService authSessionService,
                             UploadStorageService uploadStorageService,
+                            UploadJobService uploadJobService,
                             DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository,
                             ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository,
                             UploadAuditEntryRepository uploadAuditEntryRepository,
@@ -68,6 +77,7 @@ public class UploadController {
                             SecurityAuditService securityAuditService) {
         this.authSessionService = authSessionService;
         this.uploadStorageService = uploadStorageService;
+        this.uploadJobService = uploadJobService;
         this.detailedSalesInvoicesUploadRepository = detailedSalesInvoicesUploadRepository;
         this.receivableAgeingReportUploadRepository = receivableAgeingReportUploadRepository;
         this.uploadAuditEntryRepository = uploadAuditEntryRepository;
@@ -76,7 +86,7 @@ public class UploadController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<UploadResponse> upload(
+    public ResponseEntity<?> upload(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam("file1") MultipartFile file1,
             @RequestParam("file2") MultipartFile file2
@@ -110,49 +120,136 @@ public class UploadController {
                     .body(new UploadResponse("failed", "File 2: " + validationError, List.of()));
         }
 
+        logger.info("Upload request received. file1={}, file2={}", file1.getOriginalFilename(), file2.getOriginalFilename());
+
+        Path temp1 = null;
+        Path temp2 = null;
         try {
-            logger.info("Upload request received. file1={}, file2={}", file1.getOriginalFilename(), file2.getOriginalFilename());
-            
-            List<org.example.upload.UploadFileInfo> storedFiles = uploadStorageService.storeFiles(file1, file2);
-            
-            // Log successful upload
-            securityAuditService.logFileUpload(session.userId(), file1.getOriginalFilename(), file1.getSize(), true);
-            securityAuditService.logFileUpload(session.userId(), file2.getOriginalFilename(), file2.getSize(), true);
-            
-            return ResponseEntity.ok(new UploadResponse(
-                    "success",
-                    "Files uploaded successfully.",
-                    storedFiles
-            ));
-        } catch (IllegalArgumentException ex) {
-            logger.warn("Upload rejected. {}", ex.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(new UploadResponse("failed", ex.getMessage(), List.of()));
-        } catch (org.bson.BsonMaximumSizeExceededException ex) {
-            logger.error("Upload failed: File data exceeds MongoDB document size limit (16MB).", ex);
-            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                    .body(new UploadResponse("failed", "File is too large. The Excel file contains too much data (exceeds MongoDB's 16MB document limit). Please reduce the number of rows or split the data into smaller files.", List.of()));
-        } catch (DataAccessException ex) {
-            logger.error("Upload failed due to database error.", ex);
-            String errorMessage = "Upload failed due to database error.";
-            Throwable cause = ex.getCause();
-            if (cause != null) {
-                String causeMessage = cause.getMessage();
-                if (cause instanceof org.bson.BsonMaximumSizeExceededException || 
-                    (causeMessage != null && (causeMessage.contains("16777216") || causeMessage.contains("BsonMaximumSizeExceededException")))) {
-                    errorMessage = "File is too large. The Excel file contains too much data (exceeds MongoDB's 16MB document limit). Please reduce the number of rows or split the data into smaller files.";
-                }
-            }
-            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                    .body(new UploadResponse("failed", errorMessage, List.of()));
+            temp1 = Files.createTempFile("upload-detailed-", ".xlsx");
+            temp2 = Files.createTempFile("upload-receivable-", ".xlsx");
+            file1.transferTo(temp1);
+            file2.transferTo(temp2);
         } catch (IOException ex) {
-            logger.error("Upload failed while processing files.", ex);
+            logger.error("Failed to store multipart files to temp.", ex);
+            deleteTempQuietly(temp1);
+            deleteTempQuietly(temp2);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new UploadResponse("failed", "Upload failed. Please check the file format and try again.", List.of()));
-        } catch (Exception ex) {
-            logger.error("Upload failed with unexpected error.", ex);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new UploadResponse("failed", "Upload failed. Please try again or contact support if the problem persists.", List.of()));
+                    .body(new UploadResponse("failed", "Could not read upload. Please try again.", List.of()));
+        }
+
+        UploadJobService.StartJobOutcome outcome = uploadJobService.startJob(
+                session.userId(),
+                session.displayName(),
+                temp1,
+                temp2,
+                file1.getOriginalFilename(),
+                file2.getOriginalFilename(),
+                file1.getSize(),
+                file2.getSize()
+        );
+
+        if (outcome.jobId().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new UploadConflictResponse(
+                            "failed",
+                            "An upload is already in progress. Wait until it finishes, cancel it from the upload page, or poll GET /api/upload/state.",
+                            outcome.blockedByJobId().orElse(null)
+                    ));
+        }
+
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(new UploadJobAcceptedResponse(
+                        outcome.jobId().get(),
+                        "Upload queued. Poll GET /api/upload/jobs/{jobId} or GET /api/upload/state for progress."
+                ));
+    }
+
+    @GetMapping("/upload/state")
+    public ResponseEntity<UploadAsyncStateResponse> uploadAsyncState(
+            @RequestHeader(value = "Authorization", required = false) String authHeader
+    ) {
+        SessionInfo session = authSessionService.validate(extractToken(authHeader));
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessFileUpload(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(uploadJobService.getAsyncState());
+    }
+
+    @PostMapping("/upload/jobs/{jobId}/cancel")
+    public ResponseEntity<?> cancelUploadJob(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable String jobId
+    ) {
+        SessionInfo session = authSessionService.validate(extractToken(authHeader));
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessFileUpload(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        if (jobId == null || jobId.isBlank() || jobId.length() > 128) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        UploadJobService.CancelRequestResult result = uploadJobService.requestCancel(jobId, session.userId());
+        if (result instanceof UploadJobService.CancelRequestResult.Accepted) {
+            return ResponseEntity.ok(new UploadCancelResponse(
+                    "accepted",
+                    "Stop requested. If the upload is still reading Excel, it will stop before changing database data."
+            ));
+        }
+        if (result instanceof UploadJobService.CancelRequestResult.NotFound) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        if (result instanceof UploadJobService.CancelRequestResult.NotActive) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new UploadCancelResponse("failed", "That upload is not running anymore (already finished, failed, or cancelled)."));
+        }
+        if (result instanceof UploadJobService.CancelRequestResult.CannotCancelWhileSaving) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new UploadCancelResponse(
+                            "failed",
+                            "Cannot cancel while saving to the database. Wait a few seconds for this step to finish."
+                    ));
+        }
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+
+    @GetMapping("/upload/jobs/{jobId}")
+    public ResponseEntity<UploadJobStatusResponse> uploadJobStatus(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable String jobId
+    ) {
+        SessionInfo session = authSessionService.validate(extractToken(authHeader));
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessFileUpload(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        if (jobId == null || jobId.isBlank() || jobId.length() > 128) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        UploadJobPollResult poll = uploadJobService.pollJob(jobId);
+        return switch (poll.type()) {
+            case NOT_FOUND -> ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            case OK -> ResponseEntity.ok(poll.body());
+        };
+    }
+
+    private static void deleteTempQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ex) {
+            LoggerFactory.getLogger(UploadController.class).warn("Could not delete temp file {}", path, ex);
         }
     }
 

@@ -17,6 +17,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,6 +30,9 @@ import java.util.Map;
 @Service
 public class UploadStorageService {
     private static final Logger logger = LoggerFactory.getLogger(UploadStorageService.class);
+
+    /** Cooperative cancel checks during row iteration (large sheets). */
+    private static final int ROWS_PER_CANCEL_CHECK = 512;
 
     /** Oldest audit rows are removed so the collection stays small (storage cost). */
     public static final int MAX_UPLOAD_AUDIT_ENTRIES = 100;
@@ -53,10 +58,58 @@ public class UploadStorageService {
     public List<UploadFileInfo> storeFiles(MultipartFile file1, MultipartFile file2) throws IOException {
         validateExcelFile(file1);
         validateExcelFile(file2);
+        return storeFiles(
+                file1.getInputStream(), file1.getOriginalFilename(),
+                file2.getInputStream(), file2.getOriginalFilename(),
+                UploadCancelChecker.NONE,
+                null
+        );
+    }
 
+    /**
+     * Same as {@link #storeFiles(MultipartFile, MultipartFile)} but reads from temp paths (e.g. async upload after multipart is saved to disk).
+     */
+    public List<UploadFileInfo> storeFiles(Path tempFile1, Path tempFile2, String originalFilename1, String originalFilename2)
+            throws IOException {
+        return storeFiles(tempFile1, tempFile2, originalFilename1, originalFilename2, UploadCancelChecker.NONE, null);
+    }
+
+    /**
+     * Async path: {@code checker} runs during parse; {@code onSavingPhaseStarted} runs after successful parse, after a final cancel check,
+     * and immediately before DB deletes (cancellation is not honored once this runs).
+     */
+    public List<UploadFileInfo> storeFiles(
+            Path tempFile1,
+            Path tempFile2,
+            String originalFilename1,
+            String originalFilename2,
+            UploadCancelChecker cancelChecker,
+            Runnable onSavingPhaseStarted
+    ) throws IOException {
+        validateExcelFilename(originalFilename1);
+        validateExcelFilename(originalFilename2);
+        try (InputStream is1 = Files.newInputStream(tempFile1);
+             InputStream is2 = Files.newInputStream(tempFile2)) {
+            return storeFiles(is1, originalFilename1, is2, originalFilename2, cancelChecker, onSavingPhaseStarted);
+        }
+    }
+
+    private List<UploadFileInfo> storeFiles(
+            InputStream inputStream1,
+            String originalFilename1,
+            InputStream inputStream2,
+            String originalFilename2,
+            UploadCancelChecker cancelChecker,
+            Runnable onSavingPhaseStarted
+    ) throws IOException {
         Instant uploadedAt = Instant.now();
-        UploadedExcelFile detailedFile = parseExcel(file1);
-        UploadedExcelFile receivableFile = parseExcel(file2);
+        UploadedExcelFile detailedFile = parseExcel(inputStream1, originalFilename1, cancelChecker);
+        UploadedExcelFile receivableFile = parseExcel(inputStream2, originalFilename2, cancelChecker);
+
+        cancelChecker.checkCancelled();
+        if (onSavingPhaseStarted != null) {
+            onSavingPhaseStarted.run();
+        }
 
         logger.info("Clearing previous upload data before new upload.");
         recordDeletionAudit();
@@ -133,17 +186,20 @@ public class UploadStorageService {
         }
     }
 
-    private UploadedExcelFile parseExcel(MultipartFile file) throws IOException {
-        try (InputStream inputStream = file.getInputStream();
-             Workbook workbook = WorkbookFactory.create(inputStream)) {
+    private UploadedExcelFile parseExcel(InputStream inputStream, String originalFilename, UploadCancelChecker checker)
+            throws IOException {
+        checker.checkCancelled();
+        try (InputStream in = inputStream;
+             Workbook workbook = WorkbookFactory.create(in)) {
             List<UploadedExcelSheet> sheets = new ArrayList<>();
             DataFormatter formatter = new DataFormatter();
 
             for (Sheet sheet : workbook) {
-                sheets.add(parseSheet(sheet, formatter));
+                checker.checkCancelled();
+                sheets.add(parseSheet(sheet, formatter, checker));
             }
 
-            return new UploadedExcelFile(safeName(file.getOriginalFilename()), sheets);
+            return new UploadedExcelFile(safeName(originalFilename), sheets);
         } catch (IOException ex) {
             Throwable cause = ex.getCause();
             if (cause instanceof InvalidFormatException) {
@@ -154,14 +210,18 @@ public class UploadStorageService {
     }
 
     private void validateExcelFile(MultipartFile file) {
-        String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
+        validateExcelFilename(file.getOriginalFilename());
+    }
+
+    private void validateExcelFilename(String originalFilename) {
+        String name = originalFilename == null ? "" : originalFilename.toLowerCase();
         if (!name.endsWith(".xlsx")) {
             throw new IllegalArgumentException("Invalid file type. Please upload .xlsx files only.");
         }
     }
 
-    private UploadedExcelSheet parseSheet(Sheet sheet, DataFormatter formatter) {
-        int headerRowIndex = findHeaderRow(sheet, formatter);
+    private UploadedExcelSheet parseSheet(Sheet sheet, DataFormatter formatter, UploadCancelChecker checker) {
+        int headerRowIndex = findHeaderRow(sheet, formatter, checker);
         Row headerRow = sheet.getRow(headerRowIndex);
         if (headerRow == null) {
             return new UploadedExcelSheet(sheet.getSheetName(), List.of(), List.of());
@@ -171,7 +231,11 @@ public class UploadStorageService {
         List<String> headers = buildHeaders(headerRow, lastCell, formatter);
         List<Map<String, String>> rows = new ArrayList<>();
 
+        int dataRowCounter = 0;
         for (int rowIndex = headerRowIndex + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            if (++dataRowCounter % ROWS_PER_CANCEL_CHECK == 0) {
+                checker.checkCancelled();
+            }
             Row row = sheet.getRow(rowIndex);
             if (row == null) {
                 continue;
@@ -196,10 +260,14 @@ public class UploadStorageService {
         return new UploadedExcelSheet(sheet.getSheetName(), headers, rows);
     }
 
-    private int findHeaderRow(Sheet sheet, DataFormatter formatter) {
+    private int findHeaderRow(Sheet sheet, DataFormatter formatter, UploadCancelChecker checker) {
         int firstRow = sheet.getFirstRowNum();
         int lastRow = sheet.getLastRowNum();
+        int scanned = 0;
         for (int rowIndex = firstRow; rowIndex <= lastRow; rowIndex++) {
+            if (++scanned % 32 == 0) {
+                checker.checkCancelled();
+            }
             Row row = sheet.getRow(rowIndex);
             if (row == null) {
                 continue;

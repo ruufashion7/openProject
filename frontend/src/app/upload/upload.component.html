@@ -2,11 +2,26 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">Upload Files</h1>
-      <p class="page-subtitle">Upload two Excel Files in one action.</p>
+      <p class="page-subtitle">Upload two Excel files in one action. Only one import runs at a time for everyone.</p>
     </div>
   </div>
 
   <div class="card">
+    <div class="last-outcome" *ngIf="lastServerOutcome">
+      <h3 class="last-outcome-title">Last finished upload</h3>
+      <p class="last-outcome-meta">
+        <span class="outcome-badge" [ngClass]="lastServerOutcome.state">{{ lastServerOutcome.state }}</span>
+        <span *ngIf="lastServerOutcome.completedAt" class="muted"> · {{ lastServerOutcome.completedAt | date: 'medium' }}</span>
+      </p>
+      <p class="last-outcome-msg">{{ lastServerOutcome.message }}</p>
+      <p class="muted small" *ngIf="lastServerOutcome.startedByDisplayName">
+        Started by {{ lastServerOutcome.startedByDisplayName }}
+      </p>
+      <ul *ngIf="lastServerOutcome.files?.length">
+        <li *ngFor="let f of lastServerOutcome.files">{{ f.filename }} (id: {{ f.id }})</li>
+      </ul>
+    </div>
+
     <div class="inline-actions">
       <a routerLink="/uploads" class="btn btn-ghost">View Latest</a>
       <a routerLink="/uploads-audit" class="btn btn-ghost">Audit Trail</a>
@@ -25,15 +40,39 @@
       </label>
     </div>
 
-    <button class="btn btn-primary" type="button" (click)="submit()" [disabled]="status === 'loading' || !canUpload">
-      {{ status === 'loading' ? 'Uploading...' : 'Upload Files' }}
-    </button>
+    <div class="upload-actions">
+      <button
+        class="btn btn-primary"
+        type="button"
+        (click)="submit()"
+        [disabled]="status === 'loading' || !canUpload"
+      >
+        {{ primaryButtonLabel }}
+      </button>
+      <button
+        class="btn btn-danger-ghost"
+        type="button"
+        (click)="cancelUpload()"
+        [disabled]="!canStopUpload"
+        *ngIf="status === 'loading'"
+      >
+        Stop upload
+      </button>
+    </div>
+    <p class="hint muted small" *ngIf="status === 'loading' && pollUi">
+      Phase: {{ pollUi.phase || '—' }} · Started by {{ pollUi.startedByDisplayName || '—' }}
+    </p>
 
     <div class="status-block" *ngIf="status !== 'idle'">
-      <p class="status-text" [class.success]="status === 'success'" [class.failed]="status === 'failed'">
+      <p
+        class="status-text"
+        [class.success]="status === 'success'"
+        [class.failed]="status === 'failed'"
+        [class.cancelled]="status === 'cancelled'"
+      >
         {{ message }}
       </p>
-      <ul *ngIf="uploadedFiles.length">
+      <ul *ngIf="uploadedFiles.length && status === 'success'">
         <li *ngFor="let file of uploadedFiles">
           {{ file.filename }} (id: {{ file.id }})
         </li>
@@ -41,4 +80,3 @@
     </div>
   </div>
 </section>
-

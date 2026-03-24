@@ -23,6 +23,66 @@ export interface UploadResponse {
   files: Array<{ id: string; filename: string }>;
 }
 
+/** HTTP 409 when another upload is running — includes active job id for polling/cancel. */
+export interface UploadConflictResponse {
+  status: 'failed';
+  message: string;
+  currentJobId: string | null;
+}
+
+/** 202 response from POST /upload — processing continues in the background. */
+export interface UploadJobAcceptedResponse {
+  jobId: string;
+  message: string;
+}
+
+/** GET /upload/jobs/{jobId} — async upload progress and outcome. */
+export interface UploadJobStatusResponse {
+  jobId: string;
+  state: 'processing' | 'success' | 'failed' | 'cancelled';
+  message: string;
+  files: Array<{ id: string; filename: string }>;
+  phase: string | null;
+  cancellable: boolean;
+  startedByUserId: string;
+  startedByDisplayName: string;
+  startedAt: string;
+}
+
+/** Last finished async upload (server-side, all users see the same). */
+export interface UploadLastOutcomeResponse {
+  jobId: string;
+  state: string;
+  message: string;
+  files: Array<{ id: string; filename: string }>;
+  completedAt: string;
+  startedByUserId: string;
+  startedByDisplayName: string;
+}
+
+export interface UploadCurrentJobResponse {
+  jobId: string;
+  state: string;
+  message: string;
+  phase: string | null;
+  cancellable: boolean;
+  startedAt: string;
+  startedByUserId: string;
+  startedByDisplayName: string;
+}
+
+/** GET /api/upload/state — global async upload visibility. */
+export interface UploadAsyncStateResponse {
+  busy: boolean;
+  currentJob: UploadCurrentJobResponse | null;
+  lastOutcome: UploadLastOutcomeResponse | null;
+}
+
+export interface UploadCancelResponse {
+  status: 'accepted' | 'failed';
+  message: string;
+}
+
 export interface UploadEntry {
   id: string;
   type: 'detailed' | 'receivable';
@@ -189,13 +249,43 @@ export class ApiService {
     });
   }
 
-  uploadFiles(file1: File, file2: File): Observable<UploadResponse> {
+  /**
+   * Starts an async upload. Returns 202 with {@link UploadJobAcceptedResponse}; poll {@link getUploadJobStatus}.
+   * 400/409 errors return {@link UploadResponse} in the error body.
+   */
+  uploadFiles(file1: File, file2: File): Observable<UploadJobAcceptedResponse> {
     const formData = new FormData();
     formData.append('file1', file1);
     formData.append('file2', file2);
-    return this.http.post<UploadResponse>(`${this.baseUrl}/upload`, formData, {
+    return this.http.post<UploadJobAcceptedResponse>(`${this.baseUrl}/upload`, formData, {
       headers: this.auth.getAuthHeaders()
     });
+  }
+
+  getUploadJobStatus(jobId: string): Observable<UploadJobStatusResponse> {
+    if (!SecurityService.validateId(jobId)) {
+      throw new Error('Invalid job id');
+    }
+    return this.http.get<UploadJobStatusResponse>(`${this.baseUrl}/upload/jobs/${encodeURIComponent(jobId)}`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  getUploadAsyncState(): Observable<UploadAsyncStateResponse> {
+    return this.http.get<UploadAsyncStateResponse>(`${this.baseUrl}/upload/state`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  cancelUploadJob(jobId: string): Observable<UploadCancelResponse> {
+    if (!SecurityService.validateId(jobId)) {
+      throw new Error('Invalid job id');
+    }
+    return this.http.post<UploadCancelResponse>(
+      `${this.baseUrl}/upload/jobs/${encodeURIComponent(jobId)}/cancel`,
+      null,
+      { headers: this.auth.getAuthHeaders() }
+    );
   }
 
   listUploads(): Observable<UploadEntry[]> {

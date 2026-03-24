@@ -203,6 +203,11 @@ a {
   font-weight: 600;
 }
 
+.status-text.cancelled {
+  color: #c2410c;
+  font-weight: 600;
+}
+
 label {
   display: flex;
   flex-direction: column;
