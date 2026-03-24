@@ -1,5 +1,6 @@
 package org.example.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -12,6 +13,8 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Security configuration for the application.
@@ -20,6 +23,13 @@ import java.util.Arrays;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    /**
+     * Comma-separated list of allowed CORS origins (e.g. for Vercel: https://your-app.vercel.app).
+     * Defaults to localhost for development.
+     */
+    @Value("${cors.allowed-origins:http://localhost:4200,http://127.0.0.1:4200}")
+    private String allowedOriginsConfig;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -65,13 +75,15 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // SECURITY: Restrict to specific origins in production
-        // For now, allowing localhost for development
-        configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:4200",
-            "http://127.0.0.1:4200"
-            // Add production origins here
-        ));
+        // SECURITY: Origins from cors.allowed-origins (comma-separated). Set in production to your Vercel URL(s).
+        List<String> origins = Arrays.stream(allowedOriginsConfig.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+        if (origins.isEmpty()) {
+            origins = Arrays.asList("http://localhost:4200", "http://127.0.0.1:4200");
+        }
+        configuration.setAllowedOrigins(origins);
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         

@@ -5,6 +5,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import java.util.List;
 
 public interface UploadAuditEntryRepository extends MongoRepository<UploadAuditEntry, String> {
-    List<UploadAuditEntry> findAllByOrderByUploadedAtDesc();
+
+    List<UploadAuditEntry> findTop100ByOrderByUploadedAtDescIdDesc();
 }
 

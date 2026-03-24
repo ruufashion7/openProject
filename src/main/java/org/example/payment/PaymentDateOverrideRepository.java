@@ -6,7 +6,7 @@ import org.springframework.data.mongodb.repository.Query;
 import java.util.Optional;
 
 public interface PaymentDateOverrideRepository extends MongoRepository<PaymentDateOverride, String> {
-    Optional<PaymentDateOverride> findByCustomerKey(String customerKey);
+    Optional<PaymentDateOverride> findFirstByCustomerKeyOrderByIdAsc(String customerKey);
     void deleteByCustomerKey(String customerKey);
     
     /**

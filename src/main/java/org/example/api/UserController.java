@@ -2,6 +2,8 @@ package org.example.api;
 
 import jakarta.validation.Valid;
 import org.example.auth.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +14,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
+    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
+
     private final UserService userService;
     private final AuthSessionService authSessionService;
 
@@ -74,7 +78,7 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
-            // SECURITY: Don't expose internal error details to client
+            logger.error("Create user failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErrorResponse("An error occurred while creating the user. Please try again."));
         }
@@ -130,6 +134,7 @@ public class UserController {
         
         try {
             userService.deleteUser(id);
+            authSessionService.deleteUserSessions(id);
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)

@@ -377,7 +377,7 @@ public class CustomerNotesController {
         if (customerName != null && !customerName.isEmpty()) {
             String customerKey = normalizeCustomer(customerName);
             logger.debug("Searching by customerKey: {}", customerKey);
-            Optional<PaymentDateOverride> byKey = paymentDateOverrideRepository.findByCustomerKey(customerKey);
+            Optional<PaymentDateOverride> byKey = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey);
             if (byKey.isPresent()) {
                 logger.debug("Found PaymentDateOverride by customerKey: {}", customerKey);
                 return byKey.get();

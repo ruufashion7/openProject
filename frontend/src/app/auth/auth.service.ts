@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
@@ -30,7 +30,8 @@ interface SessionData {
 interface LoginResponse {
   token: string;
   displayName: string;
-  expiresAt: string;
+  /** ISO string, epoch seconds, epoch ms, or Instant tuple from Jackson */
+  expiresAt: string | number | { epochSecond?: number; nano?: number };
   userId?: string;
   isAdmin?: boolean;
   permissions?: UserPermissions;
@@ -38,10 +39,22 @@ interface LoginResponse {
 
 interface SessionResponse {
   displayName: string;
-  expiresAt: string;
+  expiresAt: string | number | { epochSecond?: number; nano?: number };
   userId?: string;
   isAdmin?: boolean;
   permissions?: UserPermissions;
+}
+
+/** Strip accidental "Bearer " so stored JWT is never Bearer Bearer + jwt */
+function sanitizeBearerToken(raw: string | undefined | null): string | null {
+  if (raw == null || typeof raw !== 'string') {
+    return null;
+  }
+  let t = raw.trim();
+  while (t.startsWith('Bearer ')) {
+    t = t.slice(7).trim();
+  }
+  return t.length > 0 ? t : null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -58,10 +71,15 @@ export class AuthService {
       })
       .pipe(
         tap((response) => {
+          const token = sanitizeBearerToken(response.token);
+          if (!token) {
+            throw new Error('Login response missing token');
+          }
+          const expiresAt = this.parseExpiresFromApi(response.expiresAt);
           const session: SessionData = {
-            token: response.token,
+            token,
             displayName: response.displayName,
-            expiresAt: new Date(response.expiresAt).getTime(),
+            expiresAt,
             userId: response.userId,
             isAdmin: response.isAdmin || false,
             permissions: response.permissions
@@ -89,29 +107,41 @@ export class AuthService {
     if (!session) {
       return of(false);
     }
-    if (Date.now() > session.expiresAt) {
-      this.logout();
-      return of(false);
-    }
+    // Expiry and finite checks are done in getSession() after normalization
 
     // Only validate with backend if session is close to expiring (within 5 minutes)
-    // This prevents resetting the session timer on every page navigation
     const remainingMs = session.expiresAt - Date.now();
     const fiveMinutes = 5 * 60 * 1000;
-    
-    if (remainingMs > fiveMinutes) {
-      // Session is still valid and not close to expiring, no need to call backend
+
+    if (!Number.isFinite(remainingMs)) {
       return of(true);
     }
 
-    // Session is close to expiring, validate with backend to potentially extend it
+    if (remainingMs > fiveMinutes) {
+      return of(true);
+    }
+
+    return this.fetchAndMergeSession(session);
+  }
+
+  /**
+   * Always hits GET /api/session. Used when an API returns 401 so we re-check the token
+   * (validateSession() skips the server when expiry looks far away, which hid invalid JWTs).
+   */
+  verifySessionWithServer(): Observable<boolean> {
+    const session = this.getSession();
+    if (!session) {
+      return of(false);
+    }
+    return this.fetchAndMergeSession(session);
+  }
+
+  private fetchAndMergeSession(session: SessionData): Observable<boolean> {
     return this.http
       .get<SessionResponse>('/api/session', { headers: this.buildAuthHeaders(session.token) })
       .pipe(
         tap((response) => {
-          const newExpiry = new Date(response.expiresAt).getTime();
-          // Only update if the new expiry is actually later (session was extended)
-          // This prevents resetting the timer if backend hasn't actually extended it
+          const newExpiry = this.parseExpiresFromApi(response.expiresAt);
           if (newExpiry > session.expiresAt) {
             const updated: SessionData = {
               token: session.token,
@@ -123,7 +153,6 @@ export class AuthService {
             };
             localStorage.setItem(this.sessionKey, JSON.stringify(updated));
           } else if (response.permissions) {
-            // Update permissions even if expiry hasn't changed
             const updated: SessionData = {
               ...session,
               permissions: response.permissions,
@@ -134,9 +163,13 @@ export class AuthService {
           }
         }),
         map(() => true),
-        catchError(() => {
-          this.logout();
-          return of(false);
+        catchError((err: HttpErrorResponse) => {
+          if (err.status === 401) {
+            this.logout();
+            return of(false);
+          }
+          // CORS, network down, 5xx: do not clear a locally valid session
+          return of(true);
         })
       );
   }
@@ -175,23 +208,36 @@ export class AuthService {
       return null;
     }
     try {
-      const session = JSON.parse(raw) as SessionData;
-      
-      // SECURITY: Validate session data structure
-      if (!session.token || !session.displayName || !session.expiresAt) {
+      const parsed = JSON.parse(raw) as SessionData & { expiresAt?: unknown };
+      const token = sanitizeBearerToken(parsed.token);
+      if (!token || !parsed.displayName) {
         localStorage.removeItem(this.sessionKey);
         return null;
       }
-      
-      // Check if session is expired
-      if (Date.now() > session.expiresAt) {
+      // Normalize any legacy shape (ISO string, epoch seconds, Instant object). Raw ISO strings
+      // made Number.isFinite(session.expiresAt) false → immediate logout() on every guard.
+      const expiresAt = this.parseExpiresFromApi(parsed.expiresAt as string | number | { epochSecond?: number; nano?: number } | undefined);
+      if (!Number.isFinite(expiresAt)) {
+        localStorage.removeItem(this.sessionKey);
+        return null;
+      }
+      const session: SessionData = {
+        token,
+        displayName: parsed.displayName,
+        expiresAt,
+        userId: parsed.userId,
+        isAdmin: parsed.isAdmin,
+        permissions: parsed.permissions
+      };
+      if (parsed.expiresAt !== expiresAt) {
+        localStorage.setItem(this.sessionKey, JSON.stringify(session));
+      }
+      if (Date.now() > expiresAt) {
         this.logout();
         return null;
       }
-      
       return session;
     } catch {
-      // SECURITY: Invalid session data, remove it
       localStorage.removeItem(this.sessionKey);
       return null;
     }
@@ -243,6 +289,35 @@ export class AuthService {
     return new HttpHeaders({
       Authorization: `Bearer ${token}`
     });
+  }
+
+  /**
+   * Jackson may send Instant as ISO string, epoch seconds (~1e9) or ms (~1e12+) as number,
+   * or { epochSecond, nano }. Treating seconds as ms makes expiry 1970 → immediate logout().
+   */
+  private parseExpiresFromApi(value: string | number | { epochSecond?: number; nano?: number } | undefined): number {
+    if (value === undefined || value === null) {
+      return Date.now() + 45 * 60 * 1000;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value < 1e12 ? value * 1000 : value;
+    }
+    if (typeof value === 'object' && 'epochSecond' in value && typeof value.epochSecond === 'number') {
+      const nano = typeof value.nano === 'number' ? value.nano : 0;
+      return value.epochSecond * 1000 + nano / 1e6;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (/^\d+$/.test(trimmed)) {
+        const n = Number(trimmed);
+        return n < 1e12 ? n * 1000 : n;
+      }
+      const t = new Date(trimmed).getTime();
+      if (Number.isFinite(t)) {
+        return t;
+      }
+    }
+    return Date.now() + 45 * 60 * 1000;
   }
 }
 

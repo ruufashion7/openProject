@@ -6,11 +6,18 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends MongoRepository<User, String> {
-    Optional<User> findByUsername(String username);
-    Optional<User> findByUsernameAndActiveTrue(String username);
+    /** Use {@code findFirst} so migrated data with duplicate usernames does not throw NonUniqueResultException. */
+    Optional<User> findFirstByUsernameOrderByIdAsc(String username);
+
+    Optional<User> findFirstByUsernameAndActiveTrueOrderByIdAsc(String username);
+
     List<User> findAllByActiveTrueOrderByDisplayNameAsc();
+
     List<User> findAllByOrderByDisplayNameAsc();
-    Optional<User> findByIsAdminTrueAndActiveTrue();
+
+    /** At most one row expected; {@code findFirst} tolerates duplicate admin rows after bad imports. */
+    Optional<User> findFirstByIsAdminTrueAndActiveTrueOrderByIdAsc();
+
     List<User> findByIsAdminTrue();
 }
 

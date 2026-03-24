@@ -260,7 +260,7 @@ public class UploadController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        return ResponseEntity.ok(uploadAuditEntryRepository.findAllByOrderByUploadedAtDesc());
+        return ResponseEntity.ok(uploadAuditEntryRepository.findTop100ByOrderByUploadedAtDescIdDesc());
     }
 
     @PostMapping("/uploads/purge")
@@ -292,6 +292,7 @@ public class UploadController {
                     new UploadAuditEntry(null, "DELETED", "receivable", upload.file().originalFilename(), now)
             );
         }
+        uploadStorageService.enforceUploadAuditRetention();
         detailedSalesInvoicesUploadRepository.deleteAll();
         receivableAgeingReportUploadRepository.deleteAll();
         logger.info("Purged uploads. detailedDeleted={}, receivableDeleted={}", detailedCount, receivableCount);

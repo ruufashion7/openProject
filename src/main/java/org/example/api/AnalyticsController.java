@@ -316,7 +316,7 @@ public class AnalyticsController {
         // Use the first resolved customer name if available
         String customerKey = resolvedCustomer != null ? normalizeCustomer(resolvedCustomer) : "";
         PaymentDateOverride paymentDateOverride = customerKey.isBlank() ? null 
-                : paymentDateOverrideRepository.findByCustomerKey(customerKey).orElse(null);
+                : paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
         String nextPaymentDate = paymentDateOverride != null ? paymentDateOverride.nextPaymentDate() : null;
         String whatsAppStatus = paymentDateOverride != null ? paymentDateOverride.whatsAppStatus() : null;
         String customerCategory = paymentDateOverride != null ? paymentDateOverride.customerCategory() : null;
@@ -488,7 +488,7 @@ public class AnalyticsController {
         // Update customer key and payment date override if we found a different customer name
         if (found && foundCustomerName != null && !foundCustomerName.equals(resolvedCustomer)) {
             customerKey = normalizeCustomer(foundCustomerName);
-            paymentDateOverride = paymentDateOverrideRepository.findByCustomerKey(customerKey).orElse(null);
+            paymentDateOverride = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
             if (paymentDateOverride != null) {
                 if (nextPaymentDate == null) nextPaymentDate = paymentDateOverride.nextPaymentDate();
                 if (whatsAppStatus == null) whatsAppStatus = paymentDateOverride.whatsAppStatus();
@@ -500,7 +500,7 @@ public class AnalyticsController {
         if (searchPhone != null && found && (foundCustomerName == null || foundCustomerName.isEmpty())) {
             // Try to find customer name from PaymentDateOverride using any of the target customers
             for (String targetCustomer : targetCustomers) {
-                PaymentDateOverride override = paymentDateOverrideRepository.findByCustomerKey(targetCustomer).orElse(null);
+                PaymentDateOverride override = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(targetCustomer).orElse(null);
                 if (override != null && override.customerName() != null && !override.customerName().isBlank()) {
                     foundCustomerName = override.customerName();
                     break;
@@ -924,7 +924,7 @@ public class AnalyticsController {
             
             // If date is blank, clear the date but preserve other fields
             if (nextPaymentDate.isBlank()) {
-                PaymentDateOverride existing = paymentDateOverrideRepository.findByCustomerKey(customerKey).orElse(null);
+                PaymentDateOverride existing = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
                 if (existing == null) {
                     return ResponseEntity.ok(Map.of("success", true, "message", "Date cleared"));
                 }
@@ -972,7 +972,7 @@ public class AnalyticsController {
                     .body(Map.of("error", "Invalid WhatsApp status", "message", "Status must be 'not sent', 'sent', or 'delivered'"));
             }
 
-            PaymentDateOverride existing = paymentDateOverrideRepository.findByCustomerKey(customerKey).orElse(null);
+            PaymentDateOverride existing = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
             String id = existing == null ? null : existing.id();
             String finalPhoneNumber = phoneNumber != null ? phoneNumber : (existing != null ? existing.phoneNumber() : null);
             String finalWhatsAppStatus = whatsAppStatus != null ? whatsAppStatus : (existing != null ? existing.whatsAppStatus() : null);
@@ -1057,7 +1057,7 @@ public class AnalyticsController {
             }
 
             // Save to customer_master collection
-            PaymentDateOverride existingOverride = paymentDateOverrideRepository.findByCustomerKey(customerKey).orElse(null);
+            PaymentDateOverride existingOverride = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
             String overrideId = existingOverride == null ? null : existingOverride.id();
             String existingPhoneNumber = existingOverride != null ? existingOverride.phoneNumber() : null;
             String existingNextPaymentDate = existingOverride != null ? existingOverride.nextPaymentDate() : null;
@@ -1670,7 +1670,7 @@ public class AnalyticsController {
 
     private String findCustomerPhone(String customer) {
         String customerKey = normalizeCustomer(customer);
-        PaymentDateOverride override = paymentDateOverrideRepository.findByCustomerKey(customerKey).orElse(null);
+        PaymentDateOverride override = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
         if (override != null && override.phoneNumber() != null && !override.phoneNumber().isBlank()) {
             return override.phoneNumber().trim();
         }
@@ -1880,7 +1880,7 @@ public class AnalyticsController {
             }
 
             // Save to customer_master collection
-            PaymentDateOverride existingOverride = paymentDateOverrideRepository.findByCustomerKey(customerKey).orElse(null);
+            PaymentDateOverride existingOverride = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
             String overrideId = existingOverride == null ? null : existingOverride.id();
             String existingPhoneNumber = existingOverride != null ? existingOverride.phoneNumber() : null;
             String existingNextPaymentDate = existingOverride != null ? existingOverride.nextPaymentDate() : null;
@@ -1952,7 +1952,7 @@ public class AnalyticsController {
                 place = null;
             }
 
-            PaymentDateOverride existingOverride = paymentDateOverrideRepository.findByCustomerKey(customerKey).orElse(null);
+            PaymentDateOverride existingOverride = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
             String overrideId = existingOverride == null ? null : existingOverride.id();
             String existingPhoneNumber = existingOverride != null ? existingOverride.phoneNumber() : null;
             String existingNextPaymentDate = existingOverride != null ? existingOverride.nextPaymentDate() : null;
@@ -2019,7 +2019,7 @@ public class AnalyticsController {
             Boolean needsFollowUp = request.needsFollowUp() != null ? request.needsFollowUp() : false;
 
             // Save to customer_master collection
-            PaymentDateOverride existingOverride = paymentDateOverrideRepository.findByCustomerKey(customerKey).orElse(null);
+            PaymentDateOverride existingOverride = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
             String overrideId = existingOverride == null ? null : existingOverride.id();
             String existingPhoneNumber = existingOverride != null ? existingOverride.phoneNumber() : null;
             String existingNextPaymentDate = existingOverride != null ? existingOverride.nextPaymentDate() : null;
@@ -2084,7 +2084,7 @@ public class AnalyticsController {
             return ResponseEntity.badRequest().build();
         }
 
-        PaymentDateOverride existing = paymentDateOverrideRepository.findByCustomerKey(customerKey).orElse(null);
+        PaymentDateOverride existing = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
         String id = existing == null ? null : existing.id();
         
         // Handle location values: 

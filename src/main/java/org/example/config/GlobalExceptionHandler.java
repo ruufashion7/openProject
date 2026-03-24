@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -52,6 +53,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(response);
     }
     
+    /**
+     * MongoDB duplicate key (e.g. unique index on username).
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public ResponseEntity<Map<String, Object>> handleDuplicateKey(DuplicateKeyException ex) {
+        logger.warn("Duplicate key: {}", ex.getMostSpecificCause().getMessage());
+        Map<String, Object> response = new HashMap<>();
+        response.put("error", "This value already exists. It may be a duplicate username.");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
     /**
      * Handle IllegalStateException (state-related errors).
      */

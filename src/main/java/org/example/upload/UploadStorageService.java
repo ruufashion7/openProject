@@ -7,6 +7,9 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.slf4j.Logger;
@@ -25,6 +28,15 @@ import java.util.Map;
 @Service
 public class UploadStorageService {
     private static final Logger logger = LoggerFactory.getLogger(UploadStorageService.class);
+
+    /** Oldest audit rows are removed so the collection stays small (storage cost). */
+    public static final int MAX_UPLOAD_AUDIT_ENTRIES = 100;
+
+    /** Delete oldest rows in chunks to avoid loading huge result sets into the app. */
+    private static final int AUDIT_DELETE_BATCH_SIZE = 500;
+
+    private static final Sort AUDIT_OLDEST_FIRST =
+            Sort.by(Sort.Direction.ASC, "uploadedAt").and(Sort.by(Sort.Direction.ASC, "id"));
     
     private final DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository;
     private final ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository;
@@ -73,20 +85,36 @@ public class UploadStorageService {
         uploadAuditEntryRepository.save(
                 new UploadAuditEntry(null, "ADDED", "receivable", receivableFile.originalFilename(), uploadedAt)
         );
-        trimAuditTrail();
+        enforceUploadAuditRetention();
 
         logger.info("Upload completed.");
         return fileInfos;
     }
 
 
-    private void trimAuditTrail() {
-        List<UploadAuditEntry> entries = uploadAuditEntryRepository.findAllByOrderByUploadedAtDesc();
-        if (entries.size() <= 50) {
+    /**
+     * Keeps the most recent {@value #MAX_UPLOAD_AUDIT_ENTRIES} audit entries (by {@code uploadedAt}, then {@code id});
+     * deletes older rows using bounded queries (no full collection load).
+     */
+    public void enforceUploadAuditRetention() {
+        long total = uploadAuditEntryRepository.count();
+        if (total <= MAX_UPLOAD_AUDIT_ENTRIES) {
             return;
         }
-        logger.info("Trimming audit trail from {} to 50 entries.", entries.size());
-        uploadAuditEntryRepository.deleteAll(entries.subList(50, entries.size()));
+        logger.info("Trimming upload_audit_entries from {} down to at most {} entries.", total, MAX_UPLOAD_AUDIT_ENTRIES);
+        while (true) {
+            total = uploadAuditEntryRepository.count();
+            if (total <= MAX_UPLOAD_AUDIT_ENTRIES) {
+                return;
+            }
+            int toRemove = (int) Math.min(total - MAX_UPLOAD_AUDIT_ENTRIES, (long) AUDIT_DELETE_BATCH_SIZE);
+            Page<UploadAuditEntry> page = uploadAuditEntryRepository.findAll(PageRequest.of(0, toRemove, AUDIT_OLDEST_FIRST));
+            List<UploadAuditEntry> oldest = page.getContent();
+            if (oldest.isEmpty()) {
+                return;
+            }
+            uploadAuditEntryRepository.deleteAll(oldest);
+        }
     }
 
     private void recordDeletionAudit() {

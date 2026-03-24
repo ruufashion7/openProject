@@ -2,6 +2,7 @@ package org.example.config;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import com.mongodb.ReadPreference;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.connection.ClusterDescription;
@@ -24,6 +25,7 @@ import org.springframework.data.mongodb.core.convert.MongoCustomConversions;
 import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
 
 import javax.crypto.Cipher;
+import java.util.List;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigInteger;
 
@@ -101,9 +103,12 @@ public class MongoConfig {
             }
         };
 
+        // Do NOT disable SSL here: mongodb+srv (MongoDB Atlas) requires TLS.
+        // Forcing SSL off breaks Atlas and causes TLS handshake failures.
         MongoClientSettings settings = MongoClientSettings.builder()
                 .applyConnectionString(connectionString)
-                .applyToSslSettings(builder -> builder.enabled(false))
+                // Sessions and user reads must see writes immediately (avoid stale secondaries on Atlas).
+                .readPreference(ReadPreference.primary())
                 .applyToConnectionPoolSettings(builder -> {
                     builder.minSize(10)
                            .maxSize(100)
@@ -148,6 +153,11 @@ public class MongoConfig {
             throw new IllegalStateException("Mongo database name is missing.");
         }
         return new SimpleMongoClientDatabaseFactory(mongoClient, database);
+    }
+
+    @Bean
+    public MongoCustomConversions mongoCustomConversions() {
+        return new MongoCustomConversions(List.of(new FlexibleStringToInstantConverter()));
     }
 
     @Bean

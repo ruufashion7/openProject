@@ -52,12 +52,11 @@ public class UserService {
     }
 
     public Optional<User> getUserByUsername(String username) {
-        return userRepository.findByUsername(username);
+        return userRepository.findFirstByUsernameOrderByIdAsc(username);
     }
 
     public User createUser(User user, String createdBy) {
-        // Check if username already exists
-        if (userRepository.findByUsername(user.getUsername()).isPresent()) {
+        if (userRepository.findFirstByUsernameOrderByIdAsc(user.getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username already exists");
         }
         
@@ -141,12 +140,14 @@ public class UserService {
      * Only one admin can exist at a time
      */
     private void demoteExistingAdmin(String updatedBy) {
-        Optional<User> existingAdmin = userRepository.findByIsAdminTrueAndActiveTrue();
-        if (existingAdmin.isPresent()) {
-            User admin = existingAdmin.get();
+        Instant now = Instant.now();
+        for (User admin : userRepository.findByIsAdminTrue()) {
+            if (!admin.isActive()) {
+                continue;
+            }
             admin.setAdmin(false);
             admin.setUpdatedBy(updatedBy);
-            admin.setUpdatedAt(Instant.now());
+            admin.setUpdatedAt(now);
             userRepository.save(admin);
         }
     }
@@ -155,7 +156,7 @@ public class UserService {
      * Gets the current admin user
      */
     public Optional<User> getCurrentAdmin() {
-        return userRepository.findByIsAdminTrueAndActiveTrue();
+        return userRepository.findFirstByIsAdminTrueAndActiveTrueOrderByIdAsc();
     }
 
     public void hardDeleteUser(String id) {
@@ -163,7 +164,7 @@ public class UserService {
     }
 
     public boolean validateUser(String username, String password) {
-        Optional<User> userOpt = userRepository.findByUsernameAndActiveTrue(username);
+        Optional<User> userOpt = userRepository.findFirstByUsernameAndActiveTrueOrderByIdAsc(username);
         if (userOpt.isEmpty()) {
             return false;
         }
