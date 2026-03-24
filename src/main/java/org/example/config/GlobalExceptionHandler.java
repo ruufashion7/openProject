@@ -9,6 +9,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -76,6 +77,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
     
+    /**
+     * Missing static resource (e.g. wrong path) — not a server bug; return 404 without ERROR noise.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResourceFound(NoResourceFoundException ex) {
+        logger.debug("Not found: {}", ex.getResourcePath());
+        Map<String, Object> response = new HashMap<>();
+        response.put("error", "Not found");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
     /**
      * Handle generic exceptions (don't expose internal details).
      */
