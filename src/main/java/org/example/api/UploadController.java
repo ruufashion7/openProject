@@ -2,6 +2,7 @@ package org.example.api;
 
 import org.example.auth.AuthSessionService;
 import org.example.auth.SessionInfo;
+import org.example.auth.SessionPermissions;
 import org.example.security.SecurityAuditService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.upload.DetailedSalesInvoicesUpload;
@@ -84,6 +85,10 @@ public class UploadController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canAccessFileUpload(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new UploadResponse("failed", "You do not have permission to upload files.", List.of()));
+        }
 
         if (file1.isEmpty() || file2.isEmpty()) {
             return ResponseEntity.badRequest()
@@ -160,6 +165,9 @@ public class UploadController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canAccessFileUpload(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         return ResponseEntity.ok(resolveCurrent(type));
     }
@@ -189,12 +197,15 @@ public class UploadController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canAccessFileUpload(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         // SECURITY: Validate path variables to prevent path traversal
         if (type == null || (!type.equals("detailed") && !type.equals("receivable"))) {
             return ResponseEntity.badRequest().build();
         }
-        
+
         if (id == null || id.isBlank() || id.length() > 100) {
             return ResponseEntity.badRequest().build();
         }
@@ -225,6 +236,9 @@ public class UploadController {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessFileUpload(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         // SECURITY: Validate path variable
@@ -259,6 +273,9 @@ public class UploadController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canAccessFileUpload(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         return ResponseEntity.ok(uploadAuditEntryRepository.findTop100ByOrderByUploadedAtDescIdDesc());
     }
@@ -271,9 +288,9 @@ public class UploadController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        
-        // SECURITY: Only admin users can purge all uploaded data (destructive operation)
-        if (!session.isAdmin()) {
+
+        // Destructive: admin or users with Hard Delete permission (matches Access Control UI)
+        if (!session.isAdmin() && !SessionPermissions.canHardDelete(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 

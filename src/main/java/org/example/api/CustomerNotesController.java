@@ -2,6 +2,7 @@ package org.example.api;
 
 import org.example.auth.AuthSessionService;
 import org.example.auth.SessionInfo;
+import org.example.auth.SessionPermissions;
 import org.example.auth.User;
 import org.example.auth.UserService;
 import org.example.payment.CustomerNote;
@@ -60,13 +61,16 @@ public class CustomerNotesController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         // SECURITY: Validate input
         String customerName = request.customerName() != null ? request.customerName().trim() : null;
         String phoneNumber = request.phoneNumber() != null ? request.phoneNumber().trim() : null;
 
         // At least one identifier must be provided
-        if ((customerName == null || customerName.isEmpty()) && 
+        if ((customerName == null || customerName.isEmpty()) &&
             (phoneNumber == null || phoneNumber.isEmpty())) {
             return ResponseEntity.badRequest().build();
         }
@@ -120,6 +124,9 @@ public class CustomerNotesController {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         // SECURITY: Validate input
@@ -226,6 +233,9 @@ public class CustomerNotesController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         // SECURITY: Validate note ID
         String noteId = request.noteId();
@@ -323,6 +333,9 @@ public class CustomerNotesController {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         // SECURITY: Validate note ID

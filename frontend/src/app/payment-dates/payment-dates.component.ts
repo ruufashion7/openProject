@@ -143,10 +143,16 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    if (!this.permissionService.canAccessOutstandingPage()) {
+      this.notificationService.showPermissionError();
+      this.router.navigateByUrl('/welcome');
+      return;
+    }
+
     this.canEditPaymentDate = this.permissionService.canEditPaymentDate();
     this.canChangeWhatsappDate = this.permissionService.canChangeWhatsappDate();
     this.canChangeFollowUp = this.permissionService.canChangeFollowUp();
-    
+
     this.restoreFilters();
     this.loadData();
   }

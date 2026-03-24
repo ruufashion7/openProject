@@ -5,6 +5,8 @@ import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ApiService, SalesVisualizationResponse } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
+import { PermissionService } from '../auth/permission.service';
+import { NotificationService } from '../shared/notification.service';
 import { ChartConfiguration, ChartData, ChartOptions, ChartType, TooltipItem } from 'chart.js';
 import { NgChartsModule } from 'ng2-charts';
 
@@ -190,10 +192,18 @@ export class SalesVisualizationComponent implements OnInit, OnDestroy {
   constructor(
     private api: ApiService,
     private auth: AuthService,
-    private router: Router
+    private router: Router,
+    private permissionService: PermissionService,
+    private notificationService: NotificationService
   ) {}
 
   ngOnInit(): void {
+    if (!this.permissionService.canAccessSalesVisualization()) {
+      this.notificationService.showPermissionError();
+      this.router.navigateByUrl('/welcome');
+      return;
+    }
+
     this.status = 'loading';
     this.api.getUploadStatus().subscribe({
       next: (status) => {

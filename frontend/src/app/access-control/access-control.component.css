@@ -185,6 +185,13 @@
   color: #991b1b;
 }
 
+.form-help-inline {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
 .help-icon {
   flex-shrink: 0;
   font-size: 16px;

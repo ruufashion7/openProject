@@ -14,8 +14,14 @@ public record UpdateUserRequest(
         boolean isAdmin,
         
         UserPermissions permissions,
-        
-        boolean active
+
+        boolean active,
+
+        /**
+         * When non-null and non-blank, replaces the user's password (validated and hashed by {@link UserService#updatePassword}).
+         * Omit or leave empty to keep the existing password.
+         */
+        String password
 ) {
 }
 

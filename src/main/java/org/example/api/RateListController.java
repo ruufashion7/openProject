@@ -2,6 +2,7 @@ package org.example.api;
 
 import org.example.auth.AuthSessionService;
 import org.example.auth.SessionInfo;
+import org.example.auth.SessionPermissions;
 import org.example.ratelist.RateListEntry;
 import org.example.ratelist.RateListEntryRepository;
 import org.slf4j.Logger;
@@ -60,6 +61,9 @@ public class RateListController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canAccessRateList(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         try {
             List<RateListEntry> entries = rateListEntryRepository.findAllByOrderByCreatedAtDesc();
@@ -79,6 +83,9 @@ public class RateListController {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessRateList(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         // Extract fields outside try block for error handling
@@ -216,6 +223,9 @@ public class RateListController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canAccessRateList(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         // SECURITY: Validate path variable
         if (id == null || id.isBlank() || id.length() > 100) {
@@ -327,6 +337,9 @@ public class RateListController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canAccessRateList(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         // SECURITY: Validate path variable
         if (id == null || id.isBlank() || id.length() > 100) {
@@ -354,6 +367,9 @@ public class RateListController {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessRateList(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         try {
@@ -505,6 +521,9 @@ public class RateListController {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessRateList(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         try {
@@ -843,6 +862,9 @@ public class RateListController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canAccessRateList(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         // Only admin can migrate
         if (!session.isAdmin()) {
@@ -929,13 +951,16 @@ public class RateListController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canAccessRateList(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         // SECURITY: Validate and sanitize path variable
         if (productName == null || productName.isBlank() || productName.length() > 200) {
             return ResponseEntity.badRequest()
                     .body(Map.of("success", false, "message", "Invalid product name"));
         }
-        
+
         // Sanitize product name (make final for lambda usage)
         final String sanitizedProductName = productName.trim();
         if (sanitizedProductName.contains("<") || sanitizedProductName.contains(">") || sanitizedProductName.contains("\0")) {
@@ -1043,6 +1068,9 @@ public class RateListController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canAccessRateList(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         // Only admin can migrate
         if (!session.isAdmin()) {
@@ -1051,7 +1079,7 @@ public class RateListController {
 
         try {
             List<RateListEntry> allEntries = rateListEntryRepository.findAll();
-            
+
             // Get unique product names
             Set<String> productNames = allEntries.stream()
                     .map(RateListEntry::productName)

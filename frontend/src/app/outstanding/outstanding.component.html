@@ -199,12 +199,12 @@
                     (change)="onDateChange($event, dateInput)"
                     (blur)="onDateInputBlur($event, dateInput)"
                     placeholder="DD-MM"
-                    [disabled]="!ready"
+                    [disabled]="!ready || !canEditPaymentDate"
                   />
                   <button
                     type="button"
                     class="btn btn-clear-x"
-                    *ngIf="paymentDateEdit"
+                    *ngIf="paymentDateEdit && canEditPaymentDate"
                     (click)="clearPaymentDate()"
                     aria-label="Clear date"
                   >
@@ -224,6 +224,7 @@
                     type="radio"
                     name="whatsapp-status-edit"
                     [checked]="whatsappStatusEdit === 'not sent'"
+                    [disabled]="!canChangeWhatsappDate"
                     (change)="onWhatsAppStatusChange('not sent')"
                     class="radio-grey"
                   />
@@ -235,6 +236,7 @@
                     type="radio"
                     name="whatsapp-status-edit"
                     [checked]="whatsappStatusEdit === 'sent'"
+                    [disabled]="!canChangeWhatsappDate"
                     (change)="onWhatsAppStatusChange('sent')"
                     class="radio-yellow"
                   />
@@ -246,6 +248,7 @@
                     type="radio"
                     name="whatsapp-status-edit"
                     [checked]="whatsappStatusEdit === 'delivered'"
+                    [disabled]="!canChangeWhatsappDate"
                     (change)="onWhatsAppStatusChange('delivered')"
                     class="radio-green"
                   />
@@ -314,6 +317,7 @@
                 type="button"
                 class="btn btn-follow-up"
                 [class.active]="followUpFlagEdit"
+                [disabled]="!canChangeFollowUp"
                 (click)="onFollowUpToggle()"
                 [title]="followUpFlagEdit ? 'Follow-up needed' : 'Mark for follow-up'"
                 aria-label="Toggle follow-up flag"

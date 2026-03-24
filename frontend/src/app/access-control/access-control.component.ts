@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { AuthService, UserPermissions } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
@@ -44,10 +44,15 @@ export class AccessControlComponent implements OnInit {
 
   editedUser: Partial<User> & { permissions?: UserPermissions } = {};
 
+  /** Optional: set a new password when editing (leave blank to keep current). */
+  editPasswordNew = '';
+  editPasswordConfirm = '';
+
   constructor(
     private http: HttpClient,
     private authService: AuthService,
-    private permissionService: PermissionService
+    private permissionService: PermissionService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -144,6 +149,8 @@ export class AccessControlComponent implements OnInit {
     this.selectedUser = user;
     this.isEditing = true;
     this.isCreating = false;
+    this.editPasswordNew = '';
+    this.editPasswordConfirm = '';
     this.editedUser = {
       displayName: user.displayName,
       isAdmin: user.isAdmin,
@@ -156,6 +163,8 @@ export class AccessControlComponent implements OnInit {
     this.isEditing = false;
     this.selectedUser = null;
     this.editedUser = {};
+    this.editPasswordNew = '';
+    this.editPasswordConfirm = '';
   }
 
   updateUser(): void {
@@ -185,8 +194,36 @@ export class AccessControlComponent implements OnInit {
       this.editedUser.active = true;
     }
 
+    const newPw = this.editPasswordNew.trim();
+    const confirmPw = this.editPasswordConfirm.trim();
+    if (newPw || confirmPw) {
+      if (newPw !== confirmPw) {
+        alert('New password and confirmation do not match.');
+        return;
+      }
+    }
+
     const headers = this.authService.getAuthHeaders();
-    this.http.put<User>(`/api/users/${this.selectedUser.id}`, this.editedUser, { headers }).subscribe({
+    const payload: {
+      displayName: string;
+      isAdmin: boolean;
+      permissions: UserPermissions;
+      active: boolean;
+      password?: string;
+    } = {
+      displayName: this.editedUser.displayName!,
+      isAdmin: this.editedUser.isAdmin!,
+      permissions: this.editedUser.permissions!,
+      active: this.editedUser.active!
+    };
+    if (newPw) {
+      payload.password = newPw;
+    }
+
+    const passwordChanged = !!newPw;
+    const editedSelf = this.selectedUser.id === this.authService.getUserId();
+
+    this.http.put<User>(`/api/users/${this.selectedUser.id}`, payload, { headers }).subscribe({
       next: () => {
         this.loadUsers();
         this.cancelEdit();
@@ -196,7 +233,14 @@ export class AccessControlComponent implements OnInit {
         } else if (wasAdmin && this.editedUser.isAdmin === false) {
           message = 'User updated successfully. Admin access removed.';
         }
+        if (passwordChanged) {
+          message += ' Password was updated; all sessions for this user were signed out.';
+        }
         alert(message);
+        if (passwordChanged && editedSelf) {
+          this.authService.logout();
+          this.router.navigateByUrl('/login');
+        }
       },
       error: (error) => {
         // Error updating user

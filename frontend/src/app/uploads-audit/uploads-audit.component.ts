@@ -4,6 +4,8 @@ import { Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ApiService, UploadAuditEntry } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
+import { PermissionService } from '../auth/permission.service';
+import { NotificationService } from '../shared/notification.service';
 
 @Component({
   selector: 'app-uploads-audit',
@@ -20,10 +22,17 @@ export class UploadsAuditComponent implements OnInit {
   constructor(
     private api: ApiService,
     private auth: AuthService,
-    private router: Router
+    private router: Router,
+    private permissionService: PermissionService,
+    private notificationService: NotificationService
   ) {}
 
   ngOnInit(): void {
+    if (!this.permissionService.canAccessFileUpload()) {
+      this.notificationService.showPermissionError();
+      this.router.navigateByUrl('/welcome');
+      return;
+    }
     this.loadAudit();
   }
 

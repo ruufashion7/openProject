@@ -6,6 +6,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, takeUntil } from 'rxjs';
 import { ApiService, SalesInvoiceEntry } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
+import { PermissionService } from '../auth/permission.service';
+import { NotificationService } from '../shared/notification.service';
 
 @Component({
   selector: 'app-sales-details',
@@ -82,10 +84,18 @@ export class SalesDetailsComponent implements OnInit, OnDestroy {
   constructor(
     private api: ApiService,
     private auth: AuthService,
-    private router: Router
+    private router: Router,
+    private permissionService: PermissionService,
+    private notificationService: NotificationService
   ) {}
 
   ngOnInit(): void {
+    if (!this.permissionService.canAccessInvoicePage()) {
+      this.notificationService.showPermissionError();
+      this.router.navigateByUrl('/welcome');
+      return;
+    }
+
     this.status = 'loading';
     this.api.getUploadStatus()
       .pipe(takeUntil(this.destroy$))

@@ -28,6 +28,8 @@ export const PERMISSIONS: PermissionDefinition[] = [
  */
 export const ROUTE_PERMISSIONS: Record<string, keyof import('./auth.service').UserPermissions | 'admin'> = {
   '/upload': 'fileUpload',
+  '/uploads': 'fileUpload',
+  '/uploads-audit': 'fileUpload',
   '/rate-list': 'rateListPage',
   '/sales-details': 'invoicePage',
   '/sales-visualization': 'salesVisualization',

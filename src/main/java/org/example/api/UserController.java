@@ -103,8 +103,16 @@ public class UserController {
                 existingUser.setPermissions(request.permissions());
             }
             existingUser.setActive(request.active());
-            
+
             User updated = userService.updateUser(id, existingUser, updatedBy);
+
+            String newPassword = request.password();
+            if (newPassword != null && !newPassword.isBlank()) {
+                userService.updatePassword(id, newPassword.trim(), updatedBy);
+                authSessionService.deleteUserSessions(id);
+                updated = userService.getUserById(id).orElse(updated);
+            }
+
             return ResponseEntity.ok(UserResponse.fromUser(updated));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)

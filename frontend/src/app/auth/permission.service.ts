@@ -56,6 +56,10 @@ export class PermissionService {
     return this.hasPermission('customerLocations');
   }
 
+  canAccessSalesVisualization(): boolean {
+    return this.hasPermission('salesVisualization');
+  }
+
   // Check if user can access a route
   canAccessRoute(route: string): boolean {
     const permission = ROUTE_PERMISSIONS[route];

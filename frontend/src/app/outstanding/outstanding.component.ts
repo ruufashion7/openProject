@@ -95,6 +95,9 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   private isProcessingDateChange = false;
   private readonly selectedCustomerKey = 'openProject.selectedCustomer';
   canDownloadWholeProject = false;
+  canEditPaymentDate = false;
+  canChangeWhatsappDate = false;
+  canChangeFollowUp = false;
   
   // Subscription management
   private destroy$ = new Subject<void>();
@@ -116,7 +119,16 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   ) {}
 
   ngOnInit(): void {
+    if (!this.permissionService.canAccessDetailsPage()) {
+      this.notificationService.showPermissionError();
+      this.router.navigateByUrl('/welcome');
+      return;
+    }
+
     this.canDownloadWholeProject = this.permissionService.canDownloadWholeProject();
+    this.canEditPaymentDate = this.permissionService.canEditPaymentDate();
+    this.canChangeWhatsappDate = this.permissionService.canChangeWhatsappDate();
+    this.canChangeFollowUp = this.permissionService.canChangeFollowUp();
     this.status = 'loading';
     this.api.getUploadStatus()
       .pipe(takeUntil(this.destroy$))
@@ -1123,6 +1135,9 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   private savePaymentDate(value: string): void {
+    if (!this.canEditPaymentDate) {
+      return;
+    }
     if (!this.selectedCustomerName) {
       return;
     }
@@ -1155,6 +1170,9 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   onWhatsAppStatusChange(status: 'not sent' | 'sent' | 'delivered'): void {
+    if (!this.canChangeWhatsappDate) {
+      return;
+    }
     this.whatsappStatus = status;
     this.whatsappStatusEdit = status;
     this.scheduleWhatsAppStatusSave(status);
@@ -1170,6 +1188,9 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   private saveWhatsAppStatus(status: 'not sent' | 'sent' | 'delivered'): void {
+    if (!this.canChangeWhatsappDate) {
+      return;
+    }
     if (!this.selectedCustomerName) {
       return;
     }
@@ -1263,6 +1284,9 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   onFollowUpToggle(): void {
+    if (!this.canChangeFollowUp) {
+      return;
+    }
     if (!this.selectedCustomerName) {
       return;
     }
@@ -1280,6 +1304,9 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   private saveFollowUpFlag(needsFollowUp: boolean): void {
+    if (!this.canChangeFollowUp) {
+      return;
+    }
     if (!this.selectedCustomerName) {
       return;
     }

@@ -2,6 +2,7 @@ package org.example.api;
 
 import org.example.auth.AuthSessionService;
 import org.example.auth.SessionInfo;
+import org.example.auth.SessionPermissions;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideRepository;
 import org.example.upload.DetailedSalesInvoicesUpload;
@@ -83,22 +84,25 @@ public class AnalyticsController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        
+        if (!SessionPermissions.canUseCustomerSuggestions(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         // SECURITY: Extract from POST body instead of URL query parameters
         String query = request != null ? request.query() : null;
         int limit = request != null && request.limit() != null ? request.limit() : 20;
-        
+
         // SECURITY: Validate query parameters
         if (query == null || query.trim().length() < 3) {
             return ResponseEntity.ok(List.of());
         }
-        
+
         // SECURITY: Sanitize and limit query length
         query = query.trim();
         if (query.length() > 100) {
             query = query.substring(0, 100);
         }
-        
+
         // SECURITY: Validate limit to prevent DoS
         if (limit < 1 || limit > 100) {
             limit = 20;
@@ -149,7 +153,10 @@ public class AnalyticsController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        
+        if (!SessionPermissions.canAccessDetailsOrOutstanding(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         // SECURITY: Extract from POST body instead of URL query parameters
         String query = request != null ? request.query() : null;
         int limit = request != null && request.limit() != null ? request.limit() : 20;
@@ -197,7 +204,10 @@ public class AnalyticsController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        
+        if (!SessionPermissions.canAccessInvoicePage(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         // SECURITY: Extract from POST body instead of URL query parameters
         String query = request != null ? request.query() : null;
         int limit = request != null && request.limit() != null ? request.limit() : 20;
@@ -263,7 +273,10 @@ public class AnalyticsController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        
+        if (!SessionPermissions.canAccessDetailsPage(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         // SECURITY: Extract from POST body instead of URL query parameters
         String customer = request != null ? request.customer() : null;
         String phone = request != null ? request.phone() : null;
@@ -553,7 +566,10 @@ public class AnalyticsController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        
+        if (!SessionPermissions.canAccessDetailsPage(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         // SECURITY: Extract from POST body instead of URL query parameters
         String customer = request != null ? request.customer() : null;
         String phone = request != null ? request.phone() : null;
@@ -705,6 +721,9 @@ public class AnalyticsController {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessOutstandingPage(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         ReceivableAgeingReportUpload latest = receivableAgeingReportUploadRepository.findTopByOrderByUploadedAtDesc();
@@ -908,12 +927,16 @@ public class AnalyticsController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Unauthorized", "message", "Session expired or invalid"));
             }
-            
+            if (!SessionPermissions.canEditPaymentDate(session)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Forbidden", "message", "You do not have permission to edit payment dates."));
+            }
+
             if (request == null || request.customer() == null || request.customer().isBlank()) {
                 return ResponseEntity.badRequest()
                     .body(Map.of("error", "Invalid request", "message", "Customer name is required"));
             }
-            
+
             String customerKey = normalizeCustomer(request.customer());
             if (customerKey.isBlank()) {
                 return ResponseEntity.badRequest()
@@ -921,7 +944,7 @@ public class AnalyticsController {
             }
 
             String nextPaymentDate = request.nextPaymentDate() == null ? "" : request.nextPaymentDate().trim();
-            
+
             // If date is blank, clear the date but preserve other fields
             if (nextPaymentDate.isBlank()) {
                 PaymentDateOverride existing = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
@@ -1025,6 +1048,9 @@ public class AnalyticsController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!session.isAdmin()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         paymentDateOverrideRepository.deleteAll();
         return ResponseEntity.ok().build();
     }
@@ -1039,6 +1065,10 @@ public class AnalyticsController {
             if (session == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Unauthorized", "message", "Session expired or invalid"));
+            }
+            if (!SessionPermissions.canChangeWhatsappDate(session)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Forbidden", "message", "You do not have permission to change WhatsApp status."));
             }
             if (request == null || request.customer() == null || request.customer().isBlank()) {
                 return ResponseEntity.badRequest()
@@ -1181,6 +1211,9 @@ public class AnalyticsController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!SessionPermissions.canAccessInvoicePage(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         DetailedSalesInvoicesUpload latest = detailedSalesInvoicesUploadRepository.findTopByOrderByUploadedAtDesc();
         if (latest == null) {
@@ -1202,6 +1235,9 @@ public class AnalyticsController {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessInvoicePage(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         // SECURITY: Extract from POST body instead of URL query parameters
         String customerFilter = request != null ? request.customer() : null;
@@ -1863,6 +1899,10 @@ public class AnalyticsController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Unauthorized", "message", "Session expired or invalid"));
             }
+            if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Forbidden", "message", "You do not have permission to edit customer category."));
+            }
             if (request == null || request.customer() == null || request.customer().isBlank()) {
                 return ResponseEntity.badRequest()
                     .body(Map.of("error", "Invalid request", "message", "Customer name is required"));
@@ -1937,6 +1977,10 @@ public class AnalyticsController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Unauthorized", "message", "Session expired or invalid"));
             }
+            if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Forbidden", "message", "You do not have permission to edit place."));
+            }
             if (request == null || request.customer() == null || request.customer().isBlank()) {
                 return ResponseEntity.badRequest()
                     .body(Map.of("error", "Invalid request", "message", "Customer name is required"));
@@ -2005,6 +2049,10 @@ public class AnalyticsController {
             if (session == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Unauthorized", "message", "Session expired or invalid"));
+            }
+            if (!SessionPermissions.canChangeFollowUp(session)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Forbidden", "message", "You do not have permission to change follow-up flags."));
             }
             if (request == null || request.customer() == null || request.customer().isBlank()) {
                 return ResponseEntity.badRequest()
@@ -2075,6 +2123,9 @@ public class AnalyticsController {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         if (request == null || request.customer() == null || request.customer().isBlank()) {
             return ResponseEntity.badRequest().build();
@@ -2162,6 +2213,9 @@ public class AnalyticsController {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessCustomerLocations(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         List<PaymentDateOverride> allOverrides = paymentDateOverrideRepository.findAll();
@@ -2361,6 +2415,9 @@ public class AnalyticsController {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessSalesVisualization(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         DetailedSalesInvoicesUpload latest = detailedSalesInvoicesUploadRepository.findTopByOrderByUploadedAtDesc();
