@@ -18,7 +18,11 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: 'paymentDateEdit', label: 'Payment Date Edit', description: 'Permission to edit payment dates' },
   { key: 'whatsappDateChange', label: 'WhatsApp Date Change', description: 'Permission to change WhatsApp dates' },
   { key: 'followUpChange', label: 'Follow Up Change', description: 'Permission to change follow-up flags' },
+  { key: 'customerCategoryEdit', label: 'Customer Category Edit', description: 'Edit customer category (A/B/C, etc.) on Details or Outstanding' },
+  { key: 'customerNotesEdit', label: 'Customer Notes Edit', description: 'Add, edit, or delete customer notes (viewing notes only needs Details or Outstanding page access)' },
+  { key: 'customerLocationEdit', label: 'Customer Location Edit', description: 'Edit address, map location, or place on Details or Outstanding' },
   { key: 'rateListPage', label: 'Rate List Page', description: 'Access to rate list page' },
+  { key: 'rateListUpload', label: 'Rate List Upload', description: 'Download Excel template and bulk upload on Rate List' },
   { key: 'salesVisualization', label: 'Sales Visualization', description: 'Access to sales visualization and analytics page' },
   { key: 'customerLocations', label: 'Customer Locations', description: 'Access to customer locations map view page' }
 ];
@@ -46,6 +50,11 @@ export function getAllPermissionKeys(): Array<keyof import('./auth.service').Use
   return PERMISSIONS.map(p => p.key);
 }
 
+/** Label for permission-denied messages (Access Control uses the same names). */
+export function getPermissionLabel(key: keyof import('./auth.service').UserPermissions): string {
+  return PERMISSIONS.find(p => p.key === key)?.label ?? String(key);
+}
+
 /**
  * Get default permissions (all false)
  */
@@ -55,6 +64,13 @@ export function getDefaultPermissions(): import('./auth.service').UserPermission
     permissions[p.key] = false;
   });
   return permissions;
+}
+
+/** Merge server/partial permission objects with defaults so missing keys are denied (not treated as allowed). */
+export function normalizePermissions(
+  partial: Partial<import('./auth.service').UserPermissions> | null | undefined
+): import('./auth.service').UserPermissions {
+  return { ...getDefaultPermissions(), ...(partial ?? {}) } as import('./auth.service').UserPermissions;
 }
 
 /**

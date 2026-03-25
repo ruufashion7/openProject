@@ -9,7 +9,7 @@ From the repo root:
 mvn spring-boot:run
 ```
 
-**MongoDB Atlas:** The backend uses **MongoDB Atlas** (TLS). Allow your IP (or `0.0.0.0/0` for testing) in Atlas **Network Access**. See [docs/MONGODB_ATLAS.md](docs/MONGODB_ATLAS.md). Optional: `./scripts/run-backend-atlas.sh` (TLS JVM flags).
+**MongoDB (local vs Atlas):** By default the app uses `mongodb://localhost:27017/openProject` (start Mongo with `docker compose up -d mongo`, or use full Docker stack). To use **the same Atlas cluster as MongoDB Compass** on your machine, copy [`.env.local.properties.example`](.env.local.properties.example) to **`.env.local.properties`** in the repo root and set `mongo_uri` to your Compass connection string (that file is gitignored). Alternatively set the **`MONGO_URI`** environment variable in your IDE or shell. Allow your IP in Atlas **Network Access** when using Atlas. See [docs/MONGODB_ATLAS.md](docs/MONGODB_ATLAS.md). Optional: `./scripts/run-backend-atlas.sh` (TLS JVM flags).
 
 API endpoints:
 - `GET http://localhost:8080/api/health`

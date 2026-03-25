@@ -124,6 +124,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
   canEditPaymentDate = false;
   canChangeWhatsappDate = false;
   canChangeFollowUp = false;
+  canEditCustomerCategory = false;
   
   // Timers
   private saveTimers: Record<string, number> = {};
@@ -138,23 +139,31 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     private auth: AuthService,
     private router: Router,
     private cdr: ChangeDetectorRef,
-    private permissionService: PermissionService,
+    public permissionService: PermissionService,
     private notificationService: NotificationService
   ) {}
 
   ngOnInit(): void {
-    if (!this.permissionService.canAccessOutstandingPage()) {
-      this.notificationService.showPermissionError();
-      this.router.navigateByUrl('/welcome');
-      return;
-    }
+    this.auth.refreshSessionPermissionsFromServer()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        if (!this.auth.getToken()) {
+          return;
+        }
+        if (!this.permissionService.canAccessOutstandingPage()) {
+          this.notificationService.showPermissionError();
+          this.router.navigateByUrl('/welcome');
+          return;
+        }
 
-    this.canEditPaymentDate = this.permissionService.canEditPaymentDate();
-    this.canChangeWhatsappDate = this.permissionService.canChangeWhatsappDate();
-    this.canChangeFollowUp = this.permissionService.canChangeFollowUp();
+        this.canEditPaymentDate = this.permissionService.canEditPaymentDate();
+        this.canChangeWhatsappDate = this.permissionService.canChangeWhatsappDate();
+        this.canChangeFollowUp = this.permissionService.canChangeFollowUp();
+        this.canEditCustomerCategory = this.permissionService.canEditCustomerCategory();
 
-    this.restoreFilters();
-    this.loadData();
+        this.restoreFilters();
+        this.loadData();
+      });
   }
 
   ngOnDestroy(): void {
@@ -236,8 +245,8 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
         // Default to 'A' if no category is set, and save it automatically
         const defaultCategory = card.customerCategory ?? 'A';
         this.customerCategories[card.customer] = defaultCategory;
-        // If customer doesn't have a category set, save 'A' as default
-        if (!card.customerCategory) {
+        // If customer doesn't have a category set, save 'A' as default (only when allowed to edit master data)
+        if (!card.customerCategory && this.canEditCustomerCategory) {
           this.api.updateCustomerCategory(card.customer, 'A')
             .pipe(takeUntil(this.destroy$))
             .subscribe({
@@ -590,8 +599,35 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     }
   }
 
+  onWhatsAppRadioClick(e: MouseEvent, _card: PaymentDateCustomerCard): void {
+    e.stopPropagation();
+    if (!this.canChangeWhatsappDate) {
+      this.permissionService.notifyRoleDenied('change WhatsApp status', 'whatsappDateChange');
+    }
+  }
+
+  onCategoryRadioClick(e: MouseEvent, _card: PaymentDateCustomerCard): void {
+    e.stopPropagation();
+    if (!this.canEditCustomerCategory) {
+      this.permissionService.notifyRoleDenied('edit customer category', 'customerCategoryEdit');
+    }
+  }
+
+  onPaymentDateFocusDeny(card: PaymentDateCustomerCard, e: FocusEvent): void {
+    if (!this.canEditPaymentDate) {
+      (e.target as HTMLInputElement)?.blur();
+      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+    }
+  }
+
   onDateChange(card: PaymentDateCustomerCard, event: any): void {
     if (!card.customer) return;
+    if (!this.canEditPaymentDate) {
+      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      this.dateEdits[card.customer] = card.nextPaymentDate ?? '';
+      this.cdr.markForCheck();
+      return;
+    }
     const date = event.target?.value || '';
     this.dateEdits[card.customer] = date;
     if (this.saveTimers[card.customer]) {
@@ -603,6 +639,10 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
   }
 
   savePaymentDate(customer: string, date: string): void {
+    if (!this.canEditPaymentDate) {
+      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      return;
+    }
     this.api.updateNextPaymentDate(customer, date)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -627,6 +667,12 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
 
   onWhatsAppStatusChange(card: PaymentDateCustomerCard, status: string): void {
     if (!card.customer) return;
+    if (!this.canChangeWhatsappDate) {
+      this.permissionService.notifyRoleDenied('change WhatsApp status', 'whatsappDateChange');
+      this.whatsappStatuses[card.customer] = card.whatsAppStatus ?? 'not sent';
+      this.cdr.markForCheck();
+      return;
+    }
     this.whatsappStatuses[card.customer] = status;
     this.api.updateWhatsAppStatus(card.customer, status)
       .pipe(takeUntil(this.destroy$))
@@ -652,6 +698,12 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
 
   onCustomerCategoryChange(card: PaymentDateCustomerCard, category: string): void {
     if (!card.customer) return;
+    if (!this.canEditCustomerCategory) {
+      this.permissionService.notifyRoleDenied('edit customer category', 'customerCategoryEdit');
+      this.customerCategories[card.customer] = card.customerCategory ?? 'A';
+      this.cdr.markForCheck();
+      return;
+    }
     this.customerCategories[card.customer] = category;
     this.api.updateCustomerCategory(card.customer, category)
       .pipe(takeUntil(this.destroy$))
@@ -718,6 +770,10 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
 
   onFollowUpToggle(card: PaymentDateCustomerCard): void {
     if (!card.customer) return;
+    if (!this.canChangeFollowUp) {
+      this.permissionService.notifyRoleDenied('change follow-up flags', 'followUpChange');
+      return;
+    }
     const newValue = !this.followUpFlags[card.customer];
     this.followUpFlags[card.customer] = newValue;
     this.api.updateFollowUpFlag(card.customer, newValue)

@@ -192,6 +192,9 @@
                     type="text"
                     #dateInput
                     class="payment-date-picker"
+                    [class.payment-date-no-perm]="ready && !canEditPaymentDate"
+                    [attr.title]="!ready ? '' : permissionService.accessDeniedTooltip(canEditPaymentDate, 'paymentDateEdit')"
+                    [attr.aria-disabled]="ready && !canEditPaymentDate ? 'true' : null"
                     [value]="paymentDateEdit"
                     (keydown)="onDateKeydown($event)"
                     (input)="onPaymentDateInput($event, dateInput)"
@@ -199,7 +202,8 @@
                     (change)="onDateChange($event, dateInput)"
                     (blur)="onDateInputBlur($event, dateInput)"
                     placeholder="DD-MM"
-                    [disabled]="!ready || !canEditPaymentDate"
+                    [disabled]="!ready"
+                    [readonly]="ready && !canEditPaymentDate"
                   />
                   <button
                     type="button"
@@ -218,8 +222,12 @@
                  [class.border-yellow]="getWhatsAppStatusBorderClass() === 'border-yellow'"
                  [class.border-green]="getWhatsAppStatusBorderClass() === 'border-green'">
               <p class="info-card-label">WhatsApp Status</p>
-              <div class="whatsapp-status-radios">
-                <label class="radio-label">
+              <div
+                class="whatsapp-status-radios"
+                [class.radio-group-no-perm]="!canChangeWhatsappDate"
+                [attr.title]="permissionService.accessDeniedTooltip(canChangeWhatsappDate, 'whatsappDateChange')"
+              >
+                <label class="radio-label" (click)="onWhatsAppRadioClick($event)">
                   <input
                     type="radio"
                     name="whatsapp-status-edit"
@@ -231,7 +239,7 @@
                   <span class="radio-button grey"></span>
                   <span class="radio-label-text">Not Sent</span>
                 </label>
-                <label class="radio-label">
+                <label class="radio-label" (click)="onWhatsAppRadioClick($event)">
                   <input
                     type="radio"
                     name="whatsapp-status-edit"
@@ -243,7 +251,7 @@
                   <span class="radio-button yellow"></span>
                   <span class="radio-label-text">Sent</span>
                 </label>
-                <label class="radio-label">
+                <label class="radio-label" (click)="onWhatsAppRadioClick($event)">
                   <input
                     type="radio"
                     name="whatsapp-status-edit"
@@ -263,45 +271,53 @@
                  [class.border-yellow]="getCustomerCategoryBorderClass() === 'border-yellow'"
                  [class.border-red]="getCustomerCategoryBorderClass() === 'border-red'">
               <p class="info-card-label">Customer Category</p>
-              <div class="customer-category-radios">
-                <label class="radio-label">
+              <div
+                class="customer-category-radios"
+                [class.radio-group-no-perm]="!canEditCustomerCategory"
+                [attr.title]="permissionService.accessDeniedTooltip(canEditCustomerCategory, 'customerCategoryEdit')"
+              >
+                <label class="radio-label" (click)="onCategoryRadioClick($event)">
                   <input
                     type="radio"
                     name="customer-category-edit"
                     [checked]="customerCategoryEdit === 'semi-wholesale'"
+                    [disabled]="!canEditCustomerCategory"
                     (change)="onCustomerCategoryChange('semi-wholesale')"
                     class="radio-blue"
                   />
                   <span class="radio-button blue"></span>
                   <span class="radio-label-text">Semi-wholesale</span>
                 </label>
-                <label class="radio-label">
+                <label class="radio-label" (click)="onCategoryRadioClick($event)">
                   <input
                     type="radio"
                     name="customer-category-edit"
                     [checked]="customerCategoryEdit === 'A'"
+                    [disabled]="!canEditCustomerCategory"
                     (change)="onCustomerCategoryChange('A')"
                     class="radio-green"
                   />
                   <span class="radio-button green"></span>
                   <span class="radio-label-text">A</span>
                 </label>
-                <label class="radio-label">
+                <label class="radio-label" (click)="onCategoryRadioClick($event)">
                   <input
                     type="radio"
                     name="customer-category-edit"
                     [checked]="customerCategoryEdit === 'B'"
+                    [disabled]="!canEditCustomerCategory"
                     (change)="onCustomerCategoryChange('B')"
                     class="radio-yellow"
                   />
                   <span class="radio-button yellow"></span>
                   <span class="radio-label-text">B</span>
                 </label>
-                <label class="radio-label">
+                <label class="radio-label" (click)="onCategoryRadioClick($event)">
                   <input
                     type="radio"
                     name="customer-category-edit"
                     [checked]="customerCategoryEdit === 'C'"
+                    [disabled]="!canEditCustomerCategory"
                     (change)="onCustomerCategoryChange('C')"
                     class="radio-red"
                   />
@@ -317,9 +333,9 @@
                 type="button"
                 class="btn btn-follow-up"
                 [class.active]="followUpFlagEdit"
-                [disabled]="!canChangeFollowUp"
+                [class.btn-follow-up-no-perm]="!canChangeFollowUp"
                 (click)="onFollowUpToggle()"
-                [title]="followUpFlagEdit ? 'Follow-up needed' : 'Mark for follow-up'"
+                [attr.title]="permissionService.accessDeniedTooltip(canChangeFollowUp, 'followUpChange') || (followUpFlagEdit ? 'Follow-up needed' : 'Mark for follow-up')"
                 aria-label="Toggle follow-up flag"
               >
                 <span class="follow-up-icon" [class.active]="followUpFlagEdit">🚩</span>
@@ -401,17 +417,20 @@
                   <button
                     type="button"
                     class="btn btn-edit-location"
+                    [class.btn-action-no-perm]="ready && !canEditCustomerLocation"
                     (click)="editLocation()"
                     [disabled]="!ready"
+                    [attr.title]="!ready ? '' : permissionService.accessDeniedTooltip(canEditCustomerLocation, 'customerLocationEdit') || ((customerSummary?.address || (customerSummary?.latitude && customerSummary?.longitude)) ? 'Edit Location' : 'Add Location')"
                   >
                     {{ (customerSummary?.address || (customerSummary?.latitude && customerSummary?.longitude)) ? 'Edit Location' : 'Add Location' }}
                   </button>
                   <button
                     type="button"
                     class="btn btn-delete-location"
+                    [class.btn-action-no-perm]="ready && !canEditCustomerLocation && !!(customerSummary?.address || customerSummary?.latitude || customerSummary?.longitude)"
                     (click)="deleteLocation()"
                     [disabled]="!ready || (!customerSummary?.address && !customerSummary?.latitude && !customerSummary?.longitude)"
-                    title="Delete location"
+                    [attr.title]="(!ready || (!customerSummary?.address && !customerSummary?.latitude && !customerSummary?.longitude)) ? '' : (permissionService.accessDeniedTooltip(canEditCustomerLocation, 'customerLocationEdit') || 'Delete location')"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3 6 5 6 21 6"></polyline>
@@ -422,8 +441,8 @@
               </div>
             </div>
 
-        <!-- Customer Notes Section -->
-        <div class="info-card notes-card">
+        <!-- Customer Notes Section (view: any Details/Outstanding user; edit: Customer Notes Edit) -->
+        <div class="info-card notes-card" *ngIf="canViewCustomerNotes">
           <div class="notes-content">
             <div class="notes-header" (click)="toggleNotes()">
               <span class="section-label">NOTES</span>
@@ -456,7 +475,7 @@
                       </span>
                     </div>
                   </div>
-                  <div class="note-edit-form" *ngIf="editingNoteId === note.id">
+                  <div class="note-edit-form" *ngIf="editingNoteId === note.id && canEditCustomerNotes">
                     <textarea
                       [(ngModel)]="editingNoteContent"
                       class="note-edit-textarea"
@@ -475,7 +494,7 @@
                       </button>
                     </div>
                   </div>
-                  <div class="note-actions" *ngIf="editingNoteId !== note.id">
+                  <div class="note-actions" *ngIf="editingNoteId !== note.id && canEditCustomerNotes">
                     <button
                       type="button"
                       class="btn btn-edit-note"
@@ -501,10 +520,11 @@
                   </div>
                 </div>
                 <div class="no-notes" *ngIf="customerNotes.length === 0">
-                  <p class="no-notes-text">No notes yet. Add your first note below.</p>
+                  <p class="no-notes-text" *ngIf="canEditCustomerNotes">No notes yet. Add your first note below.</p>
+                  <p class="no-notes-text" *ngIf="!canEditCustomerNotes">No notes for this customer.</p>
                 </div>
               </div>
-              <div class="add-note-section">
+              <div class="add-note-section" *ngIf="canEditCustomerNotes">
                 <textarea
                   [(ngModel)]="newNoteContent"
                   class="new-note-textarea"

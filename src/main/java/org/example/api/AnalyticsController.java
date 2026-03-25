@@ -273,7 +273,7 @@ public class AnalyticsController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canAccessDetailsPage(session)) {
+        if (!SessionPermissions.canAccessDetailsOrOutstanding(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -351,6 +351,7 @@ public class AnalyticsController {
             String address = paymentDateOverride != null ? paymentDateOverride.address() : null;
             Double latitude = paymentDateOverride != null ? paymentDateOverride.latitude() : null;
             Double longitude = paymentDateOverride != null ? paymentDateOverride.longitude() : null;
+            String place = paymentDateOverride != null ? paymentDateOverride.place() : null;
             return ResponseEntity.ok(new CustomerSummaryResponse(
                     customerNameForResponse != null ? customerNameForResponse : "",
                     false,
@@ -367,7 +368,8 @@ public class AnalyticsController {
                     needsFollowUp,
                     address,
                     latitude,
-                    longitude
+                    longitude,
+                    place
             ));
         }
 
@@ -503,9 +505,15 @@ public class AnalyticsController {
             customerKey = normalizeCustomer(foundCustomerName);
             paymentDateOverride = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
             if (paymentDateOverride != null) {
-                if (nextPaymentDate == null) nextPaymentDate = paymentDateOverride.nextPaymentDate();
-                if (whatsAppStatus == null) whatsAppStatus = paymentDateOverride.whatsAppStatus();
-                if (!needsFollowUp) needsFollowUp = paymentDateOverride.needsFollowUp();
+                nextPaymentDate = paymentDateOverride.nextPaymentDate();
+                whatsAppStatus = paymentDateOverride.whatsAppStatus();
+                needsFollowUp = paymentDateOverride.needsFollowUp() != null ? paymentDateOverride.needsFollowUp() : false;
+                customerCategory = paymentDateOverride.customerCategory();
+            } else {
+                nextPaymentDate = null;
+                whatsAppStatus = null;
+                customerCategory = null;
+                needsFollowUp = false;
             }
         }
         
@@ -537,6 +545,7 @@ public class AnalyticsController {
         String address = paymentDateOverride != null ? paymentDateOverride.address() : null;
         Double latitude = paymentDateOverride != null ? paymentDateOverride.latitude() : null;
         Double longitude = paymentDateOverride != null ? paymentDateOverride.longitude() : null;
+        String place = paymentDateOverride != null ? paymentDateOverride.place() : null;
         return ResponseEntity.ok(new CustomerSummaryResponse(
                 foundCustomerName != null && !foundCustomerName.isEmpty() ? foundCustomerName : (resolvedCustomer != null && !resolvedCustomer.matches("\\d{10,}") ? resolvedCustomer : ""),
                 found,
@@ -553,7 +562,8 @@ public class AnalyticsController {
                 needsFollowUp,
                 address,
                 latitude,
-                longitude
+                longitude,
+                place
         ));
     }
 
@@ -566,7 +576,7 @@ public class AnalyticsController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canAccessDetailsPage(session)) {
+        if (!SessionPermissions.canAccessDetailsOrOutstanding(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -1087,6 +1097,18 @@ public class AnalyticsController {
             }
 
             // Save to customer_master collection
+            long rowsForKey = paymentDateOverrideRepository.countByCustomerKey(customerKey);
+            if (rowsForKey > 1) {
+                List<PaymentDateOverride> dupes = paymentDateOverrideRepository.findAllByCustomerKeyOrderByIdAsc(customerKey);
+                List<String> dupeIds = dupes.stream().map(PaymentDateOverride::id).toList();
+                logger.warn(
+                        "updateWhatsAppStatus: {} customer_master rows share customerKey={}; only _id={} is updated (findFirstByOrderByIdAsc). All ids: {}",
+                        rowsForKey,
+                        customerKey,
+                        dupes.isEmpty() ? "?" : dupes.getFirst().id(),
+                        dupeIds
+                );
+            }
             PaymentDateOverride existingOverride = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
             String overrideId = existingOverride == null ? null : existingOverride.id();
             String existingPhoneNumber = existingOverride != null ? existingOverride.phoneNumber() : null;
@@ -1103,6 +1125,14 @@ public class AnalyticsController {
             List<org.example.payment.CustomerNote> existingNotes = existingOverride != null && existingOverride.notes() != null 
                     ? existingOverride.notes() 
                     : new ArrayList<>();
+            
+            logger.info(
+                    "updateWhatsAppStatus: customerKey={}, displayName={}, mongoId={}, status={}",
+                    customerKey,
+                    request.customer().trim(),
+                    overrideId != null ? overrideId : "(new)",
+                    status
+            );
             
             PaymentDateOverride updated = new PaymentDateOverride(
                     overrideId,
@@ -1899,7 +1929,7 @@ public class AnalyticsController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Unauthorized", "message", "Session expired or invalid"));
             }
-            if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+            if (!SessionPermissions.canEditCustomerCategory(session)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Forbidden", "message", "You do not have permission to edit customer category."));
             }
@@ -1977,7 +2007,7 @@ public class AnalyticsController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Unauthorized", "message", "Session expired or invalid"));
             }
-            if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+            if (!SessionPermissions.canEditCustomerLocation(session)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Forbidden", "message", "You do not have permission to edit place."));
             }
@@ -2124,7 +2154,7 @@ public class AnalyticsController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+        if (!SessionPermissions.canEditCustomerLocation(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         if (request == null || request.customer() == null || request.customer().isBlank()) {

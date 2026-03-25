@@ -133,17 +133,19 @@ export class RateListComponent implements OnInit {
   showSrNoInput = false;
 
   canAccessRateList = false;
+  canUploadRateListFiles = false;
 
   constructor(
     private api: ApiService,
     private auth: AuthService,
     private router: Router,
-    private permissionService: PermissionService,
+    public permissionService: PermissionService,
     private notificationService: NotificationService
   ) {}
 
   ngOnInit(): void {
     this.canAccessRateList = this.permissionService.canAccessRateList();
+    this.canUploadRateListFiles = this.permissionService.canUploadRateListFiles();
     if (!this.canAccessRateList) {
       this.router.navigateByUrl('/welcome');
       return;
@@ -1056,6 +1058,10 @@ export class RateListComponent implements OnInit {
   }
 
   openBulkUploadModal(): void {
+    if (!this.canUploadRateListFiles) {
+      this.permissionService.notifyRoleDenied('upload rate list files', 'rateListUpload');
+      return;
+    }
     this.showBulkUploadModal = true;
     this.selectedFile = null;
     this.uploadStatus = 'idle';
@@ -1088,6 +1094,10 @@ export class RateListComponent implements OnInit {
   }
 
   downloadTemplate(): void {
+    if (!this.canUploadRateListFiles) {
+      this.permissionService.notifyRoleDenied('download the rate list template', 'rateListUpload');
+      return;
+    }
     this.api.downloadRateListTemplate().subscribe({
       next: (blob) => {
         const url = window.URL.createObjectURL(blob);
@@ -1108,6 +1118,10 @@ export class RateListComponent implements OnInit {
   }
 
   uploadFile(): void {
+    if (!this.canUploadRateListFiles) {
+      this.permissionService.notifyRoleDenied('upload rate list files', 'rateListUpload');
+      return;
+    }
     if (!this.selectedFile) {
       this.uploadStatus = 'error';
       this.uploadMessage = 'Please select a file first.';

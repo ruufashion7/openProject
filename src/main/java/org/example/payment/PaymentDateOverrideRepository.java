@@ -3,10 +3,15 @@ package org.example.payment;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface PaymentDateOverrideRepository extends MongoRepository<PaymentDateOverride, String> {
     Optional<PaymentDateOverride> findFirstByCustomerKeyOrderByIdAsc(String customerKey);
+
+    long countByCustomerKey(String customerKey);
+
+    List<PaymentDateOverride> findAllByCustomerKeyOrderByIdAsc(String customerKey);
     void deleteByCustomerKey(String customerKey);
     
     /**

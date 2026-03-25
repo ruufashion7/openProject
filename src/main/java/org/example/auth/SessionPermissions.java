@@ -69,6 +69,14 @@ public final class SessionPermissions {
         return has(session, UserPermissions::isRateListPage);
     }
 
+    /** Excel template + bulk upload on Rate List — requires page access and {@link UserPermissions#isRateListUpload()}. */
+    public static boolean canUploadRateListFiles(SessionInfo session) {
+        if (!canAccessRateList(session)) {
+            return false;
+        }
+        return has(session, UserPermissions::isRateListUpload);
+    }
+
     public static boolean canAccessCustomerLocations(SessionInfo session) {
         return has(session, UserPermissions::isCustomerLocations);
     }
@@ -103,8 +111,32 @@ public final class SessionPermissions {
         return p.isDetailsPage() || p.isOutstandingPage();
     }
 
-    /** Category/place edits are allowed from Details or Outstanding pages. */
-    public static boolean canEditCustomerMasterFromDetailsOrOutstanding(SessionInfo session) {
+    /** Customer category on Details / Outstanding — requires page access and {@link UserPermissions#isCustomerCategoryEdit()}. */
+    public static boolean canEditCustomerCategory(SessionInfo session) {
+        if (!canAccessDetailsOrOutstanding(session)) {
+            return false;
+        }
+        return has(session, UserPermissions::isCustomerCategoryEdit);
+    }
+
+    /** Read customer notes on Details / Outstanding (same page access as customer master). */
+    public static boolean canViewCustomerNotes(SessionInfo session) {
         return canAccessDetailsOrOutstanding(session);
+    }
+
+    /** Add, edit, or delete customer notes — requires page access and {@link UserPermissions#isCustomerNotesEdit()}. */
+    public static boolean canEditCustomerNotes(SessionInfo session) {
+        if (!canAccessDetailsOrOutstanding(session)) {
+            return false;
+        }
+        return has(session, UserPermissions::isCustomerNotesEdit);
+    }
+
+    /** Address / coordinates / place on customer master from Details / Outstanding. */
+    public static boolean canEditCustomerLocation(SessionInfo session) {
+        if (!canAccessDetailsOrOutstanding(session)) {
+            return false;
+        }
+        return has(session, UserPermissions::isCustomerLocationEdit);
     }
 }

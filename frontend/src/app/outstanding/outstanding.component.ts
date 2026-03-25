@@ -98,6 +98,11 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   canEditPaymentDate = false;
   canChangeWhatsappDate = false;
   canChangeFollowUp = false;
+  /** Customer master fields (require Details or Outstanding + specific permission). */
+  canEditCustomerCategory = false;
+  canViewCustomerNotes = false;
+  canEditCustomerNotes = false;
+  canEditCustomerLocation = false;
   
   // Subscription management
   private destroy$ = new Subject<void>();
@@ -114,44 +119,63 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     private auth: AuthService,
     private router: Router,
     private cdr: ChangeDetectorRef,
-    private permissionService: PermissionService,
+    public permissionService: PermissionService,
     private notificationService: NotificationService
   ) {}
 
   ngOnInit(): void {
-    if (!this.permissionService.canAccessDetailsPage()) {
-      this.notificationService.showPermissionError();
-      this.router.navigateByUrl('/welcome');
-      return;
-    }
+    this.auth.refreshSessionPermissionsFromServer()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        if (!this.auth.getToken()) {
+          return;
+        }
+        if (!this.permissionService.canAccessDetailsPage()) {
+          this.notificationService.showPermissionError();
+          this.router.navigateByUrl('/welcome');
+          return;
+        }
 
+        this.applyPermissionFlags();
+        this.status = 'loading';
+        this.api.getUploadStatus()
+          .pipe(takeUntil(this.destroy$))
+          .subscribe({
+            next: (status) => {
+              this.ready = status.ready ?? (status.hasDetailed && status.hasReceivable);
+              this.status = 'idle';
+              this.setMessage(this.ready
+                ? 'Latest uploads available.'
+                : 'Latest uploads not available.');
+            },
+            error: (err: HttpErrorResponse) => {
+              if (err.status === 401) {
+                this.status = 'failed';
+                this.setMessage('Session expired. Please login again.');
+                this.logout();
+                return;
+              }
+              this.status = 'failed';
+              this.setMessage('Unable to load upload status.');
+            }
+          });
+
+        this.initCustomerSelectionFromStorage();
+      });
+  }
+
+  private applyPermissionFlags(): void {
     this.canDownloadWholeProject = this.permissionService.canDownloadWholeProject();
     this.canEditPaymentDate = this.permissionService.canEditPaymentDate();
     this.canChangeWhatsappDate = this.permissionService.canChangeWhatsappDate();
     this.canChangeFollowUp = this.permissionService.canChangeFollowUp();
-    this.status = 'loading';
-    this.api.getUploadStatus()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-      next: (status) => {
-        this.ready = status.ready ?? (status.hasDetailed && status.hasReceivable);
-        this.status = 'idle';
-        this.setMessage(this.ready
-          ? 'Latest uploads available.'
-          : 'Latest uploads not available.');
-      },
-      error: (err: HttpErrorResponse) => {
-        if (err.status === 401) {
-          this.status = 'failed';
-          this.setMessage('Session expired. Please login again.');
-          this.logout();
-          return;
-        }
-        this.status = 'failed';
-        this.setMessage('Unable to load upload status.');
-      }
-    });
+    this.canEditCustomerCategory = this.permissionService.canEditCustomerCategory();
+    this.canViewCustomerNotes = this.permissionService.canViewCustomerNotes();
+    this.canEditCustomerNotes = this.permissionService.canEditCustomerNotes();
+    this.canEditCustomerLocation = this.permissionService.canEditCustomerLocation();
+  }
 
+  private initCustomerSelectionFromStorage(): void {
     // SECURITY: Do NOT read customer from URL query parameters
     // Remove customer from URL if present
     const urlCustomer = this.getCustomerFromQuery();
@@ -173,6 +197,56 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
       } else if (!savedCustomer) {
         this.selectedCustomerName = null;
       }
+    }
+  }
+
+  /**
+   * Backend normalizes customer names for customer_master keys; the summary may return a canonical
+   * Excel name that differs from the search string. Saves must use that same string or updates
+   * hit a different document than the one the summary reads.
+   */
+  private getCustomerNameForMasterWrites(): string | null {
+    // Summary is cleared while the next /customer-summary request is in flight; using only
+    // selectedCustomerName here would send the wrong customer key (canonical name mismatch).
+    if (this.customerSummary === undefined) {
+      return null;
+    }
+    const fromSummary = this.customerSummary?.customer?.trim();
+    if (fromSummary) {
+      return fromSummary;
+    }
+    return this.selectedCustomerName?.trim() ?? null;
+  }
+
+  private applyCanonicalCustomerNameFromSummary(summary: CustomerSummaryResponse): void {
+    const c = summary.customer?.trim();
+    if (!c) {
+      return;
+    }
+    if (this.selectedCustomerName !== c) {
+      this.selectedCustomerName = c;
+      this.saveCustomer(c);
+      this.updateUrlWithCustomer(c);
+    }
+  }
+
+  /** Drop pending debounced saves so they cannot fire after switching customers or clearing summary. */
+  private clearPendingMasterWriteTimers(): void {
+    if (this.paymentDateSaveTimer) {
+      window.clearTimeout(this.paymentDateSaveTimer);
+      this.paymentDateSaveTimer = undefined;
+    }
+    if (this.whatsappStatusSaveTimer) {
+      window.clearTimeout(this.whatsappStatusSaveTimer);
+      this.whatsappStatusSaveTimer = undefined;
+    }
+    if (this.customerCategorySaveTimer) {
+      window.clearTimeout(this.customerCategorySaveTimer);
+      this.customerCategorySaveTimer = undefined;
+    }
+    if (this.followUpSaveTimer) {
+      window.clearTimeout(this.followUpSaveTimer);
+      this.followUpSaveTimer = undefined;
     }
   }
 
@@ -364,6 +438,8 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     if (!isPhoneNumber && this.selectedCustomerName === name) {
       return;
     }
+
+    this.clearPendingMasterWriteTimers();
     
     this.customerQuery = name;
     this.customerSuggestions = [];
@@ -450,6 +526,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
         // Set follow-up flag
         this.followUpFlag = summary.needsFollowUp ?? false;
         this.followUpFlagEdit = this.followUpFlag;
+        this.applyCanonicalCustomerNameFromSummary(summary);
       },
       error: (err: HttpErrorResponse) => {
         if (err.status === 401) {
@@ -500,6 +577,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   selectPhone(phone: string): void {
+    this.clearPendingMasterWriteTimers();
     this.customerQuery = phone;
     this.phoneSuggestions = [];
     this.customerSuggestions = [];
@@ -563,6 +641,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
         // Set follow-up flag
         this.followUpFlag = summary.needsFollowUp ?? false;
         this.followUpFlagEdit = this.followUpFlag;
+        this.applyCanonicalCustomerNameFromSummary(summary);
       },
       error: (err: HttpErrorResponse) => {
         if (err.status === 401) {
@@ -592,8 +671,11 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
       }
     });
 
-    // Load customer notes
-    this.loadNotes();
+    if (this.canViewCustomerNotes) {
+      this.loadNotes();
+    } else {
+      this.customerNotes = [];
+    }
   }
 
   logout(): void {
@@ -608,6 +690,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   clearLedger(): void {
+    this.clearPendingMasterWriteTimers();
     this.customerQuery = '';
     this.customerSuggestions = [];
     this.phoneSuggestions = [];
@@ -979,6 +1062,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     if (this.isProcessingDateChange) {
       return;
     }
+    if (!this.canEditPaymentDate) {
+      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      return;
+    }
     // Only handle text input (manual typing)
     if (!this.selectedCustomerName || input.type === 'date') {
       return;
@@ -1003,6 +1090,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   openDatePicker(event: FocusEvent, input: HTMLInputElement): void {
+    if (!this.canEditPaymentDate) {
+      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      return;
+    }
     if (!input || !this.selectedCustomerName || input.type === 'date') {
       return;
     }
@@ -1025,6 +1116,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     
     // Prevent re-entry
     if (this.isProcessingDateChange) {
+      return;
+    }
+    if (!this.canEditPaymentDate) {
+      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
       return;
     }
     
@@ -1123,6 +1218,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   clearPaymentDate(): void {
+    if (!this.canEditPaymentDate) {
+      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      return;
+    }
     this.paymentDateEdit = '';
     this.paymentDate = null;
     if (this.customerSummary) {
@@ -1136,25 +1235,36 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
 
   private savePaymentDate(value: string): void {
     if (!this.canEditPaymentDate) {
+      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
       return;
     }
-    if (!this.selectedCustomerName) {
+    const customer = this.getCustomerNameForMasterWrites();
+    if (!customer) {
+      this.notificationService.showError(
+        'Customer details are still loading. Wait a moment and try again.',
+        4000
+      );
       return;
     }
     const cleaned = value.trim();
     if (cleaned && !/^\d{2}-\d{2}$/.test(cleaned)) {
       this.customerStatus = 'Invalid date format. Use dd-MM.';
       this.customerStatusIsError = true;
+      this.notificationService.showError('Invalid date format. Use DD-MM.', 4000);
       return;
     }
     this.customerStatus = '';
     this.customerStatusIsError = false;
-    this.api.updateNextPaymentDate(this.selectedCustomerName, cleaned).subscribe({
+    this.api.updateNextPaymentDate(customer, cleaned).subscribe({
       next: () => {
         this.paymentDate = cleaned || null;
         this.paymentDateEdit = cleaned;
         // Refresh customer summary to get latest data
         this.refreshCustomerSummary();
+        this.notificationService.showSuccess(
+          cleaned ? 'Payment date saved.' : 'Payment date cleared.',
+          3000
+        );
       },
       error: (err: HttpErrorResponse) => {
         if (err.status === 401) {
@@ -1165,15 +1275,32 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
         }
         this.customerStatus = 'Unable to save payment date.';
         this.customerStatusIsError = true;
+        this.notificationService.showError('Failed to save payment date.', 3000);
       }
     });
   }
 
+  onWhatsAppRadioClick(e: MouseEvent): void {
+    if (!this.canChangeWhatsappDate) {
+      e.preventDefault();
+      this.permissionService.notifyRoleDenied('change WhatsApp status', 'whatsappDateChange');
+    }
+  }
+
+  onCategoryRadioClick(e: MouseEvent): void {
+    if (!this.canEditCustomerCategory) {
+      e.preventDefault();
+      this.permissionService.notifyRoleDenied('edit customer category', 'customerCategoryEdit');
+    }
+  }
+
   onWhatsAppStatusChange(status: 'not sent' | 'sent' | 'delivered'): void {
     if (!this.canChangeWhatsappDate) {
+      this.permissionService.notifyRoleDenied('change WhatsApp status', 'whatsappDateChange');
+      this.whatsappStatusEdit = this.whatsappStatus ?? 'not sent';
       return;
     }
-    this.whatsappStatus = status;
+    // Only update the edit binding until save succeeds; whatsappStatus stays the last committed value.
     this.whatsappStatusEdit = status;
     this.scheduleWhatsAppStatusSave(status);
   }
@@ -1191,12 +1318,18 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     if (!this.canChangeWhatsappDate) {
       return;
     }
-    if (!this.selectedCustomerName) {
+    const customer = this.getCustomerNameForMasterWrites();
+    if (!customer) {
+      this.whatsappStatusEdit = this.whatsappStatus ?? 'not sent';
+      this.notificationService.showError(
+        'Customer details are still loading. Wait a moment and try again.',
+        4000
+      );
       return;
     }
-    this.api.updateWhatsAppStatus(this.selectedCustomerName, status).subscribe({
+    this.api.updateWhatsAppStatus(customer, status).subscribe({
       next: () => {
-        // Status already updated in UI via onWhatsAppStatusChange
+        this.whatsappStatus = status;
         // Update customer summary to keep it in sync
         if (this.customerSummary) {
           this.customerSummary = {
@@ -1204,8 +1337,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
             whatsAppStatus: status
           };
         }
+        this.notificationService.showSuccess('WhatsApp status saved.', 3000);
       },
       error: (err: HttpErrorResponse) => {
+        this.whatsappStatusEdit = this.whatsappStatus ?? 'not sent';
         if (err.status === 401) {
           this.customerStatus = 'Session expired. Please login again.';
           this.customerStatusIsError = true;
@@ -1214,12 +1349,18 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
         }
         this.customerStatus = 'Unable to save WhatsApp status.';
         this.customerStatusIsError = true;
+        this.notificationService.showError('Failed to save WhatsApp status.', 3000);
       }
     });
   }
 
   onCustomerCategoryChange(category: 'semi-wholesale' | 'A' | 'B' | 'C'): void {
-    if (!this.selectedCustomerName) {
+    if (!this.canEditCustomerCategory) {
+      this.permissionService.notifyRoleDenied('edit customer category', 'customerCategoryEdit');
+      this.customerCategoryEdit = this.customerCategory ?? 'A';
+      return;
+    }
+    if (!this.getCustomerNameForMasterWrites()) {
       return;
     }
     this.customerCategoryEdit = category;
@@ -1237,10 +1378,14 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   private saveCustomerCategory(category: 'semi-wholesale' | 'A' | 'B' | 'C'): void {
-    if (!this.selectedCustomerName) {
+    if (!this.canEditCustomerCategory) {
       return;
     }
-    this.api.updateCustomerCategory(this.selectedCustomerName, category).subscribe({
+    const customer = this.getCustomerNameForMasterWrites();
+    if (!customer) {
+      return;
+    }
+    this.api.updateCustomerCategory(customer, category).subscribe({
       next: () => {
         // Category already updated in UI via onCustomerCategoryChange
         // Update customer summary to keep it in sync
@@ -1250,6 +1395,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
             customerCategory: category
           };
         }
+        this.notificationService.showSuccess('Customer category saved.', 3000);
       },
       error: (err: HttpErrorResponse) => {
         if (err.status === 401) {
@@ -1260,6 +1406,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
         }
         this.customerStatus = 'Unable to save customer category.';
         this.customerStatusIsError = true;
+        this.notificationService.showError('Failed to save customer category.', 3000);
       }
     });
   }
@@ -1285,9 +1432,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
 
   onFollowUpToggle(): void {
     if (!this.canChangeFollowUp) {
+      this.permissionService.notifyRoleDenied('change follow-up flags', 'followUpChange');
       return;
     }
-    if (!this.selectedCustomerName) {
+    if (!this.getCustomerNameForMasterWrites()) {
       return;
     }
     this.followUpFlagEdit = !this.followUpFlagEdit;
@@ -1307,10 +1455,11 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     if (!this.canChangeFollowUp) {
       return;
     }
-    if (!this.selectedCustomerName) {
+    const customer = this.getCustomerNameForMasterWrites();
+    if (!customer) {
       return;
     }
-    this.api.updateFollowUpFlag(this.selectedCustomerName, needsFollowUp).subscribe({
+    this.api.updateFollowUpFlag(customer, needsFollowUp).subscribe({
       next: () => {
         this.followUpFlag = needsFollowUp;
         // Update customer summary to keep it in sync
@@ -1320,6 +1469,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
             needsFollowUp: needsFollowUp
           };
         }
+        this.notificationService.showSuccess(
+          needsFollowUp ? 'Follow-up marked as needed.' : 'Follow-up cleared.',
+          3000
+        );
       },
       error: (err: HttpErrorResponse) => {
         if (err.status === 401) {
@@ -1330,6 +1483,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
         }
         this.customerStatus = 'Unable to save follow-up flag.';
         this.customerStatusIsError = true;
+        this.notificationService.showError('Failed to save follow-up.', 3000);
         // Revert the change on error
         this.followUpFlagEdit = !needsFollowUp;
         this.followUpFlag = !needsFollowUp;
@@ -1338,7 +1492,11 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   editLocation(): void {
-    if (!this.selectedCustomerName) {
+    if (!this.canEditCustomerLocation) {
+      this.permissionService.notifyRoleDenied('edit customer location', 'customerLocationEdit');
+      return;
+    }
+    if (!this.getCustomerNameForMasterWrites()) {
       return;
     }
     this.editingLocation = true;
@@ -1355,12 +1513,17 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   saveLocation(locationData: LocationData): void {
-    if (!this.selectedCustomerName) {
+    if (!this.canEditCustomerLocation) {
+      this.permissionService.notifyRoleDenied('edit customer location', 'customerLocationEdit');
+      return;
+    }
+    const customer = this.getCustomerNameForMasterWrites();
+    if (!customer) {
       return;
     }
     this.customerStatus = '';
     this.customerStatusIsError = false;
-    this.api.updateCustomerLocation(this.selectedCustomerName, {
+    this.api.updateCustomerLocation(customer, {
       address: locationData.address || null,
       latitude: locationData.latitude === 0 ? null : locationData.latitude,
       longitude: locationData.longitude === 0 ? null : locationData.longitude
@@ -1399,7 +1562,12 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   deleteLocation(): void {
-    if (!this.selectedCustomerName) {
+    if (!this.canEditCustomerLocation) {
+      this.permissionService.notifyRoleDenied('edit customer location', 'customerLocationEdit');
+      return;
+    }
+    const customer = this.getCustomerNameForMasterWrites();
+    if (!customer) {
       return;
     }
     
@@ -1409,7 +1577,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
 
     this.customerStatus = '';
     this.customerStatusIsError = false;
-    this.api.updateCustomerLocation(this.selectedCustomerName, {
+    this.api.updateCustomerLocation(customer, {
       address: '',
       latitude: null,
       longitude: null
@@ -1501,12 +1669,14 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   private refreshCustomerSummary(): void {
-    if (!this.selectedCustomerName) {
+    const customerName = this.getCustomerNameForMasterWrites();
+    if (!customerName) {
       return;
     }
-    this.api.getCustomerSummary(this.selectedCustomerName).subscribe({
+    this.api.getCustomerSummary(customerName).subscribe({
       next: (summary) => {
         this.customerSummary = summary;
+        this.applyCanonicalCustomerNameFromSummary(summary);
         if (summary.nextPaymentDate) {
           this.paymentDate = summary.nextPaymentDate;
           this.paymentDateEdit = summary.nextPaymentDate;
@@ -1773,14 +1943,18 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
 
   // Customer Notes Methods
   loadNotes(): void {
-    if (!this.selectedCustomerName && !this.selectedPhoneNumber) {
+    if (!this.canViewCustomerNotes) {
+      this.customerNotes = [];
+      return;
+    }
+    if (!this.getCustomerNameForMasterWrites() && !this.selectedPhoneNumber) {
       this.customerNotes = [];
       return;
     }
 
     this.isLoadingNotes = true;
     this.api.getCustomerNotes({
-      customerName: this.selectedCustomerName || null,
+      customerName: this.getCustomerNameForMasterWrites() || null,
       phoneNumber: this.selectedPhoneNumber || null
     }).subscribe({
       next: (notes) => {
@@ -1806,6 +1980,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   startEditingNote(note: CustomerNote): void {
+    if (!this.canEditCustomerNotes) {
+      this.permissionService.notifyRoleDenied('edit customer notes', 'customerNotesEdit');
+      return;
+    }
     this.editingNoteId = note.id;
     this.editingNoteContent = note.note;
   }
@@ -1816,6 +1994,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   saveNote(): void {
+    if (!this.canEditCustomerNotes) {
+      this.permissionService.notifyRoleDenied('edit customer notes', 'customerNotesEdit');
+      return;
+    }
     if (!this.editingNoteId || !this.editingNoteContent.trim()) {
       return;
     }
@@ -1840,6 +2022,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   deleteNote(noteId: string): void {
+    if (!this.canEditCustomerNotes) {
+      this.permissionService.notifyRoleDenied('edit customer notes', 'customerNotesEdit');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this note?')) {
       return;
     }
@@ -1860,17 +2046,21 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   addNote(): void {
+    if (!this.canEditCustomerNotes) {
+      this.permissionService.notifyRoleDenied('edit customer notes', 'customerNotesEdit');
+      return;
+    }
     if (!this.newNoteContent.trim()) {
       return;
     }
 
-    if (!this.selectedCustomerName && !this.selectedPhoneNumber) {
+    if (!this.getCustomerNameForMasterWrites() && !this.selectedPhoneNumber) {
       this.notificationService.showError('Please select a customer first.');
       return;
     }
 
     this.api.createCustomerNote({
-      customerName: this.selectedCustomerName || null,
+      customerName: this.getCustomerNameForMasterWrites() || null,
       phoneNumber: this.selectedPhoneNumber || null,
       note: this.newNoteContent.trim()
     }).subscribe({
@@ -1984,18 +2174,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     if (this.messageTimer) {
       window.clearTimeout(this.messageTimer);
     }
-    if (this.paymentDateSaveTimer) {
-      window.clearTimeout(this.paymentDateSaveTimer);
-    }
-    if (this.whatsappStatusSaveTimer) {
-      window.clearTimeout(this.whatsappStatusSaveTimer);
-    }
-    if (this.customerCategorySaveTimer) {
-      window.clearTimeout(this.customerCategorySaveTimer);
-    }
-    if (this.followUpSaveTimer) {
-      window.clearTimeout(this.followUpSaveTimer);
-    }
+    this.clearPendingMasterWriteTimers();
     // Cleanup map
     if (this.locationMap) {
       this.locationMap.remove();

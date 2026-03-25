@@ -26,9 +26,12 @@ public class UserPermissionsHelper {
             true,  // whatsappDateChange
             true,  // followUpChange
             true,  // rateListPage
+            true,  // rateListUpload
             true,  // salesVisualization
-            true   // customerLocations
-            // Add new permissions here with true value
+            true,  // customerLocations
+            true,  // customerCategoryEdit
+            true,  // customerNotesEdit
+            true   // customerLocationEdit
         );
     }
     
@@ -48,9 +51,12 @@ public class UserPermissionsHelper {
             false,  // whatsappDateChange
             false,  // followUpChange
             false,  // rateListPage
+            false,  // rateListUpload
             false,  // salesVisualization
-            false   // customerLocations
-            // Add new permissions here with false value
+            false,  // customerLocations
+            false,  // customerCategoryEdit
+            false,  // customerNotesEdit
+            false   // customerLocationEdit
         );
     }
 }

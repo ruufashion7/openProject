@@ -126,6 +126,7 @@ export interface CustomerSummaryResponse {
   address?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  place?: string | null;
 }
 
 export interface CustomerLocation {

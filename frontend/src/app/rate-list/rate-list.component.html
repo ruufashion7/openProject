@@ -10,8 +10,8 @@
     <p class="status-text failed" *ngIf="status === 'failed' && message">{{ message }}</p>
     <p class="status-text success" *ngIf="status === 'idle' && message">{{ message }}</p>
 
-    <!-- Bulk Upload Section -->
-    <div class="bulk-upload-section" *ngIf="!isEditing">
+    <!-- Bulk Upload Section (separate permission from viewing/editing rate list) -->
+    <div class="bulk-upload-section" *ngIf="!isEditing && canUploadRateListFiles">
       <div class="bulk-upload-header">
         <div class="bulk-upload-icon">📤</div>
         <div>

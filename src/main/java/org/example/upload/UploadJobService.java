@@ -9,8 +9,6 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import jakarta.annotation.PostConstruct;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -68,11 +66,6 @@ public class UploadJobService {
         this.securityAuditService = securityAuditService;
         this.uploadExecutor = uploadExecutor;
         this.persistence = persistence;
-    }
-
-    @PostConstruct
-    void hydrateLastOutcomeFromMongo() {
-        persistence.loadLastOutcome().ifPresent(o -> this.lastOutcome = o);
     }
 
     /**
@@ -160,24 +153,6 @@ public class UploadJobService {
         uploadInProgress.set(false);
         currentUploadFuture.set(null);
         persistence.releaseDistributedLock(job.id);
-    }
-
-    private void setLastOutcomeIfAbsent(String state, String message) {
-        UploadLastOutcomeResponse o = new UploadLastOutcomeResponse(
-                "watchdog",
-                state,
-                message,
-                List.of(),
-                Instant.now(),
-                "",
-                ""
-        );
-        lastOutcome = o;
-        persistence.persistLastOutcome(o);
-    }
-
-    public Optional<UploadLastOutcomeResponse> getLastOutcome() {
-        return Optional.ofNullable(lastOutcome);
     }
 
     public UploadAsyncStateResponse getAsyncState() {

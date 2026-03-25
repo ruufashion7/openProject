@@ -47,6 +47,8 @@ export class AccessControlComponent implements OnInit {
   /** Optional: set a new password when editing (leave blank to keep current). */
   editPasswordNew = '';
   editPasswordConfirm = '';
+  /** Required when editing your own account and setting a new password (verified server-side). */
+  editPasswordCurrent = '';
 
   constructor(
     private http: HttpClient,
@@ -151,6 +153,7 @@ export class AccessControlComponent implements OnInit {
     this.isCreating = false;
     this.editPasswordNew = '';
     this.editPasswordConfirm = '';
+    this.editPasswordCurrent = '';
     this.editedUser = {
       displayName: user.displayName,
       isAdmin: user.isAdmin,
@@ -165,6 +168,12 @@ export class AccessControlComponent implements OnInit {
     this.editedUser = {};
     this.editPasswordNew = '';
     this.editPasswordConfirm = '';
+    this.editPasswordCurrent = '';
+  }
+
+  /** True when the row being edited is the logged-in user (password change needs current password). */
+  isEditingOwnAccount(): boolean {
+    return !!this.selectedUser && this.selectedUser.id === this.authService.getUserId();
   }
 
   updateUser(): void {
@@ -196,9 +205,17 @@ export class AccessControlComponent implements OnInit {
 
     const newPw = this.editPasswordNew.trim();
     const confirmPw = this.editPasswordConfirm.trim();
+    const editedSelf = this.selectedUser.id === this.authService.getUserId();
     if (newPw || confirmPw) {
       if (newPw !== confirmPw) {
         alert('New password and confirmation do not match.');
+        return;
+      }
+    }
+    if (editedSelf && newPw) {
+      const cur = this.editPasswordCurrent.trim();
+      if (!cur) {
+        alert('Enter your current password before setting a new password.');
         return;
       }
     }
@@ -210,6 +227,7 @@ export class AccessControlComponent implements OnInit {
       permissions: UserPermissions;
       active: boolean;
       password?: string;
+      currentPassword?: string;
     } = {
       displayName: this.editedUser.displayName!,
       isAdmin: this.editedUser.isAdmin!,
@@ -219,9 +237,11 @@ export class AccessControlComponent implements OnInit {
     if (newPw) {
       payload.password = newPw;
     }
+    if (editedSelf && newPw) {
+      payload.currentPassword = this.editPasswordCurrent.trim();
+    }
 
     const passwordChanged = !!newPw;
-    const editedSelf = this.selectedUser.id === this.authService.getUserId();
 
     this.http.put<User>(`/api/users/${this.selectedUser.id}`, payload, { headers }).subscribe({
       next: () => {

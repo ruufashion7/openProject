@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,6 +26,12 @@ public class AuthSessionService {
     private final AuthSessionRepository authSessionRepository;
     private final JwtTokenService jwtTokenService;
     private boolean adminInitialized = false;
+
+    /**
+     * JWTs cannot be removed from the client; after deleting the MongoDB mirror we must reject the same token
+     * until its natural expiry. Keys are raw bearer tokens; values are JWT exp (cleanup when past).
+     */
+    private final ConcurrentHashMap<String, Instant> revokedJwtUntil = new ConcurrentHashMap<>();
 
     @Value("${security.admin.default-username:#{null}}")
     private String defaultAdminUsername;
@@ -172,9 +179,31 @@ public class AuthSessionService {
         }
         Optional<JwtTokenService.ParsedJwt> jwt = jwtTokenService.parse(token);
         if (jwt.isPresent()) {
+            if (isJwtRevoked(token)) {
+                return null;
+            }
             return validateFromJwt(jwt.get());
         }
         return validateFromMongoOpaqueToken(token);
+    }
+
+    private boolean isJwtRevoked(String token) {
+        Instant until = revokedJwtUntil.get(token);
+        if (until == null) {
+            return false;
+        }
+        if (Instant.now().isAfter(until)) {
+            revokedJwtUntil.remove(token);
+            return false;
+        }
+        return true;
+    }
+
+    private void revokeJwt(String token, Instant jwtExpiry) {
+        if (token == null || jwtExpiry == null) {
+            return;
+        }
+        revokedJwtUntil.put(token, jwtExpiry);
     }
 
     private SessionInfo validateFromJwt(JwtTokenService.ParsedJwt j) {
@@ -255,6 +284,10 @@ public class AuthSessionService {
         }
         Optional<JwtTokenService.ParsedJwt> jwt = jwtTokenService.parse(token);
         if (jwt.isPresent()) {
+            if (authSessionRepository.existsById(token)) {
+                authSessionRepository.deleteById(token);
+            }
+            revokeJwt(token, jwt.get().expiresAt());
             securityAuditService.logSessionTerminated(jwt.get().userId(), "User logout");
             return;
         }
@@ -270,6 +303,9 @@ public class AuthSessionService {
         }
         Optional<JwtTokenService.ParsedJwt> jwt = jwtTokenService.parse(token);
         if (jwt.isPresent()) {
+            if (isJwtRevoked(token)) {
+                return null;
+            }
             return validateFromJwt(jwt.get());
         }
         return authSessionRepository.findById(token)
@@ -305,14 +341,18 @@ public class AuthSessionService {
         if (token == null || token.isBlank()) {
             return false;
         }
-        if (jwtTokenService.parse(token).isPresent()) {
+        boolean removedDoc = false;
+        if (authSessionRepository.existsById(token)) {
+            authSessionRepository.deleteById(token);
+            removedDoc = true;
+        }
+        Optional<JwtTokenService.ParsedJwt> jwt = jwtTokenService.parse(token);
+        if (jwt.isPresent()) {
+            revokeJwt(token, jwt.get().expiresAt());
+            securityAuditService.logSessionTerminated(jwt.get().userId(), "Admin revoked session");
             return true;
         }
-        if (!authSessionRepository.existsById(token)) {
-            return false;
-        }
-        authSessionRepository.deleteById(token);
-        return true;
+        return removedDoc;
     }
 
     public int deleteUserSessions(String userId) {

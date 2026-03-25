@@ -794,6 +794,35 @@
   background: #fff3e0;
 }
 
+.btn-follow-up-no-perm {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.payment-date-no-perm {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: #f3f4f6 !important;
+}
+
+.radio-group-no-perm {
+  opacity: 0.65;
+}
+
+.radio-group-no-perm .radio-label {
+  cursor: not-allowed;
+}
+
+/* Native disabled + custom visible circle: dim the fake radio when inputs are disabled */
+.radio-label input[type="radio"]:disabled + .radio-button {
+  opacity: 0.45;
+}
+
+.btn-action-no-perm {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .btn-follow-up.active {
   border-color: #ff9800;
   background: #ff9800;

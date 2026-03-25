@@ -9,7 +9,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -18,6 +17,8 @@ import java.util.function.Consumer;
 
 /**
  * MongoDB-backed distributed ingest lock, durable job progress (any instance can poll), and persisted last outcome.
+ * The singleton system-state document is created lazily on first lock or outcome write (not at bean init), so the app
+ * can start when MongoDB is temporarily unreachable.
  */
 @Service
 public class UploadAsyncPersistenceService {
@@ -37,8 +38,7 @@ public class UploadAsyncPersistenceService {
         this.progressRepository = progressRepository;
     }
 
-    @PostConstruct
-    void ensureSingleton() {
+    private void ensureSingleton() {
         if (!systemStateRepository.existsById(UploadSystemStateDocument.SINGLETON_ID)) {
             try {
                 UploadSystemStateDocument s = new UploadSystemStateDocument();

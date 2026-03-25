@@ -38,6 +38,17 @@ export class NotificationService {
     this.show('No access, please contact admin', 'error', 30000); // 30 seconds
   }
 
+  /**
+   * When the user tries an action blocked by a specific permission (Outstanding / Access Control).
+   */
+  showRoleRequired(actionDescription: string, permissionLabel: string): void {
+    this.show(
+      `You don't have permission to ${actionDescription}. Ask an admin to enable "${permissionLabel}" in Access Control.`,
+      'warning',
+      10000
+    );
+  }
+
   showSuccess(message: string, duration: number = 3000): void {
     this.show(message, 'success', duration);
   }

@@ -48,3 +48,6 @@ frontend/node_modules/
 ### Logs ###
 logs/
 *.log
+
+### Local tooling ###
+.venv-mongo/

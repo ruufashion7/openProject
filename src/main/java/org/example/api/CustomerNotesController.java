@@ -61,7 +61,7 @@ public class CustomerNotesController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+        if (!SessionPermissions.canViewCustomerNotes(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -125,7 +125,7 @@ public class CustomerNotesController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+        if (!SessionPermissions.canEditCustomerNotes(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -233,7 +233,7 @@ public class CustomerNotesController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+        if (!SessionPermissions.canEditCustomerNotes(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -334,7 +334,7 @@ public class CustomerNotesController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canEditCustomerMasterFromDetailsOrOutstanding(session)) {
+        if (!SessionPermissions.canEditCustomerNotes(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 

@@ -25,9 +25,14 @@ import org.springframework.data.mongodb.core.convert.MongoCustomConversions;
 import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
 
 import javax.crypto.Cipher;
-import java.util.List;
-import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Properties;
+import javax.crypto.spec.SecretKeySpec;
 
 @Configuration
 public class MongoConfig {
@@ -64,7 +69,17 @@ public class MongoConfig {
     public MongoClient mongoClient() {
         String resolvedUri = resolveMongoUri();
         ConnectionString connectionString = new ConnectionString(resolvedUri);
-        
+        if (connectionString.isSrvProtocol()) {
+            logger.info("MongoDB target: mongodb+srv (e.g. Atlas), database={}",
+                    connectionString.getDatabase() != null && !connectionString.getDatabase().isBlank()
+                            ? connectionString.getDatabase() : mongoDbName);
+        } else {
+            logger.info("MongoDB target: direct hosts={}, database={}",
+                    connectionString.getHosts(),
+                    connectionString.getDatabase() != null && !connectionString.getDatabase().isBlank()
+                            ? connectionString.getDatabase() : mongoDbName);
+        }
+
         // Create connection state listeners for monitoring
         ClusterListener clusterListener = new ClusterListener() {
             @Override
@@ -178,7 +193,24 @@ public class MongoConfig {
         return converter;
     }
 
+    /**
+     * Resolves the connection string in a predictable order so gitignored
+     * {@code src/main/resources/application-local.properties} works from IntelliJ even when
+     * {@code spring.config.import} ordering leaves {@code mongo_uri} at the localhost default.
+     */
     private String resolveMongoUri() {
+        String env = System.getenv("MONGO_URI");
+        if (env != null && !env.isBlank()) {
+            return env.trim();
+        }
+        String fromClasspathLocal = readMongoUriFromClasspathApplicationLocal();
+        if (fromClasspathLocal != null) {
+            return fromClasspathLocal;
+        }
+        String fromRootFile = readMongoUriFromProjectRootEnvFile();
+        if (fromRootFile != null) {
+            return fromRootFile;
+        }
         if (mongoUri != null && !mongoUri.isBlank()) {
             return mongoUri.trim();
         }
@@ -186,7 +218,7 @@ public class MongoConfig {
         if (mongoDbUsername == null || mongoDbUsername.isBlank()
                 || mongoDbHostname == null || mongoDbHostname.isBlank()
                 || mongoDbName == null || mongoDbName.isBlank()) {
-            throw new IllegalStateException("Mongo configuration is missing. Set mongo_uri or mongo_db_* properties.");
+            return "mongodb://localhost:27017/openProject";
         }
 
         String password = mongoDbPassword == null ? "" : mongoDbPassword;
@@ -200,6 +232,41 @@ public class MongoConfig {
                 .append("@").append(mongoDbHostname)
                 .append("/").append(mongoDbName)
                 .toString();
+    }
+
+    private static String readMongoUriFromClasspathApplicationLocal() {
+        try (InputStream in = MongoConfig.class.getResourceAsStream("/application-local.properties")) {
+            if (in == null) {
+                return null;
+            }
+            Properties p = new Properties();
+            p.load(in);
+            return trimToNull(p.getProperty("mongo_uri"));
+        } catch (IOException ex) {
+            return null;
+        }
+    }
+
+    private static String readMongoUriFromProjectRootEnvFile() {
+        Path f = Path.of(System.getProperty("user.dir", ".")).resolve(".env.local.properties");
+        if (!Files.isRegularFile(f)) {
+            return null;
+        }
+        try (InputStream in = Files.newInputStream(f)) {
+            Properties p = new Properties();
+            p.load(in);
+            return trimToNull(p.getProperty("mongo_uri"));
+        } catch (IOException ex) {
+            return null;
+        }
+    }
+
+    private static String trimToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
     }
 
     private String decrypt(String secret) {

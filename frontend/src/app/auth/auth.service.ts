@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
+import { normalizePermissions } from './permissions.config';
 
 export interface UserPermissions {
   fileUpload: boolean;
@@ -14,8 +15,12 @@ export interface UserPermissions {
   whatsappDateChange: boolean;
   followUpChange: boolean;
   rateListPage: boolean;
+  rateListUpload: boolean;
   salesVisualization: boolean;
   customerLocations: boolean;
+  customerCategoryEdit: boolean;
+  customerNotesEdit: boolean;
+  customerLocationEdit: boolean;
 }
 
 interface SessionData {
@@ -82,7 +87,7 @@ export class AuthService {
             expiresAt,
             userId: response.userId,
             isAdmin: response.isAdmin || false,
-            permissions: response.permissions
+            permissions: normalizePermissions(response.permissions)
           };
           localStorage.setItem(this.sessionKey, JSON.stringify(session));
         }),
@@ -136,12 +141,48 @@ export class AuthService {
     return this.fetchAndMergeSession(session);
   }
 
+  /**
+   * Loads current permissions from the server and updates the stored session.
+   * Call when entering pages that depend on fine-grained flags so UI matches Access Control without re-login.
+   */
+  refreshSessionPermissionsFromServer(): Observable<boolean> {
+    const session = this.getSession();
+    if (!session) {
+      return of(false);
+    }
+    return this.http
+      .get<SessionResponse>('/api/session', { headers: this.buildAuthHeaders(session.token) })
+      .pipe(
+        tap((response) => {
+          const newExpiry = this.parseExpiresFromApi(response.expiresAt);
+          const updated: SessionData = {
+            token: session.token,
+            displayName: response.displayName,
+            expiresAt: newExpiry,
+            userId: response.userId || session.userId,
+            isAdmin: response.isAdmin !== undefined ? response.isAdmin : session.isAdmin,
+            permissions: normalizePermissions(response.permissions)
+          };
+          localStorage.setItem(this.sessionKey, JSON.stringify(updated));
+        }),
+        map(() => true),
+        catchError((err: HttpErrorResponse) => {
+          if (err.status === 401) {
+            this.logout();
+            return of(false);
+          }
+          return of(true);
+        })
+      );
+  }
+
   private fetchAndMergeSession(session: SessionData): Observable<boolean> {
     return this.http
       .get<SessionResponse>('/api/session', { headers: this.buildAuthHeaders(session.token) })
       .pipe(
         tap((response) => {
           const newExpiry = this.parseExpiresFromApi(response.expiresAt);
+          const mergedPerms = normalizePermissions(response.permissions);
           if (newExpiry > session.expiresAt) {
             const updated: SessionData = {
               token: session.token,
@@ -149,13 +190,13 @@ export class AuthService {
               expiresAt: newExpiry,
               userId: response.userId || session.userId,
               isAdmin: response.isAdmin !== undefined ? response.isAdmin : session.isAdmin,
-              permissions: response.permissions || session.permissions
+              permissions: mergedPerms
             };
             localStorage.setItem(this.sessionKey, JSON.stringify(updated));
           } else if (response.permissions) {
             const updated: SessionData = {
               ...session,
-              permissions: response.permissions,
+              permissions: mergedPerms,
               isAdmin: response.isAdmin !== undefined ? response.isAdmin : session.isAdmin,
               userId: response.userId || session.userId
             };
@@ -227,7 +268,7 @@ export class AuthService {
         expiresAt,
         userId: parsed.userId,
         isAdmin: parsed.isAdmin,
-        permissions: parsed.permissions
+        permissions: parsed.permissions ? normalizePermissions(parsed.permissions) : undefined
       };
       if (parsed.expiresAt !== expiresAt) {
         localStorage.setItem(this.sessionKey, JSON.stringify(session));

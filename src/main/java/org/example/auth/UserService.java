@@ -190,6 +190,25 @@ public class UserService {
             return matches;
         }
     }
+
+    /**
+     * Verifies the raw password matches the stored credential for this user (BCrypt or legacy plain text).
+     */
+    public boolean verifyCurrentPassword(String userId, String rawPassword) {
+        if (rawPassword == null || rawPassword.isBlank()) {
+            return false;
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return false;
+        }
+        String storedPassword = user.getPassword();
+        if (storedPassword != null
+                && (storedPassword.startsWith("$2a$") || storedPassword.startsWith("$2b$") || storedPassword.startsWith("$2y$"))) {
+            return passwordEncoderService.matches(rawPassword, storedPassword);
+        }
+        return storedPassword != null && storedPassword.equals(rawPassword);
+    }
     
     /**
      * Update user password with validation and hashing.

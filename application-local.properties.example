@@ -1,5 +1,10 @@
 # Local Development Configuration
-# Copy this file to application-local.properties to override MongoDB connection (gitignored)
+#
+# EASIEST (recommended): copy .env.local.properties.example → .env.local.properties in the
+# project root and set mongo_uri there. No IntelliJ profile needed.
+#
+# ALTERNATIVE: copy this file to src/main/resources/application-local.properties and run with
+#   SPRING_PROFILES_ACTIVE=local
 
 # MongoDB Atlas (MongoDB Compass) - full connection string
 # If your password contains @, encode it as %40 in the URI

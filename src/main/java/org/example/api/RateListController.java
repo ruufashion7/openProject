@@ -368,7 +368,7 @@ public class RateListController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canAccessRateList(session)) {
+        if (!SessionPermissions.canUploadRateListFiles(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -522,7 +522,7 @@ public class RateListController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canAccessRateList(session)) {
+        if (!SessionPermissions.canUploadRateListFiles(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 

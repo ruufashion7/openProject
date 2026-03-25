@@ -400,8 +400,9 @@
           <span 
             class="badge-followup" 
             [class.active]="followUpFlags[card.customer || '']"
+            [class.badge-followup-no-perm]="!canChangeFollowUp"
             (click)="onFollowUpToggle(card); $event.stopPropagation()"
-            [title]="followUpFlags[card.customer || ''] ? 'Follow-up Needed (Click to remove)' : 'Click to mark for follow-up'"
+            [attr.title]="permissionService.accessDeniedTooltip(canChangeFollowUp, 'followUpChange') || (followUpFlags[card.customer || ''] ? 'Follow-up Needed (Click to remove)' : 'Click to mark for follow-up')"
           >
             🚩
           </span>
@@ -419,10 +420,14 @@
           <input
             type="text"
             class="date-input-modern"
+            [class.date-input-no-perm]="!canEditPaymentDate"
+            [attr.title]="permissionService.accessDeniedTooltip(canEditPaymentDate, 'paymentDateEdit')"
+            [attr.aria-disabled]="!canEditPaymentDate ? 'true' : null"
             [value]="dateEdits[card.customer || '']"
             (input)="onDateChange(card, $event)"
+            (focus)="onPaymentDateFocusDeny(card, $event)"
             (click)="$event.stopPropagation()"
-            [disabled]="!canEditPaymentDate"
+            [readonly]="!canEditPaymentDate"
             placeholder="DD-MM"
             maxlength="5"
           />
@@ -430,8 +435,12 @@
 
         <div class="whatsapp-section" [class]="getWhatsAppStatusBorderClass(card)">
           <div class="whatsapp-label">WhatsApp Status ({{ getWhatsAppStatusDisplay(card) }})</div>
-          <div class="whatsapp-radios">
-            <label class="radio-option" (click)="$event.stopPropagation()" title="Not Sent">
+          <div
+            class="whatsapp-radios"
+            [class.radio-group-no-perm]="!canChangeWhatsappDate"
+            [attr.title]="permissionService.accessDeniedTooltip(canChangeWhatsappDate, 'whatsappDateChange')"
+          >
+            <label class="radio-option" (click)="onWhatsAppRadioClick($event, card)" title="Not Sent">
               <input
                 type="radio"
                 [name]="'whatsapp-' + card.customer"
@@ -441,7 +450,7 @@
               />
               <span class="radio-dot radio-grey"></span>
             </label>
-            <label class="radio-option" (click)="$event.stopPropagation()" title="Sent">
+            <label class="radio-option" (click)="onWhatsAppRadioClick($event, card)" title="Sent">
               <input
                 type="radio"
                 [name]="'whatsapp-' + card.customer"
@@ -451,7 +460,7 @@
               />
               <span class="radio-dot radio-yellow"></span>
             </label>
-            <label class="radio-option" (click)="$event.stopPropagation()" title="Delivered">
+            <label class="radio-option" (click)="onWhatsAppRadioClick($event, card)" title="Delivered">
               <input
                 type="radio"
                 [name]="'whatsapp-' + card.customer"
@@ -466,39 +475,47 @@
 
         <div class="customer-category-section" [class]="getCustomerCategoryBorderClass(card)">
           <div class="category-label">Category ({{ getCustomerCategoryDisplay(card) }})</div>
-          <div class="category-radios">
-            <label class="radio-option" (click)="$event.stopPropagation()" title="Semi-wholesale">
+          <div
+            class="category-radios"
+            [class.radio-group-no-perm]="!canEditCustomerCategory"
+            [attr.title]="permissionService.accessDeniedTooltip(canEditCustomerCategory, 'customerCategoryEdit')"
+          >
+            <label class="radio-option" (click)="onCategoryRadioClick($event, card)" title="Semi-wholesale">
               <input
                 type="radio"
                 [name]="'category-' + card.customer"
                 [checked]="getCustomerCategory(card) === 'semi-wholesale'"
+                [disabled]="!canEditCustomerCategory"
                 (change)="onCustomerCategoryChange(card, 'semi-wholesale')"
               />
               <span class="radio-dot radio-blue"></span>
             </label>
-            <label class="radio-option" (click)="$event.stopPropagation()" title="A">
+            <label class="radio-option" (click)="onCategoryRadioClick($event, card)" title="A">
               <input
                 type="radio"
                 [name]="'category-' + card.customer"
                 [checked]="getCustomerCategory(card) === 'A'"
+                [disabled]="!canEditCustomerCategory"
                 (change)="onCustomerCategoryChange(card, 'A')"
               />
               <span class="radio-dot radio-green"></span>
             </label>
-            <label class="radio-option" (click)="$event.stopPropagation()" title="B">
+            <label class="radio-option" (click)="onCategoryRadioClick($event, card)" title="B">
               <input
                 type="radio"
                 [name]="'category-' + card.customer"
                 [checked]="getCustomerCategory(card) === 'B'"
+                [disabled]="!canEditCustomerCategory"
                 (change)="onCustomerCategoryChange(card, 'B')"
               />
               <span class="radio-dot radio-yellow"></span>
             </label>
-            <label class="radio-option" (click)="$event.stopPropagation()" title="C">
+            <label class="radio-option" (click)="onCategoryRadioClick($event, card)" title="C">
               <input
                 type="radio"
                 [name]="'category-' + card.customer"
                 [checked]="getCustomerCategory(card) === 'C'"
+                [disabled]="!canEditCustomerCategory"
                 (change)="onCustomerCategoryChange(card, 'C')"
               />
               <span class="radio-dot radio-red"></span>

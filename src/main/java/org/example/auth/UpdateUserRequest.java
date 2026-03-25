@@ -21,7 +21,13 @@ public record UpdateUserRequest(
          * When non-null and non-blank, replaces the user's password (validated and hashed by {@link UserService#updatePassword}).
          * Omit or leave empty to keep the existing password.
          */
-        String password
+        String password,
+
+        /**
+         * Required when {@link #password} is set and the authenticated user is changing <strong>their own</strong> password.
+         * Must match the account's current password. Not required when an admin sets another user's password.
+         */
+        String currentPassword
 ) {
 }
 

@@ -105,6 +105,17 @@
           <label>Display Name</label>
           <input type="text" [(ngModel)]="editedUser.displayName" name="displayName" required placeholder="Enter display name">
         </div>
+        <div class="form-group" *ngIf="isEditingOwnAccount()">
+          <label>Current password</label>
+          <input
+            type="password"
+            [(ngModel)]="editPasswordCurrent"
+            name="editPasswordCurrent"
+            autocomplete="current-password"
+            placeholder="Required when setting a new password"
+          >
+          <p class="form-help-inline">Enter your current password to authorize changing it.</p>
+        </div>
         <div class="form-group">
           <label>New password</label>
           <input
@@ -114,7 +125,8 @@
             autocomplete="new-password"
             placeholder="Leave blank to keep current password"
           >
-          <p class="form-help-inline">Only fill this if you want to change the user&apos;s password.</p>
+          <p class="form-help-inline" *ngIf="!isEditingOwnAccount()">Admin: set a new password for this user (their old password is not required).</p>
+          <p class="form-help-inline" *ngIf="isEditingOwnAccount()">Leave blank to keep your password. If you set a new one, fill your current password above.</p>
         </div>
         <div class="form-group">
           <label>Confirm new password</label>

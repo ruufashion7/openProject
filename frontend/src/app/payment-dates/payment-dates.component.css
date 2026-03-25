@@ -823,6 +823,11 @@
   filter: grayscale(0);
 }
 
+.badge-followup-no-perm {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .card-body {
   display: flex;
   flex-direction: column;
@@ -943,6 +948,24 @@
 .date-input-modern:disabled {
   background: #f8fafc;
   cursor: not-allowed;
+}
+
+.date-input-no-perm {
+  background: #f8fafc;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.radio-group-no-perm {
+  opacity: 0.65;
+}
+
+.radio-group-no-perm .radio-option {
+  cursor: not-allowed;
+}
+
+.radio-option input[type="radio"]:disabled + .radio-dot {
+  opacity: 0.45;
 }
 
 .btn-whatsapp {

@@ -16,7 +16,8 @@ public record CustomerSummaryResponse(
         Boolean needsFollowUp, // true if customer needs follow-up call, false otherwise
         String address, // Customer address/location
         Double latitude, // Latitude coordinate
-        Double longitude // Longitude coordinate
+        Double longitude, // Longitude coordinate
+        String place // Station / place (customer_master)
 ) {
 }
 

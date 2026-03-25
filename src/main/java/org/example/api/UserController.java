@@ -108,6 +108,16 @@ public class UserController {
 
             String newPassword = request.password();
             if (newPassword != null && !newPassword.isBlank()) {
+                // Self-service password change must prove knowledge of the current password
+                if (id.equals(updatedBy)) {
+                    String current = request.currentPassword();
+                    if (current == null || current.isBlank()) {
+                        throw new IllegalArgumentException("Current password is required to change your password.");
+                    }
+                    if (!userService.verifyCurrentPassword(id, current)) {
+                        throw new IllegalArgumentException("Current password is incorrect.");
+                    }
+                }
                 userService.updatePassword(id, newPassword.trim(), updatedBy);
                 authSessionService.deleteUserSessions(id);
                 updated = userService.getUserById(id).orElse(updated);
