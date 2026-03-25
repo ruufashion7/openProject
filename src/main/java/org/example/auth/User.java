@@ -19,6 +19,10 @@ public class User {
     private String createdBy;
     private String updatedBy;
     private boolean active;
+    /**
+     * Incremented when sessions must be invalidated (password change, admin revoke). Must match JWT claim {@code se}.
+     */
+    private int sessionEpoch = 0;
 
     public User() {
         this.permissions = org.example.auth.UserPermissionsHelper.getDefaultPermissions();
@@ -122,6 +126,14 @@ public class User {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public int getSessionEpoch() {
+        return sessionEpoch;
+    }
+
+    public void setSessionEpoch(int sessionEpoch) {
+        this.sessionEpoch = sessionEpoch;
     }
 }
 

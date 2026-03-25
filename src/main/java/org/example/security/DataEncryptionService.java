@@ -27,15 +27,30 @@ public class DataEncryptionService {
     
     private final SecretKey secretKey;
     
-    public DataEncryptionService(@Value("${security.encryption.key:}") String encryptionKey) {
+    public DataEncryptionService(
+            @Value("${security.encryption.key:}") String encryptionKey,
+            @Value("${security.encryption.fail-if-missing-key:false}") boolean failIfMissingKey) {
         if (encryptionKey != null && !encryptionKey.isBlank()) {
-            // Use provided key (from environment variable)
-            byte[] keyBytes = Base64.getDecoder().decode(encryptionKey);
+            byte[] keyBytes;
+            try {
+                keyBytes = Base64.getDecoder().decode(encryptionKey.trim());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException(
+                        "SECURITY_ENCRYPTION_KEY must be valid Base64 (use: openssl rand -base64 32)", e);
+            }
+            if (keyBytes.length != KEY_SIZE / 8) {
+                throw new IllegalStateException(
+                        "SECURITY_ENCRYPTION_KEY must decode to exactly " + (KEY_SIZE / 8)
+                                + " bytes for AES-256 (openssl rand -base64 32).");
+            }
             this.secretKey = new SecretKeySpec(keyBytes, "AES");
         } else {
-            // SECURITY WARNING: Generate a new key (should be set via environment variable in production)
+            if (failIfMissingKey) {
+                throw new IllegalStateException(
+                        "SECURITY_ENCRYPTION_KEY is required when security.encryption.fail-if-missing-key=true.");
+            }
             this.secretKey = generateSecretKey();
-            System.err.println("WARNING: Using auto-generated encryption key. Set SECURITY_ENCRYPTION_KEY environment variable in production!");
+            System.err.println("WARNING: Using auto-generated encryption key. Set SECURITY_ENCRYPTION_KEY in production!");
         }
     }
     
@@ -119,12 +134,5 @@ public class DataEncryptionService {
         }
     }
     
-    /**
-     * Get the base64-encoded secret key (for configuration).
-     * SECURITY: This should only be used for initial setup, never expose in production.
-     */
-    public String getSecretKeyBase64() {
-        return Base64.getEncoder().encodeToString(secretKey.getEncoded());
-    }
 }
 

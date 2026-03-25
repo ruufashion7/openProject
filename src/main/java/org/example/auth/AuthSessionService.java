@@ -1,6 +1,7 @@
 package org.example.auth;
 
 import org.example.security.JwtTokenService;
+import org.example.security.RequestScopedSessionCache;
 import org.example.security.SecurityAuditService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.ContextRefreshedEvent;
@@ -109,19 +110,18 @@ public class AuthSessionService {
     }
 
     public LoginResponse login(LoginRequest request) {
-        if (!userService.validateUser(request.username(), request.password())) {
-            return null;
-        }
-
-        User user = userService.getUserByUsername(request.username())
-                .orElse(null);
-        if (user == null || !user.isActive()) {
+        User user = userService.authenticate(request.username(), request.password()).orElse(null);
+        if (user == null) {
             return null;
         }
         if (user.getId() == null || user.getId().isBlank()) {
             logger.error("User has no id after load; cannot create session. username={}", user.getUsername());
             return null;
         }
+
+        // Single active session per user: new login bumps epoch so any previous JWT for this account is rejected.
+        int sessionEpoch = userService.bumpSessionEpoch(user.getId());
+        deleteUserSessions(user.getId());
 
         Instant expiresAt = Instant.now().plus(sessionDuration);
 
@@ -133,7 +133,8 @@ public class AuthSessionService {
                 user.getDisplayName(),
                 user.isAdmin(),
                 permissions,
-                expiresAt
+                expiresAt,
+                sessionEpoch
         );
 
         SessionInfo sessionInfo = new SessionInfo(
@@ -153,7 +154,8 @@ public class AuthSessionService {
                 expiresAt,
                 user.getId(),
                 user.isAdmin(),
-                permissions
+                permissions,
+                null
         );
     }
 
@@ -176,6 +178,10 @@ public class AuthSessionService {
     public SessionInfo validate(String token) {
         if (token == null || token.isBlank()) {
             return null;
+        }
+        SessionInfo cached = RequestScopedSessionCache.getIfTokenMatches(token);
+        if (cached != null) {
+            return cached;
         }
         Optional<JwtTokenService.ParsedJwt> jwt = jwtTokenService.parse(token);
         if (jwt.isPresent()) {
@@ -209,6 +215,9 @@ public class AuthSessionService {
     private SessionInfo validateFromJwt(JwtTokenService.ParsedJwt j) {
         User user = userService.getUserById(j.userId()).orElse(null);
         if (user == null || !user.isActive()) {
+            return null;
+        }
+        if (user.getSessionEpoch() != j.sessionEpoch()) {
             return null;
         }
         UserPermissions permissions = user.isAdmin() ? getAllPermissions() :
@@ -360,6 +369,26 @@ public class AuthSessionService {
             return 0;
         }
         return (int) authSessionRepository.deleteByUserId(userId);
+    }
+
+    /**
+     * Bump every user's session epoch and clear the Mongo session mirror so all JWTs are rejected until re-login.
+     */
+    public Map<String, Object> invalidateAllSessionsGlobally() {
+        int users = userService.bumpAllUsersSessionEpoch();
+        authSessionRepository.deleteAll();
+        return Map.of("usersInvalidated", users);
+    }
+
+    /**
+     * Invalidate every JWT for one user (epoch bump + remove mirrored sessions).
+     */
+    public void invalidateAllSessionsForUser(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        userService.bumpSessionEpoch(userId);
+        deleteUserSessions(userId);
     }
 
     private SessionInfo toSessionInfo(AuthSessionDocument d) {

@@ -11,23 +11,13 @@ import { NotificationService } from '../shared/notification.service';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
-// Watermark helper function
-function addWatermark(doc: jsPDF): void {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  doc.saveGraphicsState();
-  doc.setTextColor(200, 200, 200);
-  doc.setFontSize(60);
-  doc.setFont('helvetica', 'bold');
-  const text = 'RUU FASHION';
-  const textWidth = doc.getTextWidth(text);
-  const x = (pageWidth - textWidth) / 2;
-  const y = pageHeight / 2;
-  doc.setGState(doc.GState({ opacity: 0.15 }));
-  doc.text(text, x, y, { angle: 45, align: 'center' });
-  doc.restoreGraphicsState();
-}
+import {
+  addWatermark,
+  buildExcelWatermarkRow,
+  setExcelPrintTitleTopRow,
+} from '../shared/export-watermark';
+import { formatInrForExcel, formatInrForPdf } from '../shared/format-inr-export';
+import { ensurePdfUnicodeFonts, PDF_UNICODE_FONT } from '../shared/pdf-unicode-font';
 
 interface FilterState {
   paymentDate: 'all' | 'past' | 'today' | 'future' | 'none';
@@ -908,38 +898,82 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
   }
 
   downloadExcel(): void {
-    const data = this.filteredCards.map(card => ({
-      'Customer': card.customer,
-      'Phone': card.phoneNumber || '',
-      'Amount': card.totalAmount,
-      'Category': card.customerCategory || '',
-      'Last Order Date': card.lastOrderDate || '',
-      'Payment Date': card.nextPaymentDate || '',
-      'WhatsApp Status': card.whatsAppStatus || 'not sent',
-      'Follow Up': card.needsFollowUp ? 'Yes' : 'No'
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
+    const cols = [
+      'Customer',
+      'Phone',
+      'Amount',
+      'Category',
+      'Last Order Date',
+      'Payment Date',
+      'WhatsApp Status',
+      'Follow Up',
+    ] as const;
+    const totalCols = cols.length;
+    const watermarkRow = buildExcelWatermarkRow(totalCols);
+    const headerRow = [...cols];
+    const bodyRows = this.filteredCards.map(card => [
+      card.customer,
+      card.phoneNumber || '',
+      formatInrForExcel(card.totalAmount),
+      card.customerCategory || '',
+      card.lastOrderDate || '',
+      card.nextPaymentDate || '',
+      card.whatsAppStatus || 'not sent',
+      card.needsFollowUp ? 'Yes' : 'No',
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([watermarkRow, headerRow, ...bodyRows]);
+    const colWidths = [
+      { wch: 28 },
+      { wch: 14 },
+      { wch: 18 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 10 },
+    ];
+    ws['!cols'] = colWidths;
+    if (!ws['!merges']) {
+      ws['!merges'] = [];
+    }
+    ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } });
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Payment Dates');
+    const sheetName = 'Payment Dates';
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    setExcelPrintTitleTopRow(wb, sheetName);
     XLSX.writeFile(wb, `payment-dates-${new Date().toISOString().split('T')[0]}.xlsx`);
   }
 
   downloadPDF(): void {
+    void this.downloadPaymentDatesPdf();
+  }
+
+  private async downloadPaymentDatesPdf(): Promise<void> {
     const doc = new jsPDF();
-    addWatermark(doc);
+    try {
+      await ensurePdfUnicodeFonts(doc);
+    } catch {
+      this.notificationService.showError('Could not load PDF fonts. Refresh the page and try again.');
+      return;
+    }
     autoTable(doc, {
       head: [['Customer', 'Phone', 'Amount', 'Category', 'Last Order Date', 'Payment Date', 'Status']],
       body: this.filteredCards.map(card => [
         card.customer || '',
         card.phoneNumber || '',
-        `₹${card.totalAmount.toLocaleString()}`,
+        formatInrForPdf(card.totalAmount),
         card.customerCategory || '',
         card.lastOrderDate || '',
         card.nextPaymentDate || '',
-        card.whatsAppStatus || 'not sent'
+        card.whatsAppStatus || 'not sent',
       ]),
       theme: 'striped',
-      headStyles: { fillColor: [37, 99, 235] }
+      styles: { font: PDF_UNICODE_FONT, fontStyle: 'normal' },
+      headStyles: { fillColor: [37, 99, 235], font: PDF_UNICODE_FONT, fontStyle: 'bold' },
+      didDrawPage: () => {
+        addWatermark(doc);
+      },
     });
     doc.save(`payment-dates-${new Date().toISOString().split('T')[0]}.pdf`);
   }

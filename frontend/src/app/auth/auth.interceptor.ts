@@ -2,12 +2,16 @@ import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, tap, throwError } from 'rxjs';
+import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
 
 function pathOnly(url: string): string {
   const q = url.indexOf('?');
   return q >= 0 ? url.slice(0, q) : url;
 }
+
+const CSRF_STORAGE_KEY = 'openProject.csrf';
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /** POST /api/login only — avoid matching e.g. /api/loginAttempts */
 function isPostToLogin(req: { method: string; url: string }): boolean {
@@ -24,16 +28,26 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   // Do not attach auth or error handling to login POST (pass response through unchanged)
   if (isPostToLogin(req)) {
-    return next(req);
+    const loginReq =
+      environment.useJwtHttpOnlyCookie ? req.clone({ withCredentials: true }) : req;
+    return next(loginReq);
   }
 
-  // Add auth header to all API requests
   const token = auth.getToken();
+  const withCreds = environment.useJwtHttpOnlyCookie;
   if (token) {
     req = req.clone({
-      setHeaders: {
-        Authorization: `Bearer ${token}`
-      }
+      setHeaders: { Authorization: `Bearer ${token}` },
+      ...(withCreds ? { withCredentials: true } : {})
+    });
+  } else if (withCreds) {
+    req = req.clone({ withCredentials: true });
+  }
+
+  const csrf = sessionStorage.getItem(CSRF_STORAGE_KEY);
+  if (csrf && MUTATING_METHODS.has(req.method.toUpperCase()) && !isPostToLogin(req)) {
+    req = req.clone({
+      setHeaders: { 'X-CSRF-Token': csrf }
     });
   }
 

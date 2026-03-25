@@ -96,6 +96,87 @@ export class SessionsComponent implements OnInit {
     });
   }
 
+  unlockLoginLockouts(): void {
+    const username = window.prompt('Username to unlock (clear failed-login rate limits):', '');
+    if (!username || !username.trim()) {
+      return;
+    }
+    const ip = window.prompt('Optional IP to unlock (leave empty to only clear username bucket):', '') ?? '';
+    this.api.unlockLoginLockouts(username.trim(), ip.trim() || undefined).subscribe({
+      next: () => {
+        this.message = `Login lockouts cleared for ${username.trim()}.`;
+        setTimeout(() => (this.message = ''), 4000);
+      },
+      error: (err: HttpErrorResponse) => {
+        if (err.status === 401) {
+          this.message = 'Session expired. Please login again.';
+          this.logout();
+          return;
+        }
+        this.message = err.status === 403 ? 'Admin only.' : 'Unlock failed.';
+        setTimeout(() => (this.message = ''), 5000);
+      }
+    });
+  }
+
+  invalidateAllSessions(): void {
+    if (
+      !confirm(
+        'This invalidates every login token on the server (not only rows in this list). You and every user will need to sign in again. Continue?'
+      )
+    ) {
+      return;
+    }
+    this.api.invalidateAllSessions().subscribe({
+      next: () => {
+        this.message = 'All sessions invalidated.';
+        this.logout();
+      },
+      error: (err: HttpErrorResponse) => {
+        if (err.status === 401) {
+          this.message = 'Session expired. Please login again.';
+          this.logout();
+          return;
+        }
+        if (err.status === 403) {
+          this.message = 'Access denied.';
+        } else {
+          this.message = 'Failed to invalidate all sessions.';
+        }
+        setTimeout(() => (this.message = ''), 5000);
+      }
+    });
+  }
+
+  invalidateUserSessions(userId: string): void {
+    if (!userId) {
+      return;
+    }
+    if (
+      !confirm(
+        'Invalidate every token for this user? They will be signed out on all devices (JWT epoch bump).'
+      )
+    ) {
+      return;
+    }
+    this.api.invalidateUserSessions(userId).subscribe({
+      next: () => {
+        this.message = 'All tokens for this user were invalidated.';
+        this.loadSessions();
+        setTimeout(() => (this.message = ''), 4000);
+      },
+      error: (err: HttpErrorResponse) => {
+        if (err.status === 401) {
+          this.message = 'Session expired. Please login again.';
+          this.logout();
+          return;
+        }
+        this.message = err.error?.error ?? 'Failed to invalidate user sessions.';
+        setTimeout(() => (this.message = ''), 5000);
+      }
+    });
+  }
+
   deleteSession(token: string): void {
     if (!confirm('Are you sure you want to delete this session? The user will be logged out.')) {
       return;

@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 import { normalizePermissions } from './permissions.config';
 
 export interface UserPermissions {
@@ -25,6 +26,8 @@ export interface UserPermissions {
 
 interface SessionData {
   token: string;
+  /** When true, JWT is in HttpOnly cookie only; do not send Authorization header. */
+  useCookieAuth?: boolean;
   displayName: string;
   expiresAt: number;
   userId?: string;
@@ -40,6 +43,7 @@ interface LoginResponse {
   userId?: string;
   isAdmin?: boolean;
   permissions?: UserPermissions;
+  csrfToken?: string | null;
 }
 
 interface SessionResponse {
@@ -50,7 +54,19 @@ interface SessionResponse {
   permissions?: UserPermissions;
 }
 
-/** Strip accidental "Bearer " so stored JWT is never Bearer Bearer + jwt */
+const CSRF_STORAGE_KEY = 'openProject.csrf';
+
+/** RFC 7617 Basic credentials in header — avoids putting password in JSON request body. */
+function basicAuthorizationHeader(username: string, password: string): string {
+  const pair = `${username}:${password}`;
+  const bytes = new TextEncoder().encode(pair);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return `Basic ${btoa(binary)}`;
+}
+
 function sanitizeBearerToken(raw: string | undefined | null): string | null {
   if (raw == null || typeof raw !== 'string') {
     return null;
@@ -68,21 +84,29 @@ export class AuthService {
 
   constructor(private http: HttpClient) {}
 
-  login(inputUsername: string, inputPassword: string): Observable<boolean> {
+  login(inputUsername: string, inputPassword: string, captchaToken?: string | null): Observable<boolean> {
+    let headers = new HttpHeaders({
+      Authorization: basicAuthorizationHeader(inputUsername, inputPassword)
+    });
+    if (captchaToken) {
+      headers = headers.set('X-Captcha-Token', captchaToken);
+    }
     return this.http
-      .post<LoginResponse>('/api/login', {
-        username: inputUsername,
-        password: inputPassword
+      .post<LoginResponse>('/api/login', null, {
+        headers,
+        ...(environment.useJwtHttpOnlyCookie ? { withCredentials: true } : {})
       })
       .pipe(
         tap((response) => {
+          const useCookie = environment.useJwtHttpOnlyCookie;
           const token = sanitizeBearerToken(response.token);
-          if (!token) {
+          if (!useCookie && !token) {
             throw new Error('Login response missing token');
           }
           const expiresAt = this.parseExpiresFromApi(response.expiresAt);
           const session: SessionData = {
-            token,
+            token: useCookie ? '' : token!,
+            useCookieAuth: useCookie,
             displayName: response.displayName,
             expiresAt,
             userId: response.userId,
@@ -90,21 +114,37 @@ export class AuthService {
             permissions: normalizePermissions(response.permissions)
           };
           localStorage.setItem(this.sessionKey, JSON.stringify(session));
+          if (response.csrfToken) {
+            sessionStorage.setItem(CSRF_STORAGE_KEY, response.csrfToken);
+          } else {
+            sessionStorage.removeItem(CSRF_STORAGE_KEY);
+          }
         }),
         map(() => true),
-        catchError(() => of(false))
+        catchError((err: HttpErrorResponse) => {
+          // Re-throw so UI can show the right message (rate limit / server down — not "wrong password")
+          if (err.status === 429 || err.status === 0 || err.status >= 500) {
+            return throwError(() => err);
+          }
+          // 401, 400, etc. → failed login, not a server outage
+          return of(false);
+        })
       );
   }
 
   logout(): void {
     const token = this.getToken();
-    if (token) {
+    if (token || environment.useJwtHttpOnlyCookie) {
       this.http
-        .post('/api/logout', {}, { headers: this.buildAuthHeaders(token) })
+        .post('/api/logout', {}, {
+          headers: token ? this.buildAuthHeaders(token) : new HttpHeaders(),
+          ...(environment.useJwtHttpOnlyCookie ? { withCredentials: true } : {})
+        })
         .pipe(catchError(() => of(null)))
         .subscribe();
     }
     localStorage.removeItem(this.sessionKey);
+    sessionStorage.removeItem(CSRF_STORAGE_KEY);
   }
 
   validateSession(): Observable<boolean> {
@@ -151,12 +191,14 @@ export class AuthService {
       return of(false);
     }
     return this.http
-      .get<SessionResponse>('/api/session', { headers: this.buildAuthHeaders(session.token) })
+      .get<SessionResponse>('/api/session', this.apiSessionHttpOptions())
       .pipe(
         tap((response) => {
           const newExpiry = this.parseExpiresFromApi(response.expiresAt);
           const updated: SessionData = {
+            ...session,
             token: session.token,
+            useCookieAuth: session.useCookieAuth,
             displayName: response.displayName,
             expiresAt: newExpiry,
             userId: response.userId || session.userId,
@@ -176,16 +218,26 @@ export class AuthService {
       );
   }
 
+  private apiSessionHttpOptions(): { headers: HttpHeaders; withCredentials?: boolean } {
+    const withCreds = environment.useJwtHttpOnlyCookie;
+    return {
+      headers: this.getAuthHeaders(),
+      ...(withCreds ? { withCredentials: true } : {})
+    };
+  }
+
   private fetchAndMergeSession(session: SessionData): Observable<boolean> {
     return this.http
-      .get<SessionResponse>('/api/session', { headers: this.buildAuthHeaders(session.token) })
+      .get<SessionResponse>('/api/session', this.apiSessionHttpOptions())
       .pipe(
         tap((response) => {
           const newExpiry = this.parseExpiresFromApi(response.expiresAt);
           const mergedPerms = normalizePermissions(response.permissions);
           if (newExpiry > session.expiresAt) {
             const updated: SessionData = {
+              ...session,
               token: session.token,
+              useCookieAuth: session.useCookieAuth,
               displayName: response.displayName,
               expiresAt: newExpiry,
               userId: response.userId || session.userId,
@@ -240,7 +292,13 @@ export class AuthService {
 
   getToken(): string | null {
     const session = this.getSession();
-    return session ? session.token : null;
+    if (!session) {
+      return null;
+    }
+    if (session.useCookieAuth) {
+      return null;
+    }
+    return session.token && session.token.length > 0 ? session.token : null;
   }
 
   getSession(): SessionData | null {
@@ -250,8 +308,13 @@ export class AuthService {
     }
     try {
       const parsed = JSON.parse(raw) as SessionData & { expiresAt?: unknown };
+      const useCookieAuth = parsed.useCookieAuth === true;
       const token = sanitizeBearerToken(parsed.token);
-      if (!token || !parsed.displayName) {
+      if (!parsed.displayName) {
+        localStorage.removeItem(this.sessionKey);
+        return null;
+      }
+      if (!useCookieAuth && !token) {
         localStorage.removeItem(this.sessionKey);
         return null;
       }
@@ -263,7 +326,8 @@ export class AuthService {
         return null;
       }
       const session: SessionData = {
-        token,
+        token: useCookieAuth ? '' : token!,
+        useCookieAuth,
         displayName: parsed.displayName,
         expiresAt,
         userId: parsed.userId,
@@ -293,9 +357,8 @@ export class AuthService {
     try {
       const session = JSON.parse(raw) as SessionData;
       const updated: SessionData = {
-        token: session.token,
-        displayName: session.displayName,
-        expiresAt: expiresAt
+        ...session,
+        expiresAt
       };
       localStorage.setItem(this.sessionKey, JSON.stringify(updated));
     } catch {

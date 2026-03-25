@@ -23,16 +23,28 @@ public class JwtTokenService {
     private static final Logger logger = LoggerFactory.getLogger(JwtTokenService.class);
 
     private static final String DEV_FALLBACK_SECRET = "openProject-dev-jwt-secret-change-in-prod-32b!";
+    private static final int MIN_SECRET_LENGTH = 32;
 
     private final SecretKey signingKey;
 
-    public JwtTokenService(@Value("${security.jwt.secret:}") String configuredSecret) {
+    public JwtTokenService(
+            @Value("${security.jwt.secret:}") String configuredSecret,
+            @Value("${security.jwt.fail-on-weak-secret:false}") boolean failOnWeakSecret) {
         String secret = configuredSecret != null ? configuredSecret.trim() : "";
-        if (secret.length() < 32) {
+        if (secret.length() < MIN_SECRET_LENGTH) {
+            if (failOnWeakSecret) {
+                throw new IllegalStateException(
+                        "SECURITY_JWT_SECRET must be at least " + MIN_SECRET_LENGTH
+                                + " characters when security.jwt.fail-on-weak-secret=true (set in production).");
+            }
             if (!secret.isEmpty()) {
-                logger.warn("security.jwt.secret is shorter than 32 characters; using development default. Set SECURITY_JWT_SECRET (min 32 chars) in production.");
+                logger.error("security.jwt.secret is shorter than {} characters; using INSECURE development default. "
+                                + "Set SECURITY_JWT_SECRET and security.jwt.fail-on-weak-secret=true in production.",
+                        MIN_SECRET_LENGTH);
             } else {
-                logger.warn("security.jwt.secret is empty; using fixed development key. Set SECURITY_JWT_SECRET in production.");
+                logger.error("security.jwt.secret is empty; using INSECURE fixed development key. "
+                        + "Set SECURITY_JWT_SECRET (min {} chars) and security.jwt.fail-on-weak-secret=true in production.",
+                        MIN_SECRET_LENGTH);
             }
             secret = DEV_FALLBACK_SECRET;
         }
@@ -45,12 +57,14 @@ public class JwtTokenService {
             String displayName,
             boolean isAdmin,
             org.example.auth.UserPermissions ignoredPermissions,
-            Instant expiresAt
+            Instant expiresAt,
+            int sessionEpoch
     ) {
         return Jwts.builder()
                 .subject(userId)
                 .claim("displayName", displayName != null ? displayName : "")
                 .claim("isAdmin", isAdmin)
+                .claim("se", sessionEpoch)
                 .expiration(Date.from(expiresAt))
                 .issuedAt(Date.from(Instant.now()))
                 .signWith(signingKey)
@@ -77,11 +91,17 @@ public class JwtTokenService {
             if (exp == null || Instant.now().isAfter(exp)) {
                 return Optional.empty();
             }
+            int sessionEpoch = 0;
+            Object seObj = claims.get("se");
+            if (seObj instanceof Number) {
+                sessionEpoch = ((Number) seObj).intValue();
+            }
             return Optional.of(new ParsedJwt(
                     userId,
                     displayName != null ? displayName : "",
                     Boolean.TRUE.equals(isAdmin),
-                    exp
+                    exp,
+                    sessionEpoch
             ));
         } catch (Exception e) {
             logger.debug("JWT parse failed: {}", e.getMessage());
@@ -93,6 +113,7 @@ public class JwtTokenService {
             String userId,
             String displayName,
             boolean isAdmin,
-            Instant expiresAt
+            Instant expiresAt,
+            int sessionEpoch
     ) {}
 }

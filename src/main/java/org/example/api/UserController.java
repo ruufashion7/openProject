@@ -119,6 +119,7 @@ public class UserController {
                     }
                 }
                 userService.updatePassword(id, newPassword.trim(), updatedBy);
+                userService.bumpSessionEpoch(id);
                 authSessionService.deleteUserSessions(id);
                 updated = userService.getUserById(id).orElse(updated);
             }

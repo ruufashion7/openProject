@@ -3,6 +3,11 @@ package org.example.auth;
 import org.example.security.PasswordEncoderService;
 import org.example.security.SecurityAuditService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -12,6 +17,7 @@ import java.util.Optional;
 @Service
 public class UserService {
     private final UserRepository userRepository;
+    private final MongoTemplate mongoTemplate;
     private final PasswordEncoderService passwordEncoderService;
     private final SecurityAuditService securityAuditService;
     
@@ -22,6 +28,7 @@ public class UserService {
     private final boolean requireSpecial;
 
     public UserService(UserRepository userRepository,
+                      MongoTemplate mongoTemplate,
                       PasswordEncoderService passwordEncoderService,
                       SecurityAuditService securityAuditService,
                       @Value("${security.password.min-length:8}") int minPasswordLength,
@@ -30,6 +37,7 @@ public class UserService {
                       @Value("${security.password.require-digit:true}") boolean requireDigit,
                       @Value("${security.password.require-special:true}") boolean requireSpecial) {
         this.userRepository = userRepository;
+        this.mongoTemplate = mongoTemplate;
         this.passwordEncoderService = passwordEncoderService;
         this.securityAuditService = securityAuditService;
         this.minPasswordLength = minPasswordLength;
@@ -163,32 +171,70 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
-    public boolean validateUser(String username, String password) {
+    /**
+     * Invalidates all JWTs for this user (atomic session epoch increment). Returns the new epoch for embedding in a fresh token.
+     * Used on password change, admin revoke, and each login (single active session per account).
+     */
+    public int bumpSessionEpoch(String userId) {
+        Query query = new Query(Criteria.where("_id").is(userId));
+        Update update = new Update().inc("sessionEpoch", 1).set("updatedAt", Instant.now());
+        FindAndModifyOptions opts = FindAndModifyOptions.options().returnNew(true);
+        User u = mongoTemplate.findAndModify(query, update, opts, User.class);
+        if (u == null) {
+            throw new IllegalArgumentException("User not found");
+        }
+        return u.getSessionEpoch();
+    }
+
+    /**
+     * Signs out every user by invalidating all issued JWTs. Used by admin "invalidate all sessions".
+     */
+    public int bumpAllUsersSessionEpoch() {
+        List<User> users = userRepository.findAll();
+        Instant now = Instant.now();
+        for (User u : users) {
+            u.setSessionEpoch(u.getSessionEpoch() + 1);
+            u.setUpdatedAt(now);
+            userRepository.save(u);
+        }
+        return users.size();
+    }
+
+    /**
+     * Validates credentials and returns the active user in one round-trip (avoids duplicate Mongo reads on login).
+     */
+    public Optional<User> authenticate(String username, String password) {
+        if (username == null || username.isBlank() || password == null) {
+            return Optional.empty();
+        }
         Optional<User> userOpt = userRepository.findFirstByUsernameAndActiveTrueOrderByIdAsc(username);
         if (userOpt.isEmpty()) {
-            return false;
+            return Optional.empty();
         }
         User user = userOpt.get();
-        
-        // Check if password is hashed (starts with $2a$, $2b$, or $2y$ for BCrypt)
+
         String storedPassword = user.getPassword();
-        if (storedPassword != null && (storedPassword.startsWith("$2a$") || 
-                                       storedPassword.startsWith("$2b$") || 
-                                       storedPassword.startsWith("$2y$"))) {
-            // Password is hashed, use password encoder
-            return passwordEncoderService.matches(password, storedPassword);
-        } else {
-            // Legacy plain text password - migrate on successful login
-            boolean matches = storedPassword != null && storedPassword.equals(password);
-            if (matches) {
-                // Migrate to hashed password
-                String hashedPassword = passwordEncoderService.encode(password);
-                user.setPassword(hashedPassword);
-                user.setUpdatedAt(Instant.now());
-                userRepository.save(user);
+        if (storedPassword != null && (storedPassword.startsWith("$2a$")
+                || storedPassword.startsWith("$2b$")
+                || storedPassword.startsWith("$2y$"))) {
+            if (!passwordEncoderService.matches(password, storedPassword)) {
+                return Optional.empty();
             }
-            return matches;
+            return Optional.of(user);
         }
+        boolean matches = storedPassword != null && storedPassword.equals(password);
+        if (matches) {
+            String hashedPassword = passwordEncoderService.encode(password);
+            user.setPassword(hashedPassword);
+            user.setUpdatedAt(Instant.now());
+            userRepository.save(user);
+            return Optional.of(user);
+        }
+        return Optional.empty();
+    }
+
+    public boolean validateUser(String username, String password) {
+        return authenticate(username, password).isPresent();
     }
 
     /**

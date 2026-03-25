@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.xssf.usermodel.XSSFDataValidation;
 import org.apache.poi.xssf.usermodel.XSSFDataValidationConstraint;
@@ -375,7 +376,26 @@ public class RateListController {
         try {
             XSSFWorkbook workbook = new XSSFWorkbook();
             XSSFSheet sheet = workbook.createSheet("Rate List Template");
-            
+            int lastCol = 5;
+
+            // Row 0: full-width brand banner (repeats on each printed page)
+            Row watermarkRow = sheet.createRow(0);
+            Cell wmCell = watermarkRow.createCell(0);
+            wmCell.setCellValue("RUU FASHION");
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, lastCol));
+            CellStyle wmStyle = workbook.createCellStyle();
+            Font wmFont = workbook.createFont();
+            wmFont.setBold(true);
+            wmFont.setFontHeightInPoints((short) 26);
+            wmFont.setColor(IndexedColors.GREY_50_PERCENT.getIndex());
+            wmStyle.setFont(wmFont);
+            wmStyle.setAlignment(HorizontalAlignment.CENTER);
+            wmStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+            wmStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            wmStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            wmCell.setCellStyle(wmStyle);
+            watermarkRow.setHeightInPoints(40f);
+
             // Use the same predefined product list as the UI
             List<String> predefinedProducts = new ArrayList<>(List.of(
                 "rupa jon volt trunk", "rupa macroman", "rupa expando", "rupa hunk trunk",
@@ -404,8 +424,8 @@ public class RateListController {
             List<String> productNames = new ArrayList<>(predefinedProducts);
             productNames.addAll(dbProducts);
             
-            // Create header row - matching UI format
-            Row headerRow = sheet.createRow(0);
+            // Header row (row 1) — matching UI format
+            Row headerRow = sheet.createRow(1);
             String[] headers = {"Sr No", "Date (old/new)", "Product Name", "Size (80-90/95-100)", "Landing Rate", "Resale Rate"};
             CellStyle headerStyle = workbook.createCellStyle();
             Font headerFont = workbook.createFont();
@@ -422,7 +442,7 @@ public class RateListController {
             }
             
             // Add example row
-            Row exampleRow = sheet.createRow(1);
+            Row exampleRow = sheet.createRow(2);
             exampleRow.createCell(0).setCellValue("1");
             exampleRow.createCell(1).setCellValue("new");
             exampleRow.createCell(2).setCellValue(productNames.isEmpty() ? "rupa jon volt trunk" : productNames.get(0));
@@ -453,9 +473,9 @@ public class RateListController {
             // Create data validation helper
             XSSFDataValidationHelper dvHelper = new XSSFDataValidationHelper(sheet);
             
-            // Date column dropdown (Column B, starting from row 2)
+            // Date column dropdown (Column B, from first data row after example)
             XSSFDataValidationConstraint dateConstraint = (XSSFDataValidationConstraint) dvHelper.createExplicitListConstraint(new String[]{"old", "new"});
-            CellRangeAddressList dateAddressList = new CellRangeAddressList(1, 10000, 1, 1);
+            CellRangeAddressList dateAddressList = new CellRangeAddressList(2, 10000, 1, 1);
             XSSFDataValidation dateValidation = (XSSFDataValidation) dvHelper.createValidation(dateConstraint, dateAddressList);
             dateValidation.setShowErrorBox(true);
             dateValidation.setErrorStyle(DataValidation.ErrorStyle.STOP);
@@ -465,7 +485,7 @@ public class RateListController {
             // Product Name column dropdown (Column C, starting from row 2) - using formula reference to avoid 255 char limit
             String productFormula = "Products!$A$1:$A$" + productNames.size();
             XSSFDataValidationConstraint productConstraint = (XSSFDataValidationConstraint) dvHelper.createFormulaListConstraint(productFormula);
-            CellRangeAddressList productAddressList = new CellRangeAddressList(1, 10000, 2, 2);
+            CellRangeAddressList productAddressList = new CellRangeAddressList(2, 10000, 2, 2);
             XSSFDataValidation productValidation = (XSSFDataValidation) dvHelper.createValidation(productConstraint, productAddressList);
             productValidation.setShowErrorBox(true);
             productValidation.setErrorStyle(DataValidation.ErrorStyle.STOP);
@@ -474,7 +494,7 @@ public class RateListController {
             
             // Size column dropdown (Column D, starting from row 2)
             XSSFDataValidationConstraint sizeConstraint = (XSSFDataValidationConstraint) dvHelper.createExplicitListConstraint(new String[]{"80-90", "95-100"});
-            CellRangeAddressList sizeAddressList = new CellRangeAddressList(1, 10000, 3, 3);
+            CellRangeAddressList sizeAddressList = new CellRangeAddressList(2, 10000, 3, 3);
             XSSFDataValidation sizeValidation = (XSSFDataValidation) dvHelper.createValidation(sizeConstraint, sizeAddressList);
             sizeValidation.setShowErrorBox(true);
             sizeValidation.setErrorStyle(DataValidation.ErrorStyle.STOP);
@@ -485,12 +505,13 @@ public class RateListController {
             for (int i = 0; i < headers.length; i++) {
                 sheet.autoSizeColumn(i);
             }
-            
-            // Add watermark to header/footer
+
+            sheet.setRepeatingRows(new CellRangeAddress(0, 0, 0, lastCol));
+
             Header header = sheet.getHeader();
-            header.setCenter("RUU FASHION");
+            header.setCenter("&C&B&\"Arial,Bold\"&20 RUU FASHION");
             Footer footer = sheet.getFooter();
-            footer.setCenter("RUU FASHION");
+            footer.setCenter("&C&10 RUU FASHION");
             
             // Write to byte array
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -558,45 +579,48 @@ public class RateListController {
             try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
                 Sheet sheet = workbook.getSheetAt(0);
                 
-                // Validate header row
-                Row headerRow = sheet.getRow(0);
+                int headerRowIndex = findRateListHeaderRowIndex(sheet);
+                if (headerRowIndex < 0) {
+                    return ResponseEntity.badRequest()
+                            .body(Map.of("success", false, "message", "Excel file is empty or invalid format (missing Sr No header row)."));
+                }
+
+                Row headerRow = sheet.getRow(headerRowIndex);
                 if (headerRow == null) {
                     return ResponseEntity.badRequest()
                             .body(Map.of("success", false, "message", "Excel file is empty or invalid format."));
                 }
-                
+
                 // Expected headers - matching UI format
                 String[] expectedHeaders = {"Sr No", "Date (old/new)", "Product Name", "Size (80-90/95-100)", "Landing Rate", "Resale Rate"};
                 for (int i = 0; i < expectedHeaders.length; i++) {
                     Cell cell = headerRow.getCell(i);
                     String headerValue = cell != null ? getCellValueAsString(cell) : "";
                     if (!headerValue.equalsIgnoreCase(expectedHeaders[i])) {
-                        validationErrors.add(String.format("Invalid header at column %d. Expected: '%s', Found: '%s'", 
+                        validationErrors.add(String.format("Invalid header at column %d. Expected: '%s', Found: '%s'",
                                 i + 1, expectedHeaders[i], headerValue));
                     }
                 }
-                
+
                 if (!validationErrors.isEmpty()) {
                     return ResponseEntity.badRequest()
                             .body(Map.of("success", false, "message", "Invalid Excel format.", "errors", validationErrors));
                 }
-                
+
                 // Process data rows
                 DataFormatter formatter = new DataFormatter();
-                int rowNum = 1; // Start from row 2 (after header)
-                
-                // Skip example row if present (row 1)
-                int startRow = 1;
-                Row firstDataRow = sheet.getRow(1);
+                int rowNum = headerRowIndex + 1;
+
+                int exampleRowIndex = headerRowIndex + 1;
+                int startRow = exampleRowIndex;
+                Row firstDataRow = sheet.getRow(exampleRowIndex);
                 if (firstDataRow != null) {
-                    // Check second column (Date column) for example values
                     Cell dateCell = firstDataRow.getCell(1);
                     String dateCellValue = dateCell != null ? getCellValueAsString(dateCell).trim().toLowerCase() : "";
-                    // If first row looks like an example (contains "new" or "old"), skip it
                     if (dateCellValue.equals("new") || dateCellValue.equals("old")) {
-                        startRow = 2; // Skip example row
+                        startRow = exampleRowIndex + 1;
                     } else {
-                        startRow = 1; // Still start from row 1 if no example
+                        startRow = exampleRowIndex;
                     }
                 }
                 
@@ -814,7 +838,28 @@ public class RateListController {
                     .body(Map.of("success", false, "message", "An unexpected error occurred. Please try again or contact support."));
         }
     }
-    
+
+    /**
+     * Row index of the "Sr No" header: 0 for legacy templates, 1 when row 0 is the RUU FASHION banner.
+     */
+    private int findRateListHeaderRowIndex(Sheet sheet) {
+        for (int ri = 0; ri <= 1; ri++) {
+            Row row = sheet.getRow(ri);
+            if (row == null) {
+                continue;
+            }
+            Cell c = row.getCell(0);
+            if (c == null) {
+                continue;
+            }
+            String v = getCellValueAsString(c).trim();
+            if ("Sr No".equalsIgnoreCase(v)) {
+                return ri;
+            }
+        }
+        return -1;
+    }
+
     private String getCellValueAsString(Cell cell) {
         if (cell == null) {
             return "";

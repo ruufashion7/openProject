@@ -17,3 +17,37 @@ form {
   margin-top: 18px;
 }
 
+.status-text.muted {
+  color: var(--muted-color, #64748b);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.login-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+.login-btn-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: login-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+

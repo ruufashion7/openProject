@@ -627,6 +627,35 @@ export class ApiService {
     });
   }
 
+  /** Admin: bump session epoch for every user and clear mirrored sessions — invalidates all JWTs server-side. */
+  invalidateAllSessions(): Observable<{ usersInvalidated: number }> {
+    return this.http.post<{ usersInvalidated: number }>(
+      `${this.baseUrl}/sessions/invalidate-all`,
+      {},
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  /** Admin: bump one user's session epoch — invalidates all their JWTs (not only Mongo mirror rows). */
+  invalidateUserSessions(userId: string): Observable<void> {
+    const headers = this.auth.getAuthHeaders().set('Content-Type', 'application/json');
+    return this.http.post<void>(
+      `${this.baseUrl}/sessions/invalidate-user`,
+      { userId },
+      { headers }
+    );
+  }
+
+  /** Admin: clear Redis/memory login rate-limit counters for a username (optional IP). */
+  unlockLoginLockouts(username: string, ip?: string): Observable<void> {
+    const body: { username: string; ip?: string } = { username };
+    if (ip) {
+      body.ip = ip;
+    }
+    const headers = this.auth.getAuthHeaders().set('Content-Type', 'application/json');
+    return this.http.post<void>(`${this.baseUrl}/sessions/unlock-login-attempts`, body, { headers });
+  }
+
   getSalesVisualization(params?: {
     year?: number;
     month?: number;

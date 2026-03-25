@@ -5,6 +5,16 @@
       <p class="page-subtitle">Manage active user sessions</p>
     </div>
     <div class="page-actions">
+      <button
+        type="button"
+        class="btn btn-danger"
+        (click)="invalidateAllSessions()"
+        [disabled]="status === 'loading'"
+        title="Invalidates every JWT on the server; you will be signed out"
+      >
+        <span>⛔</span>
+        <span>Sign out everyone</span>
+      </button>
       <button class="btn btn-secondary" (click)="extendAllSessions(30)" [disabled]="sessions.length === 0 || status === 'loading'">
         <span>⏱️</span>
         <span>Extend All (+30 min)</span>
@@ -16,6 +26,15 @@
       <button class="btn btn-primary" (click)="loadSessions()" [disabled]="status === 'loading'">
         <span>🔄</span>
         <span>Refresh</span>
+      </button>
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="unlockLoginLockouts()"
+        [disabled]="status === 'loading'"
+        title="Clear failed-login rate limits for a username (admin)"
+      >
+        Unlock login lock
       </button>
     </div>
   </div>
@@ -74,6 +93,15 @@
               <div class="action-buttons" *ngIf="editingToken !== session.token">
                 <button class="btn btn-sm btn-secondary" (click)="startEdit(session)" [disabled]="session.isExpired">
                   ✏️ Edit
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-secondary"
+                  (click)="invalidateUserSessions(session.userId)"
+                  [disabled]="!session.userId"
+                  title="Invalidate all JWTs for this user (all devices)"
+                >
+                  Revoke all for user
                 </button>
                 <button class="btn btn-sm btn-danger" (click)="deleteSession(session.token)">
                   🗑️ Delete

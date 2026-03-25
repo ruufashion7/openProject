@@ -10,36 +10,13 @@ import { NotificationService } from '../shared/notification.service';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
-// Watermark helper function
-function addWatermark(doc: jsPDF): void {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  
-  // Save current graphics state
-  doc.saveGraphicsState();
-  
-  // Set watermark properties
-  doc.setTextColor(200, 200, 200); // Light gray
-  doc.setFontSize(60);
-  doc.setFont('helvetica', 'bold');
-  
-  // Calculate center position
-  const text = 'RUU FASHION';
-  const textWidth = doc.getTextWidth(text);
-  const x = (pageWidth - textWidth) / 2;
-  const y = pageHeight / 2;
-  
-  // Rotate and draw watermark
-  doc.setGState(doc.GState({ opacity: 0.15 })); // 15% opacity
-  doc.text(text, x, y, {
-    angle: 45,
-    align: 'center'
-  });
-  
-  // Restore graphics state
-  doc.restoreGraphicsState();
-}
+import {
+  addWatermark,
+  buildExcelWatermarkRow,
+  setExcelPrintTitleTopRow,
+} from '../shared/export-watermark';
+import { formatInrForExcel, formatInrForPdf } from '../shared/format-inr-export';
+import { ensurePdfUnicodeFonts, PDF_UNICODE_FONT } from '../shared/pdf-unicode-font';
 
 export interface RateListEntry {
   id?: string;
@@ -912,10 +889,10 @@ export class RateListComponent implements OnInit {
       ];
       
       if (this.typeFilter === 'all' || this.typeFilter === 'landing') {
-        row.push(group.landingRate !== undefined ? `₹${group.landingRate.toFixed(2)}` : '-');
+        row.push(group.landingRate !== undefined ? formatInrForExcel(group.landingRate) : '-');
       }
       if (this.typeFilter === 'all' || this.typeFilter === 'resale') {
-        row.push(group.resaleRate !== undefined ? `₹${group.resaleRate.toFixed(2)}` : '-');
+        row.push(group.resaleRate !== undefined ? formatInrForExcel(group.resaleRate) : '-');
       }
       
       return row;
@@ -924,15 +901,8 @@ export class RateListComponent implements OnInit {
     // Create workbook
     const wb = XLSX.utils.book_new();
     
-    // Add watermark row at the top
-    const watermarkRow: any[] = [];
     const totalCols = headers.length;
-    for (let i = 0; i < totalCols; i++) {
-      watermarkRow.push('');
-    }
-    // Set watermark text in the middle column(s)
-    const midCol = Math.floor(totalCols / 2);
-    watermarkRow[midCol] = 'RUU FASHION';
+    const watermarkRow = buildExcelWatermarkRow(totalCols);
     
     // Combine watermark, headers and table data
     const allData = [watermarkRow, headers, ...tableData];
@@ -958,8 +928,9 @@ export class RateListComponent implements OnInit {
     }
     // Merge all cells in watermark row
     ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } });
-    
+
     XLSX.utils.book_append_sheet(wb, ws, 'Rate List');
+    setExcelPrintTitleTopRow(wb, 'Rate List');
 
     // Generate filename
     const dateFilter = this.dateFilter === 'new' ? 'New' : 'Old';
@@ -971,17 +942,28 @@ export class RateListComponent implements OnInit {
   }
 
   downloadPDF(): void {
+    void this.downloadRateListPdf();
+  }
+
+  private async downloadRateListPdf(): Promise<void> {
     const groupedEntries = this.getGroupedEntries();
     if (groupedEntries.length === 0) {
       return;
     }
 
     const doc = new jsPDF('landscape');
+    try {
+      await ensurePdfUnicodeFonts(doc);
+    } catch {
+      this.notificationService.showError('Could not load PDF fonts. Refresh the page and try again.');
+      return;
+    }
+
     let yPos = 15;
 
     // Title
     doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(PDF_UNICODE_FONT, 'bold');
     const dateFilter = this.dateFilter === 'new' ? 'New' : 'Old';
     const typeFilter = this.typeFilter === 'all' ? 'All Types' : this.typeFilter === 'landing' ? 'Landing' : 'Resale';
     doc.text(`Rate List - ${dateFilter} (${typeFilter})`, 14, yPos);
@@ -989,7 +971,7 @@ export class RateListComponent implements OnInit {
 
     // Summary info
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(PDF_UNICODE_FONT, 'normal');
     const today = new Date();
     const dateStr = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
     doc.text(`Generated: ${dateStr} | Entries: ${groupedEntries.length}`, 14, yPos);
@@ -1012,10 +994,10 @@ export class RateListComponent implements OnInit {
       ];
       
       if (this.typeFilter === 'all' || this.typeFilter === 'landing') {
-        row.push(group.landingRate !== undefined ? `₹${group.landingRate.toFixed(2)}` : '-');
+        row.push(group.landingRate !== undefined ? formatInrForPdf(group.landingRate) : '-');
       }
       if (this.typeFilter === 'all' || this.typeFilter === 'resale') {
-        row.push(group.resaleRate !== undefined ? `₹${group.resaleRate.toFixed(2)}` : '-');
+        row.push(group.resaleRate !== undefined ? formatInrForPdf(group.resaleRate) : '-');
       }
       
       return row;
@@ -1031,24 +1013,23 @@ export class RateListComponent implements OnInit {
         fillColor: [37, 99, 235],
         textColor: 255,
         fontStyle: 'bold',
-        fontSize: 10
+        fontSize: 10,
+        font: PDF_UNICODE_FONT,
       },
       styles: {
+        font: PDF_UNICODE_FONT,
+        fontStyle: 'normal',
         fontSize: 9,
-        cellPadding: 3
+        cellPadding: 3,
       },
       columnStyles: {
         0: { cellWidth: 80 }, // Product Name
         1: { cellWidth: 30 }, // Size
       },
-      didDrawPage: (data: any) => {
-        // Add watermark on each page
+      didDrawPage: () => {
         addWatermark(doc);
-      }
+      },
     });
-
-    // Add watermark to the document
-    addWatermark(doc);
 
     // Generate filename
     const filename = `Rate_List_${dateFilter}_${typeFilter.replace(' ', '_')}.pdf`;

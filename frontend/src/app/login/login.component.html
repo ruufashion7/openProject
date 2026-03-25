@@ -11,6 +11,7 @@
           [(ngModel)]="username"
           required
           autocomplete="username"
+          [disabled]="loading"
         />
       </label>
 
@@ -22,12 +23,24 @@
           [(ngModel)]="password"
           required
           autocomplete="current-password"
+          [disabled]="loading"
         />
       </label>
 
       <p class="status-text failed" *ngIf="error">{{ error }}</p>
+      <p class="status-text muted" *ngIf="loading && !error">Signing in…</p>
 
-      <button class="btn btn-primary" type="submit" [disabled]="!loginForm.valid">Login</button>
+      <button
+        class="btn btn-primary login-submit"
+        type="submit"
+        [disabled]="!loginForm.valid || loading"
+        [attr.aria-busy]="loading"
+      >
+        <span class="login-btn-inner" [class.is-loading]="loading">
+          <span class="spinner" *ngIf="loading" aria-hidden="true"></span>
+          <span>{{ loading ? 'Signing in…' : 'Login' }}</span>
+        </span>
+      </button>
     </form>
   </div>
 </section>

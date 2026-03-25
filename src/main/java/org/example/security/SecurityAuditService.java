@@ -125,5 +125,21 @@ public class SecurityAuditService {
         securityLogger.info("SESSION_TERMINATED | userId={} | reason={} | timestamp={}", 
             userId, reason, Instant.now());
     }
+
+    /**
+     * Admin invalidated all sessions (JWT epoch bump + optional Mongo mirror clear).
+     */
+    public void logGlobalSessionInvalidation(String performedByUserId, int usersAffected, String clientIp) {
+        securityLogger.info("SESSIONS_INVALIDATED_GLOBAL | performedBy={} | usersAffected={} | ip={} | timestamp={}",
+                performedByUserId, usersAffected, clientIp, Instant.now());
+    }
+
+    /**
+     * Admin invalidated all sessions for one user.
+     */
+    public void logUserSessionsInvalidated(String targetUserId, String performedByUserId, String clientIp) {
+        securityLogger.info("SESSIONS_INVALIDATED_USER | targetUserId={} | performedBy={} | ip={} | timestamp={}",
+                targetUserId, performedByUserId, clientIp, Instant.now());
+    }
 }
 

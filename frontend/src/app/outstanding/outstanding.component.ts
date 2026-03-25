@@ -13,36 +13,13 @@ import * as L from 'leaflet';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
-// Watermark helper function
-function addWatermark(doc: jsPDF): void {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  
-  // Save current graphics state
-  doc.saveGraphicsState();
-  
-  // Set watermark properties
-  doc.setTextColor(200, 200, 200); // Light gray
-  doc.setFontSize(60);
-  doc.setFont('helvetica', 'bold');
-  
-  // Calculate center position
-  const text = 'RUU FASHION';
-  const textWidth = doc.getTextWidth(text);
-  const x = (pageWidth - textWidth) / 2;
-  const y = pageHeight / 2;
-  
-  // Rotate and draw watermark
-  doc.setGState(doc.GState({ opacity: 0.15 })); // 15% opacity
-  doc.text(text, x, y, {
-    angle: 45,
-    align: 'center'
-  });
-  
-  // Restore graphics state
-  doc.restoreGraphicsState();
-}
+import {
+  addWatermark,
+  buildExcelWatermarkRow,
+  setExcelPrintTitleTopRow,
+} from '../shared/export-watermark';
+import { formatInrForExcel, formatInrForPdf } from '../shared/format-inr-export';
+import { ensurePdfUnicodeFonts, PDF_UNICODE_FONT } from '../shared/pdf-unicode-font';
 
 @Component({
   selector: 'app-outstanding',
@@ -1752,14 +1729,14 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     ];
     
     if (this.ledgerFilter === 'paid') {
-      summaryRow.push(`₹${this.getTotalReceivedAmount().toFixed(2)}`); // Below Received Amount
+      summaryRow.push(formatInrForExcel(this.getTotalReceivedAmount()));
     }
     if (this.ledgerFilter === 'unpaid') {
-      summaryRow.push(`₹${this.getTotalCurrentDue().toFixed(2)}`); // Below Current Due
+      summaryRow.push(formatInrForExcel(this.getTotalCurrentDue()));
     }
     if (this.ledgerFilter === 'all') {
-      summaryRow.push(`₹${this.getTotalReceivedAmount().toFixed(2)}`); // Below Received Amount
-      summaryRow.push(`₹${this.getTotalCurrentDue().toFixed(2)}`); // Below Current Due
+      summaryRow.push(formatInrForExcel(this.getTotalReceivedAmount()));
+      summaryRow.push(formatInrForExcel(this.getTotalCurrentDue()));
     }
 
     // Prepare table data
@@ -1771,14 +1748,14 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
       ];
       
       if (this.ledgerFilter === 'paid') {
-        rowData.push(`₹${this.toAmount(row.receivedAmount).toFixed(2)}`);
+        rowData.push(formatInrForExcel(this.toAmount(row.receivedAmount)));
       }
       if (this.ledgerFilter === 'unpaid') {
-        rowData.push(`₹${this.toAmount(row.currentDue).toFixed(2)}`);
+        rowData.push(formatInrForExcel(this.toAmount(row.currentDue)));
       }
       if (this.ledgerFilter === 'all') {
-        rowData.push(`₹${this.toAmount(row.receivedAmount).toFixed(2)}`);
-        rowData.push(`₹${this.toAmount(row.currentDue).toFixed(2)}`);
+        rowData.push(formatInrForExcel(this.toAmount(row.receivedAmount)));
+        rowData.push(formatInrForExcel(this.toAmount(row.currentDue)));
       }
       
       return rowData;
@@ -1789,12 +1766,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     
     // Add watermark row at the top
     const totalCols = headers.length;
-    const watermarkRow: any[] = [];
-    for (let i = 0; i < totalCols; i++) {
-      watermarkRow.push('');
-    }
-    const midCol = Math.floor(totalCols / 2);
-    watermarkRow[midCol] = 'RUU FASHION';
+    const watermarkRow = buildExcelWatermarkRow(totalCols);
     
     // Combine watermark, customer details, headers, summary row, and ledger table
     const allData = [watermarkRow, ...customerDetails, headers, summaryRow, ...tableData];
@@ -1807,13 +1779,13 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
       { wch: 12 }, // Ageing Days
     ];
     if (this.ledgerFilter === 'paid') {
-      colWidths.push({ wch: 15 }); // Received Amount
+      colWidths.push({ wch: 18 }); // Received Amount
     }
     if (this.ledgerFilter === 'unpaid') {
-      colWidths.push({ wch: 15 }); // Current Due
+      colWidths.push({ wch: 18 }); // Current Due
     }
     if (this.ledgerFilter === 'all') {
-      colWidths.push({ wch: 15 }, { wch: 15 }); // Received Amount, Current Due
+      colWidths.push({ wch: 18 }, { wch: 18 }); // Received Amount, Current Due
     }
     ws['!cols'] = colWidths;
     
@@ -1822,8 +1794,9 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
       ws['!merges'] = [];
     }
     ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } });
-    
+
     XLSX.utils.book_append_sheet(wb, ws, 'Customer Details');
+    setExcelPrintTitleTopRow(wb, 'Customer Details');
 
     // Generate filename
     const filename = `${this.selectedCustomerName}_${this.ledgerFilter}.xlsx`;
@@ -1833,6 +1806,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   }
 
   downloadPDF(): void {
+    void this.downloadLedgerPdf();
+  }
+
+  private async downloadLedgerPdf(): Promise<void> {
     if (!this.canDownloadWholeProject) {
       this.notificationService.showPermissionError();
       return;
@@ -1847,11 +1824,18 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     }
 
     const doc = new jsPDF();
+    try {
+      await ensurePdfUnicodeFonts(doc);
+    } catch {
+      this.notificationService.showError('Could not load PDF fonts. Refresh the page and try again.');
+      return;
+    }
+
     let yPos = 20;
 
     // Customer Details at the top
     doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(PDF_UNICODE_FONT, 'normal');
     doc.text(`Customer Name: ${this.selectedCustomerName}`, 14, yPos);
     yPos += 7;
     doc.text(`Phone Number: ${this.customerSummary.phoneNumber || 'Not available'}`, 14, yPos);
@@ -1877,14 +1861,14 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     ];
     
     if (this.ledgerFilter === 'paid') {
-      summaryRow.push(`₹${this.getTotalReceivedAmount().toFixed(2)}`); // Below Received Amount
+      summaryRow.push(formatInrForPdf(this.getTotalReceivedAmount()));
     }
     if (this.ledgerFilter === 'unpaid') {
-      summaryRow.push(`₹${this.getTotalCurrentDue().toFixed(2)}`); // Below Current Due
+      summaryRow.push(formatInrForPdf(this.getTotalCurrentDue()));
     }
     if (this.ledgerFilter === 'all') {
-      summaryRow.push(`₹${this.getTotalReceivedAmount().toFixed(2)}`); // Below Received Amount
-      summaryRow.push(`₹${this.getTotalCurrentDue().toFixed(2)}`); // Below Current Due
+      summaryRow.push(formatInrForPdf(this.getTotalReceivedAmount()));
+      summaryRow.push(formatInrForPdf(this.getTotalCurrentDue()));
     }
 
     const tableData = filteredData.map(row => {
@@ -1895,14 +1879,14 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
       ];
       
       if (this.ledgerFilter === 'paid') {
-        rowData.push(`₹${this.toAmount(row.receivedAmount).toFixed(2)}`);
+        rowData.push(formatInrForPdf(this.toAmount(row.receivedAmount)));
       }
       if (this.ledgerFilter === 'unpaid') {
-        rowData.push(`₹${this.toAmount(row.currentDue).toFixed(2)}`);
+        rowData.push(formatInrForPdf(this.toAmount(row.currentDue)));
       }
       if (this.ledgerFilter === 'all') {
-        rowData.push(`₹${this.toAmount(row.receivedAmount).toFixed(2)}`);
-        rowData.push(`₹${this.toAmount(row.currentDue).toFixed(2)}`);
+        rowData.push(formatInrForPdf(this.toAmount(row.receivedAmount)));
+        rowData.push(formatInrForPdf(this.toAmount(row.currentDue)));
       }
       
       return rowData;
@@ -1913,8 +1897,13 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
       head: [headers],
       body: [summaryRow, ...tableData],
       startY: yPos,
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [66, 139, 202], textColor: 255, fontStyle: 'bold' },
+      styles: { font: PDF_UNICODE_FONT, fontStyle: 'normal', fontSize: 9 },
+      headStyles: {
+        fillColor: [66, 139, 202],
+        textColor: 255,
+        fontStyle: 'bold',
+        font: PDF_UNICODE_FONT,
+      },
       bodyStyles: { fillColor: false },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       didParseCell: (data: any) => {
@@ -1925,14 +1914,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
           data.cell.styles.textColor = [0, 0, 0];
         }
       },
-      didDrawPage: (data: any) => {
-        // Add watermark on each page
+      didDrawPage: () => {
         addWatermark(doc);
-      }
+      },
     });
-
-    // Add watermark to the document
-    addWatermark(doc);
 
     // Generate filename
     const filename = `${this.selectedCustomerName}_${this.ledgerFilter}.pdf`;
