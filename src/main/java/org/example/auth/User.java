@@ -1,6 +1,7 @@
 package org.example.auth;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
@@ -9,6 +10,7 @@ import java.time.Instant;
 public class User {
     @Id
     private String id;
+    @Indexed
     private String username;
     private String password; // SECURITY: Stored as BCrypt hash (legacy plain text passwords are migrated on login)
     private String displayName;

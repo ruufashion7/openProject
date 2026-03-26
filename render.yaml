@@ -6,6 +6,7 @@ services:
     name: openproject-backend
     runtime: docker
     plan: free
+    # Keep MongoDB Atlas + optional Upstash Redis in the same cloud region when possible (e.g. AWS us-west / Oregon).
     region: oregon
     healthCheckPath: /actuator/health
     envVars:

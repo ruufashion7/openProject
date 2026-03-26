@@ -26,6 +26,7 @@ public class AuthSessionService {
     private final SecurityAuditService securityAuditService;
     private final AuthSessionRepository authSessionRepository;
     private final JwtTokenService jwtTokenService;
+    private final AuthSessionMirrorService authSessionMirrorService;
     private boolean adminInitialized = false;
 
     /**
@@ -46,11 +47,13 @@ public class AuthSessionService {
     public AuthSessionService(UserService userService,
                               SecurityAuditService securityAuditService,
                               AuthSessionRepository authSessionRepository,
-                              JwtTokenService jwtTokenService) {
+                              JwtTokenService jwtTokenService,
+                              AuthSessionMirrorService authSessionMirrorService) {
         this.userService = userService;
         this.securityAuditService = securityAuditService;
         this.authSessionRepository = authSessionRepository;
         this.jwtTokenService = jwtTokenService;
+        this.authSessionMirrorService = authSessionMirrorService;
     }
 
     @EventListener
@@ -144,7 +147,7 @@ public class AuthSessionService {
                 user.isAdmin(),
                 permissions
         );
-        persistSessionBestEffort(token, sessionInfo);
+        authSessionMirrorService.mirrorSessionBestEffort(token, sessionInfo);
 
         securityAuditService.logSessionCreated(user.getId(), token, "unknown");
 
@@ -157,22 +160,6 @@ public class AuthSessionService {
                 permissions,
                 null
         );
-    }
-
-    /** Optional Mongo copy for admin session list; login succeeds even if this fails. */
-    private void persistSessionBestEffort(String token, SessionInfo info) {
-        try {
-            AuthSessionDocument doc = new AuthSessionDocument();
-            doc.setToken(token);
-            doc.setExpiresAt(info.expiresAt());
-            doc.setDisplayName(info.displayName());
-            doc.setUserId(info.userId());
-            doc.setAdmin(info.isAdmin());
-            doc.setPermissions(info.permissions());
-            authSessionRepository.save(doc);
-        } catch (Exception e) {
-            logger.warn("Could not mirror session to MongoDB (optional). Admin session list may be incomplete. Cause: {}", e.getMessage());
-        }
     }
 
     public SessionInfo validate(String token) {

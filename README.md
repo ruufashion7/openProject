@@ -56,3 +56,5 @@ The app can be deployed for free so the world can use it:
 5. **CORS**: Ensure Render has `CORS_ALLOWED_ORIGINS` set to your Vercel URL (e.g. `https://your-project.vercel.app`).
 
 **Full checklist** (Blueprint + Vercel settings): [docs/FREE_DEPLOY.md](docs/FREE_DEPLOY.md). This repo includes **`render.yaml`** for Render’s Blueprint flow.
+
+**Prod slowness / cold starts / regions:** [docs/PERFORMANCE.md](docs/PERFORMANCE.md).

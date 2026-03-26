@@ -3,6 +3,8 @@
 Stack: **MongoDB Atlas** (DB) → **Render** (Spring Boot API, Docker) → **Vercel** (Angular).  
 Costs: Atlas M0, Render free web service, Vercel hobby — all have limits; fine for demos.
 
+**Slow first load / login on prod?** See [PERFORMANCE.md](PERFORMANCE.md) (cold starts, regions, what the app does).
+
 ## 1. MongoDB Atlas
 
 1. Create an **M0** cluster.

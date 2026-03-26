@@ -1,5 +1,6 @@
 package org.example.security;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -12,7 +13,12 @@ import java.util.regex.Pattern;
  */
 @Service
 public class PasswordEncoderService {
-    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(12); // Strength 12 for better security
+    private final PasswordEncoder passwordEncoder;
+
+    public PasswordEncoderService(@Value("${security.password.bcrypt-strength:12}") int bcryptStrength) {
+        int strength = Math.clamp(bcryptStrength, 4, 31);
+        this.passwordEncoder = new BCryptPasswordEncoder(strength);
+    }
     
     // Password policy patterns
     private static final Pattern UPPERCASE_PATTERN = Pattern.compile(".*[A-Z].*");

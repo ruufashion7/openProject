@@ -1,21 +1,9 @@
 import { Routes } from '@angular/router';
 import { LoginComponent } from './login/login.component';
-import { WelcomeComponent } from './welcome/welcome.component';
-import { UploadComponent } from './upload/upload.component';
-import { UploadsComponent } from './uploads/uploads.component';
-import { UploadsAuditComponent } from './uploads-audit/uploads-audit.component';
-import { UploadsPurgeComponent } from './uploads-purge/uploads-purge.component';
-import { OutstandingComponent } from './outstanding/outstanding.component';
-import { PaymentDatesComponent } from './payment-dates/payment-dates.component';
-import { SalesDetailsComponent } from './sales-details/sales-details.component';
-import { SalesVisualizationComponent } from './sales-visualization/sales-visualization.component';
-import { RateListComponent } from './rate-list/rate-list.component';
-import { AccessControlComponent } from './access-control/access-control.component';
-import { SessionsComponent } from './sessions/sessions.component';
-import { CustomerLocationsComponent } from './customer-locations/customer-locations.component';
 import { authGuard } from './auth/auth.guard';
 import { adminGuard } from './auth/admin.guard';
 
+/** Login stays eager so first paint to /login avoids an extra chunk. Other routes are lazy-loaded to shrink the initial bundle. */
 export const routes: Routes = [
   {
     path: '',
@@ -28,67 +16,74 @@ export const routes: Routes = [
   },
   {
     path: 'welcome',
-    component: WelcomeComponent,
+    loadComponent: () => import('./welcome/welcome.component').then((m) => m.WelcomeComponent),
     canActivate: [authGuard]
   },
   {
     path: 'upload',
-    component: UploadComponent,
+    loadComponent: () => import('./upload/upload.component').then((m) => m.UploadComponent),
     canActivate: [authGuard]
   },
   {
     path: 'rate-list',
-    component: RateListComponent,
+    loadComponent: () => import('./rate-list/rate-list.component').then((m) => m.RateListComponent),
     canActivate: [authGuard]
   },
   {
     path: 'uploads',
-    component: UploadsComponent,
+    loadComponent: () => import('./uploads/uploads.component').then((m) => m.UploadsComponent),
     canActivate: [authGuard]
   },
   {
     path: 'uploads-audit',
-    component: UploadsAuditComponent,
+    loadComponent: () =>
+      import('./uploads-audit/uploads-audit.component').then((m) => m.UploadsAuditComponent),
     canActivate: [authGuard]
   },
   {
     path: 'uploads-purge',
-    component: UploadsPurgeComponent,
+    loadComponent: () =>
+      import('./uploads-purge/uploads-purge.component').then((m) => m.UploadsPurgeComponent),
     canActivate: [authGuard]
   },
   {
     path: 'outstanding',
-    component: OutstandingComponent,
+    loadComponent: () => import('./outstanding/outstanding.component').then((m) => m.OutstandingComponent),
     canActivate: [authGuard]
   },
   {
     path: 'payment-dates',
-    component: PaymentDatesComponent,
+    loadComponent: () =>
+      import('./payment-dates/payment-dates.component').then((m) => m.PaymentDatesComponent),
     canActivate: [authGuard]
   },
   {
     path: 'sales-details',
-    component: SalesDetailsComponent,
+    loadComponent: () =>
+      import('./sales-details/sales-details.component').then((m) => m.SalesDetailsComponent),
     canActivate: [authGuard]
   },
   {
     path: 'sales-visualization',
-    component: SalesVisualizationComponent,
+    loadComponent: () =>
+      import('./sales-visualization/sales-visualization.component').then((m) => m.SalesVisualizationComponent),
     canActivate: [authGuard]
   },
   {
     path: 'customer-locations',
-    component: CustomerLocationsComponent,
+    loadComponent: () =>
+      import('./customer-locations/customer-locations.component').then((m) => m.CustomerLocationsComponent),
     canActivate: [authGuard]
   },
   {
     path: 'access-control',
-    component: AccessControlComponent,
+    loadComponent: () =>
+      import('./access-control/access-control.component').then((m) => m.AccessControlComponent),
     canActivate: [adminGuard]
   },
   {
     path: 'sessions',
-    component: SessionsComponent,
+    loadComponent: () => import('./sessions/sessions.component').then((m) => m.SessionsComponent),
     canActivate: [adminGuard]
   },
   {
