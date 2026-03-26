@@ -9,6 +9,12 @@ services:
     region: oregon
     healthCheckPath: /actuator/health
     envVars:
+      # Enables application-prod.properties (strict secrets, forward headers, Redis only if URL below is set).
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      # Optional: Upstash TCP URL (rediss://...). Leave unset in dashboard until you add Redis; then paste from Upstash Connect.
+      - key: SPRING_DATA_REDIS_URL
+        sync: false
       - key: MONGO_URI
         sync: false
       - key: ADMIN_USERNAME

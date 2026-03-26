@@ -21,14 +21,16 @@ Costs: Atlas M0, Render free web service, Vercel hobby — all have limits; fine
    - **`MONGO_URI`** — full Atlas URI  
    - **`ADMIN_USERNAME`** / **`ADMIN_PASSWORD`** — first admin login  
    - **`CORS_ALLOWED_ORIGINS`** — your Vercel URL (step 4). If Vercel is not ready yet, use `http://localhost:4200` and update later.  
-   - **`SECURITY_ENCRYPTION_KEY`** / **`SECURITY_JWT_SECRET`** — auto-generated if you use the Blueprint as written; otherwise set manually in the dashboard.
+   - **`SECURITY_ENCRYPTION_KEY`** / **`SECURITY_JWT_SECRET`** — auto-generated if you use the Blueprint as written; otherwise set manually in the dashboard. **`SECURITY_ENCRYPTION_KEY`** must be valid Base64 that decodes to **32 bytes** (same as `openssl rand -base64 32`). If the generated value ever fails startup, replace it with that command output.
+
+The Blueprint sets **`SPRING_PROFILES_ACTIVE=prod`**: the API disables Redis unless **`SPRING_DATA_REDIS_URL`** (or `spring.data.redis.url`) is set, so health checks pass without a local Redis. To use managed Redis (e.g. Upstash), add that URL and redeploy.
 
 **Option B — Web Service manually**  
 1. **New** → **Web Service** → connect repo.  
 2. **Runtime**: **Docker** · **Dockerfile path**: `./Dockerfile` · **Branch**: `main`.  
 3. **Instance**: **Free**.  
 4. **Health check path**: **`/actuator/health`**.  
-5. **Environment** — same variables as in `render.yaml` (at minimum: `MONGO_URI`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SECURITY_ENCRYPTION_KEY`, `SECURITY_JWT_SECRET`, `CORS_ALLOWED_ORIGINS`).  
+5. **Environment** — same variables as in `render.yaml` (at minimum: `MONGO_URI`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SECURITY_ENCRYPTION_KEY`, `SECURITY_JWT_SECRET`, `CORS_ALLOWED_ORIGINS`, and **`SPRING_PROFILES_ACTIVE=prod`**).  
    Generate secrets: `openssl rand -base64 32` (use two different values for the two keys).
 
 6. **Deploy** and copy the public URL, e.g. `https://openproject-backend.onrender.com`.
