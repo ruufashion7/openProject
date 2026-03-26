@@ -33,12 +33,12 @@ public class ApiRateLimitingFilter extends OncePerRequestFilter {
         if (!apiRateLimitEnabled) {
             return true;
         }
-        String path = request.getRequestURI();
-        if (path == null || !path.startsWith("/api/")) {
+        String path = ApiServletPaths.normalizedServletPath(request);
+        if (path.isEmpty() || !(path.startsWith("/api/") || "/api".equals(path))) {
             return true;
         }
         // Login has dedicated username/IP policy in AuthController
-        if (path.equals("/api/login") || path.endsWith("/api/login")) {
+        if ("/api/login".equals(path)) {
             return true;
         }
         return false;

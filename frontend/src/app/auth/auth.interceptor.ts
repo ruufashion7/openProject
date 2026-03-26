@@ -59,6 +59,21 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       // This prevents resetting the session timer on every page change or API call
     }),
     catchError((error: HttpErrorResponse) => {
+      // CSRF mismatch (cookie-auth mode): clear session so user can log in again instead of a stuck 403 UI
+      if (error.status === 403) {
+        const body = error.error;
+        const code =
+          typeof body === 'object' && body !== null && 'error' in body
+            ? String((body as { error?: string }).error)
+            : typeof body === 'string'
+              ? body
+              : '';
+        if (code === 'csrf_required' || code.includes('CSRF')) {
+          auth.logout();
+          router.navigateByUrl('/login');
+          return throwError(() => error);
+        }
+      }
       if (error.status === 401) {
         const failedPath = pathOnly(error.url ?? req.url);
         // Invalid credentials on login, or logout with bad token — never run session recovery

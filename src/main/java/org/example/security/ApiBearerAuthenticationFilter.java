@@ -37,8 +37,8 @@ public class ApiBearerAuthenticationFilter extends OncePerRequestFilter {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
-        String path = request.getServletPath();
-        if (path == null || !path.startsWith("/api")) {
+        String path = ApiServletPaths.normalizedServletPath(request);
+        if (path.isEmpty() || !path.startsWith("/api")) {
             return true;
         }
         if (isPublicApiPath(request.getMethod(), path)) {
@@ -48,13 +48,7 @@ public class ApiBearerAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private static boolean isPublicApiPath(String method, String path) {
-        if ("POST".equalsIgnoreCase(method) && "/api/login".equals(path)) {
-            return true;
-        }
-        if ("POST".equalsIgnoreCase(method) && "/api/logout".equals(path)) {
-            return true;
-        }
-        return false;
+        return ApiServletPaths.isLoginPost(method, path) || ApiServletPaths.isLogoutPost(method, path);
     }
 
     @Override

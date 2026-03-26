@@ -8,9 +8,12 @@ import org.example.security.JwtCookieService;
 import org.example.security.LoginCsrfProtectionService;
 import org.example.security.RateLimitingService;
 import org.example.security.RequestBodySizeLimitFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -33,6 +36,8 @@ import java.util.stream.Collectors;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     /**
      * Comma-separated list of allowed CORS origins (e.g. for Vercel: https://your-app.vercel.app).
@@ -80,6 +85,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
+            CorsConfigurationSource corsConfigurationSource,
             ApiRateLimitingFilter apiRateLimitingFilter,
             RequestBodySizeLimitFilter requestBodySizeLimitFilter,
             ApiBearerAuthenticationFilter apiBearerAuthenticationFilter,
@@ -94,7 +100,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             
             // Configure CORS
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .cors(cors -> cors.configurationSource(corsConfigurationSource))
             
             // Stateless session management (using token-based auth)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -125,7 +131,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(Environment environment) {
         CorsConfiguration configuration = new CorsConfiguration();
         
         // Request origins are compared after trimming a trailing slash (see CorsConfiguration#checkOrigin).
@@ -138,9 +144,18 @@ public class SecurityConfig {
                 .map(SecurityConfig::normalizeConfiguredPattern)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
+        boolean prodLike = Arrays.stream(environment.getActiveProfiles())
+                .anyMatch(p -> p.equalsIgnoreCase("prod") || p.equalsIgnoreCase("production"));
         if (origins.isEmpty() && originPatterns.isEmpty()) {
+            if (prodLike) {
+                throw new IllegalStateException(
+                        "CORS is not configured for production. Set env CORS_ALLOWED_ORIGINS (comma-separated, "
+                                + "e.g. https://your-frontend.example.com) and/or CORS_ALLOWED_ORIGIN_PATTERNS "
+                                + "(e.g. https://*.vercel.app). Without this, browsers cannot call /api from your deployed UI.");
+            }
             origins = new ArrayList<>(Arrays.asList("http://localhost:4200", "http://127.0.0.1:4200"));
         }
+        log.info("CORS: {} explicit origin(s), {} origin pattern(s)", origins.size(), originPatterns.size());
         if (!origins.isEmpty()) {
             configuration.setAllowedOrigins(origins);
         }
@@ -164,7 +179,8 @@ public class SecurityConfig {
         configuration.setMaxAge(3600L); // Cache preflight for 1 hour
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", configuration);
+        // Match all paths so preflight/actual requests are never missing CORS (some proxies or redirects hit non-/api paths).
+        source.registerCorsConfiguration("/**", configuration);
         
         return source;
     }

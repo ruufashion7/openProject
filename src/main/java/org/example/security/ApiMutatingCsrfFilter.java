@@ -33,14 +33,12 @@ public class ApiMutatingCsrfFilter extends OncePerRequestFilter {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
-        String path = request.getServletPath();
-        if (path == null || !path.startsWith("/api")) {
+        String path = ApiServletPaths.normalizedServletPath(request);
+        if (path.isEmpty() || !path.startsWith("/api")) {
             return true;
         }
-        if ("POST".equalsIgnoreCase(request.getMethod()) && "/api/login".equals(path)) {
-            return true;
-        }
-        if ("POST".equalsIgnoreCase(request.getMethod()) && "/api/logout".equals(path)) {
+        String method = request.getMethod();
+        if (ApiServletPaths.isLoginPost(method, path) || ApiServletPaths.isLogoutPost(method, path)) {
             return true;
         }
         return false;
@@ -62,7 +60,7 @@ public class ApiMutatingCsrfFilter extends OncePerRequestFilter {
         if (!loginCsrfProtectionService.validate(session.userId(), token)) {
             response.setStatus(HttpStatus.FORBIDDEN.value());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getWriter().write("{\"error\":\"Invalid or missing CSRF token\"}");
+            response.getWriter().write("{\"error\":\"csrf_required\",\"message\":\"Invalid or missing CSRF token\"}");
             return;
         }
         filterChain.doFilter(request, response);
