@@ -156,6 +156,8 @@ public class SecurityConfig {
             origins = new ArrayList<>(Arrays.asList("http://localhost:4200", "http://127.0.0.1:4200"));
         }
         log.info("CORS: {} explicit origin(s), {} origin pattern(s)", origins.size(), originPatterns.size());
+        log.info("CORS allowed origins: {}", origins.isEmpty() ? "(none)" : origins);
+        log.info("CORS allowed origin patterns: {}", originPatterns.isEmpty() ? "(none)" : originPatterns);
         if (!origins.isEmpty()) {
             configuration.setAllowedOrigins(origins);
         }
