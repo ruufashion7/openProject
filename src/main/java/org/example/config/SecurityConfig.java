@@ -21,6 +21,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,6 +40,13 @@ public class SecurityConfig {
      */
     @Value("${cors.allowed-origins:http://localhost:4200,http://127.0.0.1:4200}")
     private String allowedOriginsConfig;
+
+    /**
+     * Optional glob patterns (comma-separated), e.g. {@code https://*.vercel.app} for all Vercel preview + production URLs.
+     * Env: {@code CORS_ALLOWED_ORIGIN_PATTERNS}. Used together with {@code cors.allowed-origins}.
+     */
+    @Value("${cors.allowed-origin-patterns:}")
+    private String allowedOriginPatternsConfig;
 
     @Bean
     public ApiRateLimitingFilter apiRateLimitingFilter(
@@ -120,28 +128,31 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // SECURITY: Origins from cors.allowed-origins (comma-separated). Set in production to your Vercel URL(s).
+        // Request origins are compared after trimming a trailing slash (see CorsConfiguration#checkOrigin).
+        // Normalize configured values the same way so https://app.com/ in env still matches the browser's https://app.com
         List<String> origins = Arrays.stream(allowedOriginsConfig.split(","))
-                .map(String::trim)
+                .map(SecurityConfig::normalizeConfiguredOrigin)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
-        if (origins.isEmpty()) {
-            origins = Arrays.asList("http://localhost:4200", "http://127.0.0.1:4200");
+        List<String> originPatterns = Arrays.stream(allowedOriginPatternsConfig.split(","))
+                .map(SecurityConfig::normalizeConfiguredPattern)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+        if (origins.isEmpty() && originPatterns.isEmpty()) {
+            origins = new ArrayList<>(Arrays.asList("http://localhost:4200", "http://127.0.0.1:4200"));
         }
-        configuration.setAllowedOrigins(origins);
+        if (!origins.isEmpty()) {
+            configuration.setAllowedOrigins(origins);
+        }
+        if (!originPatterns.isEmpty()) {
+            configuration.setAllowedOriginPatterns(originPatterns);
+        }
         
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
         
-        // SECURITY: Only allow necessary headers
-        configuration.setAllowedHeaders(Arrays.asList(
-            "Authorization",
-            "Content-Type",
-            "X-Requested-With",
-            "Accept",
-            "Origin",
-            "X-CSRF-Token",
-            "X-Captcha-Token"
-        ));
+        // Preflight echoes requested header names; "*" avoids 403 when browsers or extensions add headers
+        // (e.g. trace/baggage) to Access-Control-Request-Headers after the first attempt.
+        configuration.setAllowedHeaders(List.of(CorsConfiguration.ALL));
         
         // SECURITY: Don't expose sensitive headers
         configuration.setExposedHeaders(Arrays.asList(
@@ -156,6 +167,40 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/api/**", configuration);
         
         return source;
+    }
+
+    private static String normalizeConfiguredOrigin(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String s = raw.trim();
+        if (s.length() >= 2) {
+            char a = s.charAt(0);
+            char b = s.charAt(s.length() - 1);
+            if ((a == '"' && b == '"') || (a == '\'' && b == '\'')) {
+                s = s.substring(1, s.length() - 1).trim();
+            }
+        }
+        while (s.endsWith("/")) {
+            s = s.substring(0, s.length() - 1);
+        }
+        return s;
+    }
+
+    /** Patterns are not slash-stripped (would break e.g. {@code https://*.vercel.app}). */
+    private static String normalizeConfiguredPattern(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String s = raw.trim();
+        if (s.length() >= 2) {
+            char a = s.charAt(0);
+            char b = s.charAt(s.length() - 1);
+            if ((a == '"' && b == '"') || (a == '\'' && b == '\'')) {
+                s = s.substring(1, s.length() - 1).trim();
+            }
+        }
+        return s;
     }
 }
 
