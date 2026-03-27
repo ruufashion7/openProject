@@ -23,6 +23,7 @@ import org.example.upload.UploadStorageService;
 import org.example.upload.UploadedExcelFileDownloadResponse;
 import org.example.upload.UploadedExcelFileEntryResponse;
 import org.example.upload.UploadPurgeResponse;
+import org.example.upload.SalesReceivableExcelUploadValidation;
 import org.example.upload.UploadStatusResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +43,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -58,14 +58,6 @@ public class UploadController {
     private final UploadAuditEntryRepository uploadAuditEntryRepository;
     private final ObjectMapper objectMapper;
     private final SecurityAuditService securityAuditService;
-    
-    // Allowed file extensions for uploads
-    private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList(".xlsx", ".xls");
-    private static final long MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
-    private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "application/vnd.ms-excel"
-    );
 
     public UploadController(AuthSessionService authSessionService,
                             UploadStorageService uploadStorageService,
@@ -100,20 +92,14 @@ public class UploadController {
                     .body(new UploadResponse("failed", "You do not have permission to upload files.", List.of()));
         }
 
-        if (file1.isEmpty() || file2.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(new UploadResponse("failed", "Both files are required.", List.of()));
-        }
-
-        // SECURITY: Validate file uploads
-        String validationError = validateFileUpload(file1, "file1");
+        String validationError = SalesReceivableExcelUploadValidation.validateMultipart(file1);
         if (validationError != null) {
             securityAuditService.logFileUpload(session.userId(), file1.getOriginalFilename(), file1.getSize(), false);
             return ResponseEntity.badRequest()
                     .body(new UploadResponse("failed", "File 1: " + validationError, List.of()));
         }
-        
-        validationError = validateFileUpload(file2, "file2");
+
+        validationError = SalesReceivableExcelUploadValidation.validateMultipart(file2);
         if (validationError != null) {
             securityAuditService.logFileUpload(session.userId(), file2.getOriginalFilename(), file2.getSize(), false);
             return ResponseEntity.badRequest()
@@ -464,49 +450,6 @@ public class UploadController {
             }
         }
         return entries;
-    }
-    
-    /**
-     * Validate file upload for security.
-     * Checks file extension, size, and content type.
-     */
-    private String validateFileUpload(MultipartFile file, String fileLabel) {
-        if (file == null || file.isEmpty()) {
-            return "File is empty";
-        }
-        
-        String originalFilename = file.getOriginalFilename();
-        if (originalFilename == null || originalFilename.isBlank()) {
-            return "Filename is invalid";
-        }
-        
-        // SECURITY: Check for path traversal attempts
-        if (originalFilename.contains("..") || originalFilename.contains("/") || originalFilename.contains("\\")) {
-            return "Filename contains invalid characters";
-        }
-        
-        // Check file extension
-        String lowerFilename = originalFilename.toLowerCase();
-        boolean hasValidExtension = ALLOWED_EXTENSIONS.stream()
-                .anyMatch(lowerFilename::endsWith);
-        
-        if (!hasValidExtension) {
-            return "Invalid file type. Only Excel files (.xlsx, .xls) are allowed";
-        }
-        
-        // Check file size
-        if (file.getSize() > MAX_FILE_SIZE) {
-            return String.format("File size exceeds maximum allowed size of %d MB", MAX_FILE_SIZE / (1024 * 1024));
-        }
-        
-        // Check content type (if provided)
-        String contentType = file.getContentType();
-        if (contentType != null && !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase())) {
-            // Log suspicious activity but don't block (content type can be spoofed)
-            logger.warn("Upload with unexpected content type: {} for file: {}", contentType, originalFilename);
-        }
-        
-        return null; // Validation passed
     }
 }
 

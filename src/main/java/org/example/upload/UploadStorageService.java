@@ -56,8 +56,8 @@ public class UploadStorageService {
     }
 
     public List<UploadFileInfo> storeFiles(MultipartFile file1, MultipartFile file2) throws IOException {
-        validateExcelFile(file1);
-        validateExcelFile(file2);
+        SalesReceivableExcelUploadValidation.validateMultipartOrThrow(file1);
+        SalesReceivableExcelUploadValidation.validateMultipartOrThrow(file2);
         return storeFiles(
                 file1.getInputStream(), file1.getOriginalFilename(),
                 file2.getInputStream(), file2.getOriginalFilename(),
@@ -86,8 +86,8 @@ public class UploadStorageService {
             UploadCancelChecker cancelChecker,
             Runnable onSavingPhaseStarted
     ) throws IOException {
-        validateExcelFilename(originalFilename1);
-        validateExcelFilename(originalFilename2);
+        SalesReceivableExcelUploadValidation.validateOriginalFilenameOrThrow(originalFilename1);
+        SalesReceivableExcelUploadValidation.validateOriginalFilenameOrThrow(originalFilename2);
         try (InputStream is1 = Files.newInputStream(tempFile1);
              InputStream is2 = Files.newInputStream(tempFile2)) {
             return storeFiles(is1, originalFilename1, is2, originalFilename2, cancelChecker, onSavingPhaseStarted);
@@ -105,6 +105,8 @@ public class UploadStorageService {
         Instant uploadedAt = Instant.now();
         UploadedExcelFile detailedFile = parseExcel(inputStream1, originalFilename1, cancelChecker);
         UploadedExcelFile receivableFile = parseExcel(inputStream2, originalFilename2, cancelChecker);
+
+        ExcelUploadHeaderRules.validateUploadPairOrThrow(detailedFile, receivableFile);
 
         cancelChecker.checkCancelled();
         if (onSavingPhaseStarted != null) {
@@ -206,17 +208,6 @@ public class UploadStorageService {
                 throw new IllegalArgumentException("Invalid .xlsx file. Please re-save as Excel (.xlsx).", ex);
             }
             throw ex;
-        }
-    }
-
-    private void validateExcelFile(MultipartFile file) {
-        validateExcelFilename(file.getOriginalFilename());
-    }
-
-    private void validateExcelFilename(String originalFilename) {
-        String name = originalFilename == null ? "" : originalFilename.toLowerCase();
-        if (!name.endsWith(".xlsx")) {
-            throw new IllegalArgumentException("Invalid file type. Please upload .xlsx files only.");
         }
     }
 

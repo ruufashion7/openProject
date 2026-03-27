@@ -432,7 +432,10 @@
 }
 
 .place-suggestion-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   width: 100%;
   padding: 8px 12px;
   text-align: left;
@@ -441,6 +444,19 @@
   font-size: 13px;
   color: #334155;
   cursor: pointer;
+}
+
+.place-suggestion-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.place-suggestion-count {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
 }
 
 .place-suggestion-item:hover {
@@ -486,6 +502,28 @@
   flex: 1;
 }
 
+.filter-group-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.filter-group-label-row .filter-group-label {
+  margin-bottom: 0;
+}
+
+.filter-scope-count {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #64748b;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+}
+
 .filter-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -493,7 +531,13 @@
 }
 
 .filter-btn {
-  padding: 8px 16px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 3.25rem;
+  padding: 8px 12px;
   border: 2px solid #e2e8f0;
   background: #fff;
   border-radius: 8px;
@@ -502,6 +546,19 @@
   color: #64748b;
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.filter-btn-text {
+  line-height: 1.25;
+  text-align: center;
+}
+
+.filter-btn-count {
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+  line-height: 1.2;
 }
 
 .filter-btn:hover {
@@ -515,10 +572,18 @@
   color: #1e40af;
 }
 
+.filter-btn.active .filter-btn-count {
+  color: #3b82f6;
+}
+
 .filter-btn.filter-past.active {
   border-color: #ef4444;
   background: #fee2e2;
   color: #991b1b;
+}
+
+.filter-btn.filter-past.active .filter-btn-count {
+  color: #b91c1c;
 }
 
 .filter-btn.filter-today.active {
@@ -527,16 +592,28 @@
   color: #92400e;
 }
 
+.filter-btn.filter-today.active .filter-btn-count {
+  color: #b45309;
+}
+
 .filter-btn.filter-future.active {
   border-color: #10b981;
   background: #d1fae5;
   color: #065f46;
 }
 
+.filter-btn.filter-future.active .filter-btn-count {
+  color: #047857;
+}
+
 .filter-btn.filter-none.active {
   border-color: #6b7280;
   background: #f3f4f6;
   color: #374151;
+}
+
+.filter-btn.filter-none.active .filter-btn-count {
+  color: #4b5563;
 }
 
 .filter-btn.filter-order-all.active {
@@ -561,6 +638,25 @@
   border-color: #ef4444;
   background: #fee2e2;
   color: #991b1b;
+}
+
+.filter-btn.filter-order-all.active .filter-btn-count,
+.filter-btn.filter-whatsapp-all.active .filter-btn-count,
+.filter-btn.filter-followup-all.active .filter-btn-count,
+.filter-btn.filter-category-all.active .filter-btn-count {
+  color: #3b82f6;
+}
+
+.filter-btn.filter-order-0-45.active .filter-btn-count {
+  color: #047857;
+}
+
+.filter-btn.filter-order-46-85.active .filter-btn-count {
+  color: #b45309;
+}
+
+.filter-btn.filter-order-85plus.active .filter-btn-count {
+  color: #b91c1c;
 }
 
 .filter-btn.filter-whatsapp-all.active {

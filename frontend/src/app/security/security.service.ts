@@ -14,24 +14,15 @@ export class SecurityService {
       return { valid: false, error: 'File is required' };
     }
 
-    // Check file size (500MB max)
+    // Aligned with backend SalesReceivableExcelUploadValidation / rate-list bulk upload (.xlsx only)
     const maxSize = 500 * 1024 * 1024;
     if (file.size > maxSize) {
       return { valid: false, error: `File size exceeds ${maxSize / (1024 * 1024)}MB limit` };
     }
 
-    // Check file type
-    const allowedTypes = [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel'
-    ];
-    const allowedExtensions = ['.xlsx', '.xls'];
-    
     const fileName = file.name.toLowerCase();
-    const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
-    
-    if (!hasValidExtension) {
-      return { valid: false, error: 'Only Excel files (.xlsx, .xls) are allowed' };
+    if (!fileName.endsWith('.xlsx')) {
+      return { valid: false, error: 'Only Excel .xlsx files are allowed' };
     }
 
     // Validate filename

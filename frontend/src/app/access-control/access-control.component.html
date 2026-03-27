@@ -30,7 +30,25 @@
         </div>
         <div class="form-group">
           <label>Password *</label>
-          <input type="password" [(ngModel)]="newUser.password" name="password" required placeholder="Enter password">
+          <input
+            type="password"
+            [(ngModel)]="newUser.password"
+            name="password"
+            required
+            placeholder="Enter password"
+            autocomplete="new-password"
+          >
+          <ul class="password-rules" *ngIf="newUser.password" aria-live="polite">
+            <li
+              *ngFor="let r of getCreatePasswordRules()"
+              class="password-rule"
+              [class.password-rule-met]="r.met"
+              [class.password-rule-unmet]="!r.met"
+            >
+              <span class="password-rule-icon">{{ r.met ? '✓' : '○' }}</span>
+              {{ r.label }}
+            </li>
+          </ul>
         </div>
         <div class="form-group">
           <label>Display Name *</label>
@@ -80,7 +98,7 @@
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="btn btn-primary" [disabled]="!canSubmitCreate()">
           <span>✓</span>
           <span>Create User</span>
         </button>
@@ -105,16 +123,33 @@
           <label>Display Name</label>
           <input type="text" [(ngModel)]="editedUser.displayName" name="displayName" required placeholder="Enter display name">
         </div>
-        <div class="form-group" *ngIf="isEditingOwnAccount()">
-          <label>Current password</label>
-          <input
-            type="password"
-            [(ngModel)]="editPasswordCurrent"
-            name="editPasswordCurrent"
-            autocomplete="current-password"
-            placeholder="Required when setting a new password"
-          >
-          <p class="form-help-inline">Enter your current password to authorize changing it.</p>
+        <div class="form-group">
+          <ng-container *ngIf="isEditingOwnAccount(); else otherUserCurrentPw">
+            <label>Current password<span *ngIf="editPasswordHasNew()"> *</span></label>
+            <input
+              type="password"
+              [(ngModel)]="editPasswordCurrent"
+              name="editPasswordCurrent"
+              autocomplete="current-password"
+              placeholder="Leave blank unless you set a new password below"
+              [class.input-invalid]="currentPasswordMissingForEdit()"
+            >
+            <p class="form-help-inline">Required when you change the password below; leave blank for other updates only.</p>
+            <p class="inline-error" *ngIf="currentPasswordMissingForEdit()">Enter your current password.</p>
+          </ng-container>
+          <ng-template #otherUserCurrentPw>
+            <label>User's current password<span *ngIf="editPasswordHasNew()"> *</span></label>
+            <input
+              type="password"
+              [(ngModel)]="editPasswordCurrent"
+              name="editPasswordCurrentOther"
+              autocomplete="off"
+              placeholder="Leave blank unless you set a new password below"
+              [class.input-invalid]="currentPasswordMissingForEdit()"
+            >
+            <p class="form-help-inline">Required when you change this user's password below; leave blank for other updates only.</p>
+            <p class="inline-error" *ngIf="currentPasswordMissingForEdit()">Enter this user's current password.</p>
+          </ng-template>
         </div>
         <div class="form-group">
           <label>New password</label>
@@ -125,8 +160,19 @@
             autocomplete="new-password"
             placeholder="Leave blank to keep current password"
           >
-          <p class="form-help-inline" *ngIf="!isEditingOwnAccount()">Admin: set a new password for this user (their old password is not required).</p>
-          <p class="form-help-inline" *ngIf="isEditingOwnAccount()">Leave blank to keep your password. If you set a new one, fill your current password above.</p>
+          <p class="form-help-inline" *ngIf="!isEditingOwnAccount()">Use the user's current password field above, then enter the new password here.</p>
+          <p class="form-help-inline" *ngIf="isEditingOwnAccount()">Leave blank to keep your password. If you change it, enter your current password in the field above.</p>
+          <ul class="password-rules" *ngIf="editPasswordNew" aria-live="polite">
+            <li
+              *ngFor="let r of getEditPasswordRules()"
+              class="password-rule"
+              [class.password-rule-met]="r.met"
+              [class.password-rule-unmet]="!r.met"
+            >
+              <span class="password-rule-icon">{{ r.met ? '✓' : '○' }}</span>
+              {{ r.label }}
+            </li>
+          </ul>
         </div>
         <div class="form-group">
           <label>Confirm new password</label>
@@ -136,7 +182,9 @@
             name="editPasswordConfirm"
             autocomplete="new-password"
             placeholder="Repeat new password"
+            [class.input-invalid]="editConfirmMismatch()"
           >
+          <p class="inline-error" *ngIf="editConfirmMismatch()">New password and confirmation do not match.</p>
         </div>
       </div>
       
@@ -204,7 +252,7 @@
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="btn btn-primary" [disabled]="!canSubmitEdit()">
           <span>💾</span>
           <span>Update User</span>
         </button>

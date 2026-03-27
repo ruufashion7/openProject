@@ -30,6 +30,15 @@ interface FilterState {
   orderDateTo?: string;
 }
 
+/** Per-option counts with other filters applied (cascading). */
+interface FilterDimensionCounts {
+  paymentDate: Record<'all' | 'past' | 'today' | 'future' | 'none', number>;
+  whatsappStatus: Record<'all' | 'not sent' | 'sent' | 'delivered', number>;
+  customerCategory: Record<'all' | 'semi-wholesale' | 'A' | 'B' | 'C', number>;
+  followUp: Record<'all' | 'needed' | 'not-needed', number>;
+  orderDate: Record<'all' | '0-45' | '46-85' | '85+', number>;
+}
+
 @Component({
   selector: 'app-payment-dates',
   standalone: true,
@@ -120,6 +129,21 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
   private saveTimers: Record<string, number> = {};
   private searchTimer: any = null;
   private readonly filterStorageKey = 'paymentDatesV2.filters';
+
+  /** Cascading counts for filter pills (recomputed in {@link updateFilteredCards}). */
+  filterCounts: FilterDimensionCounts = {
+    paymentDate: { all: 0, past: 0, today: 0, future: 0, none: 0 },
+    whatsappStatus: { all: 0, 'not sent': 0, sent: 0, delivered: 0 },
+    customerCategory: { all: 0, 'semi-wholesale': 0, A: 0, B: 0, C: 0 },
+    followUp: { all: 0, needed: 0, 'not-needed': 0 },
+    orderDate: { all: 0, '0-45': 0, '46-85': 0, '85+': 0 }
+  };
+
+  /** Rows matching current filters except place (scope for place picker). */
+  countPlaceScope = 0;
+
+  /** Per-place counts with place filter cleared (for dropdown). */
+  placeOptionCounts: Record<string, number> = {};
   
   // Subscription management
   private destroy$ = new Subject<void>();
@@ -257,92 +281,8 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
   }
 
   updateFilteredCards(): void {
-    let filtered = [...this.cards];
-    
-    // Search filter
-    if (this.searchQuery.trim()) {
-      const query = this.searchQuery.toLowerCase().trim();
-      const normalizedQuery = query.replace(/\D/g, '');
-      filtered = filtered.filter(card => {
-        const name = (card.customer || '').toLowerCase();
-        const phone = (card.phoneNumber || '').replace(/\D/g, '');
-        const nameMatch = name.includes(query);
-        const phoneMatch = normalizedQuery && phone && (phone.includes(normalizedQuery) || normalizedQuery.includes(phone));
-        return nameMatch || phoneMatch;
-      });
-    }
-    
-    // Payment date filter
-    if (this.filters.paymentDate !== 'all') {
-      filtered = filtered.filter(card => {
-        const date = card.nextPaymentDate;
-        if (!date || date.trim() === '') {
-          return this.filters.paymentDate === 'none';
-        }
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalize to midnight to avoid timezone issues
-        const [day, month] = date.split('-').map(Number);
-        const paymentDate = new Date(today.getFullYear(), month - 1, day);
-        paymentDate.setHours(0, 0, 0, 0); // Normalize to midnight
-        if (paymentDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-          paymentDate.setFullYear(today.getFullYear() + 1);
-        }
-        const diffDays = Math.floor((paymentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        if (this.filters.paymentDate === 'past') return diffDays < 0;
-        if (this.filters.paymentDate === 'today') return diffDays === 0;
-        if (this.filters.paymentDate === 'future') return diffDays > 0;
-        return false;
-      });
-    }
-    
-    // WhatsApp status filter
-    if (this.filters.whatsappStatus !== 'all') {
-      filtered = filtered.filter(card => 
-        (card.whatsAppStatus || 'not sent') === this.filters.whatsappStatus
-      );
-    }
-    
-    // Customer category filter
-    if (this.filters.customerCategory !== 'all') {
-      filtered = filtered.filter(card => {
-        const category = this.getCustomerCategory(card);
-        return category === this.filters.customerCategory;
-      });
-    }
-    
-    // Follow-up filter
-    if (this.filters.followUp !== 'all') {
-      filtered = filtered.filter(card => {
-        const needsFollowUp = card.needsFollowUp ?? false;
-        return this.filters.followUp === 'needed' ? needsFollowUp : !needsFollowUp;
-      });
-    }
+    let filtered = this.filterCardsByState(this.cards, this.filters);
 
-    // Place filter (multiple places: show if card's place is in selected list)
-    if (this.filters.places.length > 0) {
-      filtered = filtered.filter(card => {
-        const place = this.getPlace(card);
-        return place !== '' && this.filters.places.includes(place);
-      });
-    }
-    
-    // Order date filter
-    if (this.filters.orderDate !== 'all') {
-      filtered = filtered.filter(card => {
-        if (!card.lastOrderDate) return false;
-        const orderDate = new Date(card.lastOrderDate);
-        orderDate.setHours(0, 0, 0, 0); // Normalize to midnight
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalize to midnight
-        const diffDays = Math.floor((today.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (this.filters.orderDate === '0-45') return diffDays <= 45;
-        if (this.filters.orderDate === '46-85') return diffDays > 45 && diffDays <= 85;
-        if (this.filters.orderDate === '85+') return diffDays > 85;
-        return true;
-      });
-    }
-    
-    // Sort
     filtered.sort((a, b) => {
       let comparison = 0;
       if (this.sortBy === 'amount') {
@@ -356,9 +296,192 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
       }
       return this.sortOrder === 'asc' ? comparison : -comparison;
     });
-    
+
     this.filteredCards = filtered;
     this.updateTotals();
+    this.recomputeFilterOptionCounts();
+  }
+
+  /** Readable count for filter pills (grouped digits). */
+  formatFilterCount(n: number): string {
+    return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  }
+
+  private mergeFilterState(overrides: Partial<FilterState>): FilterState {
+    return {
+      ...this.filters,
+      ...overrides,
+      places: overrides.places !== undefined ? [...overrides.places] : [...this.filters.places]
+    };
+  }
+
+  /**
+   * Applies search + all filter dimensions from {@code f} (same rules as the main list).
+   */
+  private filterCardsByState(cards: PaymentDateCustomerCard[], f: FilterState): PaymentDateCustomerCard[] {
+    let filtered = [...cards];
+
+    if (this.searchQuery.trim()) {
+      const query = this.searchQuery.toLowerCase().trim();
+      const normalizedQuery = query.replace(/\D/g, '');
+      filtered = filtered.filter(card => {
+        const name = (card.customer || '').toLowerCase();
+        const phone = (card.phoneNumber || '').replace(/\D/g, '');
+        const nameMatch = name.includes(query);
+        const phoneMatch =
+          normalizedQuery && phone && (phone.includes(normalizedQuery) || normalizedQuery.includes(phone));
+        return nameMatch || phoneMatch;
+      });
+    }
+
+    if (f.paymentDate !== 'all') {
+      filtered = filtered.filter(card => this.cardMatchesPaymentDate(card, f.paymentDate));
+    }
+
+    if (f.whatsappStatus !== 'all') {
+      filtered = filtered.filter(card => this.cardMatchesWhatsappStatus(card, f.whatsappStatus));
+    }
+
+    if (f.customerCategory !== 'all') {
+      filtered = filtered.filter(card => this.getCustomerCategory(card) === f.customerCategory);
+    }
+
+    if (f.followUp !== 'all') {
+      filtered = filtered.filter(card => {
+        const needsFollowUp = card.needsFollowUp ?? false;
+        return f.followUp === 'needed' ? needsFollowUp : !needsFollowUp;
+      });
+    }
+
+    if (f.places.length > 0) {
+      filtered = filtered.filter(card => {
+        const place = this.getPlace(card);
+        return place !== '' && f.places.includes(place);
+      });
+    }
+
+    if (f.orderDate !== 'all') {
+      filtered = filtered.filter(card => this.cardMatchesOrderDateBucket(card, f.orderDate));
+    }
+
+    return filtered;
+  }
+
+  private cardMatchesPaymentDate(card: PaymentDateCustomerCard, mode: FilterState['paymentDate']): boolean {
+    if (mode === 'all') {
+      return true;
+    }
+    const date = card.nextPaymentDate;
+    if (!date || date.trim() === '') {
+      return mode === 'none';
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [day, month] = date.split('-').map(Number);
+    const paymentDate = new Date(today.getFullYear(), month - 1, day);
+    paymentDate.setHours(0, 0, 0, 0);
+    if (paymentDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+      paymentDate.setFullYear(today.getFullYear() + 1);
+    }
+    const diffDays = Math.floor((paymentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (mode === 'past') {
+      return diffDays < 0;
+    }
+    if (mode === 'today') {
+      return diffDays === 0;
+    }
+    if (mode === 'future') {
+      return diffDays > 0;
+    }
+    return false;
+  }
+
+  private cardMatchesWhatsappStatus(card: PaymentDateCustomerCard, mode: FilterState['whatsappStatus']): boolean {
+    if (mode === 'all') {
+      return true;
+    }
+    return (card.whatsAppStatus || 'not sent') === mode;
+  }
+
+  private cardMatchesOrderDateBucket(card: PaymentDateCustomerCard, mode: FilterState['orderDate']): boolean {
+    if (mode === 'all' || mode === 'custom') {
+      return true;
+    }
+    if (!card.lastOrderDate) {
+      return false;
+    }
+    const orderDate = new Date(card.lastOrderDate);
+    orderDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((today.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (mode === '0-45') {
+      return diffDays <= 45;
+    }
+    if (mode === '46-85') {
+      return diffDays > 45 && diffDays <= 85;
+    }
+    if (mode === '85+') {
+      return diffDays > 85;
+    }
+    return true;
+  }
+
+  private recomputeFilterOptionCounts(): void {
+    const basePayment = this.filterCardsByState(this.cards, this.mergeFilterState({ paymentDate: 'all' }));
+    this.filterCounts.paymentDate = {
+      all: basePayment.length,
+      past: basePayment.filter(c => this.cardMatchesPaymentDate(c, 'past')).length,
+      today: basePayment.filter(c => this.cardMatchesPaymentDate(c, 'today')).length,
+      future: basePayment.filter(c => this.cardMatchesPaymentDate(c, 'future')).length,
+      none: basePayment.filter(c => this.cardMatchesPaymentDate(c, 'none')).length
+    };
+
+    const baseWa = this.filterCardsByState(this.cards, this.mergeFilterState({ whatsappStatus: 'all' }));
+    this.filterCounts.whatsappStatus = {
+      all: baseWa.length,
+      'not sent': baseWa.filter(c => this.cardMatchesWhatsappStatus(c, 'not sent')).length,
+      sent: baseWa.filter(c => this.cardMatchesWhatsappStatus(c, 'sent')).length,
+      delivered: baseWa.filter(c => this.cardMatchesWhatsappStatus(c, 'delivered')).length
+    };
+
+    const baseCat = this.filterCardsByState(this.cards, this.mergeFilterState({ customerCategory: 'all' }));
+    this.filterCounts.customerCategory = {
+      all: baseCat.length,
+      'semi-wholesale': baseCat.filter(c => this.getCustomerCategory(c) === 'semi-wholesale').length,
+      A: baseCat.filter(c => this.getCustomerCategory(c) === 'A').length,
+      B: baseCat.filter(c => this.getCustomerCategory(c) === 'B').length,
+      C: baseCat.filter(c => this.getCustomerCategory(c) === 'C').length
+    };
+
+    const baseFu = this.filterCardsByState(this.cards, this.mergeFilterState({ followUp: 'all' }));
+    this.filterCounts.followUp = {
+      all: baseFu.length,
+      needed: baseFu.filter(c => {
+        const needsFollowUp = c.needsFollowUp ?? false;
+        return needsFollowUp;
+      }).length,
+      'not-needed': baseFu.filter(c => {
+        const needsFollowUp = c.needsFollowUp ?? false;
+        return !needsFollowUp;
+      }).length
+    };
+
+    const baseOrder = this.filterCardsByState(this.cards, this.mergeFilterState({ orderDate: 'all' }));
+    this.filterCounts.orderDate = {
+      all: baseOrder.length,
+      '0-45': baseOrder.filter(c => this.cardMatchesOrderDateBucket(c, '0-45')).length,
+      '46-85': baseOrder.filter(c => this.cardMatchesOrderDateBucket(c, '46-85')).length,
+      '85+': baseOrder.filter(c => this.cardMatchesOrderDateBucket(c, '85+')).length
+    };
+
+    const basePlace = this.filterCardsByState(this.cards, this.mergeFilterState({ places: [] }));
+    this.countPlaceScope = basePlace.length;
+    const next: Record<string, number> = {};
+    for (const p of this.placeOptions) {
+      next[p] = basePlace.filter(c => this.getPlace(c) === p).length;
+    }
+    this.placeOptionCounts = next;
   }
 
   updateTotals(): void {

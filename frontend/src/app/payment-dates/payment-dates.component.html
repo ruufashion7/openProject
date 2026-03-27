@@ -121,39 +121,54 @@
       <label class="filter-group-label">Payment Date</label>
       <div class="filter-buttons">
         <button
+          type="button"
           class="filter-btn"
           [class.active]="filters.paymentDate === 'all'"
           (click)="setFilter('paymentDate', 'all')"
+          [attr.aria-label]="'All, ' + formatFilterCount(filterCounts.paymentDate.all) + ' customers'"
         >
-          All
+          <span class="filter-btn-text">All</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.paymentDate.all) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-past"
           [class.active]="filters.paymentDate === 'past'"
           (click)="setFilter('paymentDate', 'past')"
+          [attr.aria-label]="'Past, ' + formatFilterCount(filterCounts.paymentDate.past) + ' customers'"
         >
-          Past
+          <span class="filter-btn-text">Past</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.paymentDate.past) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-today"
           [class.active]="filters.paymentDate === 'today'"
           (click)="setFilter('paymentDate', 'today')"
+          [attr.aria-label]="'Today, ' + formatFilterCount(filterCounts.paymentDate.today) + ' customers'"
         >
-          Today
+          <span class="filter-btn-text">Today</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.paymentDate.today) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-future"
           [class.active]="filters.paymentDate === 'future'"
           (click)="setFilter('paymentDate', 'future')"
+          [attr.aria-label]="'Future, ' + formatFilterCount(filterCounts.paymentDate.future) + ' customers'"
         >
-          Future
+          <span class="filter-btn-text">Future</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.paymentDate.future) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-none"
           [class.active]="filters.paymentDate === 'none'"
           (click)="setFilter('paymentDate', 'none')"
+          [attr.aria-label]="'No date, ' + formatFilterCount(filterCounts.paymentDate.none) + ' customers'"
         >
-          No Date
+          <span class="filter-btn-text">No Date</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.paymentDate.none) }}</span>
         </button>
       </div>
     </div>
@@ -162,32 +177,44 @@
       <label class="filter-group-label">WhatsApp Status</label>
       <div class="filter-buttons">
         <button
+          type="button"
           class="filter-btn filter-whatsapp-all"
           [class.active]="filters.whatsappStatus === 'all'"
           (click)="setFilter('whatsappStatus', 'all')"
+          [attr.aria-label]="'All, ' + formatFilterCount(filterCounts.whatsappStatus.all) + ' customers'"
         >
-          All
+          <span class="filter-btn-text">All</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.whatsappStatus.all) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-whatsapp-not-sent"
           [class.active]="filters.whatsappStatus === 'not sent'"
           (click)="setFilter('whatsappStatus', 'not sent')"
+          [attr.aria-label]="'Not sent, ' + formatFilterCount(filterCounts.whatsappStatus['not sent']) + ' customers'"
         >
-          Not Sent
+          <span class="filter-btn-text">Not Sent</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.whatsappStatus['not sent']) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-whatsapp-sent"
           [class.active]="filters.whatsappStatus === 'sent'"
           (click)="setFilter('whatsappStatus', 'sent')"
+          [attr.aria-label]="'Sent, ' + formatFilterCount(filterCounts.whatsappStatus.sent) + ' customers'"
         >
-          Sent
+          <span class="filter-btn-text">Sent</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.whatsappStatus.sent) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-whatsapp-delivered"
           [class.active]="filters.whatsappStatus === 'delivered'"
           (click)="setFilter('whatsappStatus', 'delivered')"
+          [attr.aria-label]="'Delivered, ' + formatFilterCount(filterCounts.whatsappStatus.delivered) + ' customers'"
         >
-          Delivered
+          <span class="filter-btn-text">Delivered</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.whatsappStatus.delivered) }}</span>
         </button>
       </div>
     </div>
@@ -196,39 +223,54 @@
       <label class="filter-group-label">Customer Category</label>
       <div class="filter-buttons">
         <button
+          type="button"
           class="filter-btn filter-category-all"
           [class.active]="filters.customerCategory === 'all'"
           (click)="setFilter('customerCategory', 'all')"
+          [attr.aria-label]="'All, ' + formatFilterCount(filterCounts.customerCategory.all) + ' customers'"
         >
-          All
+          <span class="filter-btn-text">All</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.customerCategory.all) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-category-semi-wholesale"
           [class.active]="filters.customerCategory === 'semi-wholesale'"
           (click)="setFilter('customerCategory', 'semi-wholesale')"
+          [attr.aria-label]="'Semi-wholesale, ' + formatFilterCount(filterCounts.customerCategory['semi-wholesale']) + ' customers'"
         >
-          Semi-wholesale
+          <span class="filter-btn-text">Semi-wholesale</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.customerCategory['semi-wholesale']) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-category-a"
           [class.active]="filters.customerCategory === 'A'"
           (click)="setFilter('customerCategory', 'A')"
+          [attr.aria-label]="'Category A, ' + formatFilterCount(filterCounts.customerCategory.A) + ' customers'"
         >
-          A
+          <span class="filter-btn-text">A</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.customerCategory.A) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-category-b"
           [class.active]="filters.customerCategory === 'B'"
           (click)="setFilter('customerCategory', 'B')"
+          [attr.aria-label]="'Category B, ' + formatFilterCount(filterCounts.customerCategory.B) + ' customers'"
         >
-          B
+          <span class="filter-btn-text">B</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.customerCategory.B) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-category-c"
           [class.active]="filters.customerCategory === 'C'"
           (click)="setFilter('customerCategory', 'C')"
+          [attr.aria-label]="'Category C, ' + formatFilterCount(filterCounts.customerCategory.C) + ' customers'"
         >
-          C
+          <span class="filter-btn-text">C</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.customerCategory.C) }}</span>
         </button>
       </div>
     </div>
@@ -237,25 +279,34 @@
       <label class="filter-group-label">Follow-up</label>
       <div class="filter-buttons">
         <button
+          type="button"
           class="filter-btn filter-followup-all"
           [class.active]="filters.followUp === 'all'"
           (click)="setFilter('followUp', 'all')"
+          [attr.aria-label]="'All, ' + formatFilterCount(filterCounts.followUp.all) + ' customers'"
         >
-          All
+          <span class="filter-btn-text">All</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.followUp.all) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-followup-needed"
           [class.active]="filters.followUp === 'needed'"
           (click)="setFilter('followUp', 'needed')"
+          [attr.aria-label]="'Needed, ' + formatFilterCount(filterCounts.followUp.needed) + ' customers'"
         >
-          Needed
+          <span class="filter-btn-text">Needed</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.followUp.needed) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-followup-not-needed"
           [class.active]="filters.followUp === 'not-needed'"
           (click)="setFilter('followUp', 'not-needed')"
+          [attr.aria-label]="'Not needed, ' + formatFilterCount(filterCounts.followUp['not-needed']) + ' customers'"
         >
-          Not Needed
+          <span class="filter-btn-text">Not Needed</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.followUp['not-needed']) }}</span>
         </button>
       </div>
     </div>
@@ -264,38 +315,53 @@
       <label class="filter-group-label">Last Order Date</label>
       <div class="filter-buttons">
         <button
+          type="button"
           class="filter-btn filter-order-all"
           [class.active]="filters.orderDate === 'all'"
           (click)="setFilter('orderDate', 'all')"
+          [attr.aria-label]="'All, ' + formatFilterCount(filterCounts.orderDate.all) + ' customers'"
         >
-          All
+          <span class="filter-btn-text">All</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.orderDate.all) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-order-0-45"
           [class.active]="filters.orderDate === '0-45'"
           (click)="setFilter('orderDate', '0-45')"
+          [attr.aria-label]="'0 to 45 days, ' + formatFilterCount(filterCounts.orderDate['0-45']) + ' customers'"
         >
-          0-45 Days
+          <span class="filter-btn-text">0-45 Days</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.orderDate['0-45']) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-order-46-85"
           [class.active]="filters.orderDate === '46-85'"
           (click)="setFilter('orderDate', '46-85')"
+          [attr.aria-label]="'46 to 85 days, ' + formatFilterCount(filterCounts.orderDate['46-85']) + ' customers'"
         >
-          46-85 Days
+          <span class="filter-btn-text">46-85 Days</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.orderDate['46-85']) }}</span>
         </button>
         <button
+          type="button"
           class="filter-btn filter-order-85plus"
           [class.active]="filters.orderDate === '85+'"
           (click)="setFilter('orderDate', '85+')"
+          [attr.aria-label]="'85 plus days, ' + formatFilterCount(filterCounts.orderDate['85+']) + ' customers'"
         >
-          85+ Days
+          <span class="filter-btn-text">85+ Days</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.orderDate['85+']) }}</span>
         </button>
       </div>
     </div>
 
     <div class="filter-group place-autocomplete-wrap">
-      <label class="filter-group-label">Place</label>
+      <div class="filter-group-label-row">
+        <label class="filter-group-label">Place</label>
+        <span class="filter-scope-count">{{ formatFilterCount(countPlaceScope) }}</span>
+      </div>
       <div class="place-input-with-chevron">
         <input
           type="text"
@@ -321,7 +387,8 @@
           *ngFor="let p of placeSuggestionsSlice"
           (mousedown)="addPlaceFromDropdown(p); $event.preventDefault()"
         >
-          {{ p }}
+          <span class="place-suggestion-name">{{ p }}</span>
+          <span class="place-suggestion-count">{{ formatFilterCount(placeOptionCounts[p]) }}</span>
         </button>
       </div>
       <div class="selected-places-list" *ngIf="filters.places.length > 0">

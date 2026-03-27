@@ -6,6 +6,12 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { AuthService, UserPermissions } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { PERMISSIONS, getDefaultPermissions, getAllTruePermissions } from '../auth/permissions.config';
+import {
+  DEFAULT_PASSWORD_POLICY,
+  evaluatePasswordRules,
+  passwordMeetsPolicy,
+  PasswordRuleCheck
+} from '../auth/password-policy';
 
 interface User {
   id: string;
@@ -49,6 +55,9 @@ export class AccessControlComponent implements OnInit {
   editPasswordConfirm = '';
   /** Required when editing your own account and setting a new password (verified server-side). */
   editPasswordCurrent = '';
+
+  /** Matches server {@code security.password.*} defaults; live hints stay in sync with backend validation. */
+  readonly passwordPolicy = DEFAULT_PASSWORD_POLICY;
 
   constructor(
     private http: HttpClient,
@@ -123,6 +132,10 @@ export class AccessControlComponent implements OnInit {
       return;
     }
 
+    if (!passwordMeetsPolicy(this.newUser.password, this.passwordPolicy)) {
+      return;
+    }
+
     if (this.newUser.isAdmin && this.hasAdmin()) {
       if (!confirm('Making this user admin will demote the current admin. Continue?')) {
         return;
@@ -176,6 +189,65 @@ export class AccessControlComponent implements OnInit {
     return !!this.selectedUser && this.selectedUser.id === this.authService.getUserId();
   }
 
+  getCreatePasswordRules(): PasswordRuleCheck[] {
+    return evaluatePasswordRules(this.newUser.password ?? '', this.passwordPolicy);
+  }
+
+  getEditPasswordRules(): PasswordRuleCheck[] {
+    return evaluatePasswordRules(this.editPasswordNew, this.passwordPolicy);
+  }
+
+  editPasswordHasNew(): boolean {
+    return this.editPasswordNew.trim().length > 0;
+  }
+
+  /** Live: new password and confirmation differ (only when both have content). */
+  editConfirmMismatch(): boolean {
+    const a = this.editPasswordNew.trim();
+    const b = this.editPasswordConfirm.trim();
+    return a.length > 0 && b.length > 0 && a !== b;
+  }
+
+  /** Live: new password set but current password empty (required for self and when admin changes another user). */
+  currentPasswordMissingForEdit(): boolean {
+    return (
+      this.editPasswordNew.trim().length > 0 &&
+      this.editPasswordCurrent.trim().length === 0
+    );
+  }
+
+  canSubmitCreate(): boolean {
+    return (
+      !!this.newUser.username?.trim() &&
+      !!this.newUser.displayName?.trim() &&
+      !!this.newUser.password &&
+      passwordMeetsPolicy(this.newUser.password, this.passwordPolicy)
+    );
+  }
+
+  canSubmitEdit(): boolean {
+    if (!this.selectedUser) {
+      return false;
+    }
+    if (!this.editedUser.displayName?.trim()) {
+      return false;
+    }
+    const newPw = this.editPasswordNew.trim();
+    const confirmPw = this.editPasswordConfirm.trim();
+    if (newPw || confirmPw) {
+      if (newPw !== confirmPw) {
+        return false;
+      }
+      if (newPw && !passwordMeetsPolicy(newPw, this.passwordPolicy)) {
+        return false;
+      }
+      if (newPw && !this.editPasswordCurrent.trim()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   updateUser(): void {
     if (!this.selectedUser) {
       return;
@@ -208,14 +280,15 @@ export class AccessControlComponent implements OnInit {
     const editedSelf = this.selectedUser.id === this.authService.getUserId();
     if (newPw || confirmPw) {
       if (newPw !== confirmPw) {
-        alert('New password and confirmation do not match.');
         return;
       }
     }
-    if (editedSelf && newPw) {
+    if (newPw && !passwordMeetsPolicy(newPw, this.passwordPolicy)) {
+      return;
+    }
+    if (newPw) {
       const cur = this.editPasswordCurrent.trim();
       if (!cur) {
-        alert('Enter your current password before setting a new password.');
         return;
       }
     }
@@ -236,8 +309,6 @@ export class AccessControlComponent implements OnInit {
     };
     if (newPw) {
       payload.password = newPw;
-    }
-    if (editedSelf && newPw) {
       payload.currentPassword = this.editPasswordCurrent.trim();
     }
 

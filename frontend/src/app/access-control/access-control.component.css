@@ -576,3 +576,51 @@
     justify-content: center;
   }
 }
+
+/* Live password policy (mirrors server validation) */
+.password-rules {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.password-rule {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+  line-height: 1.35;
+}
+
+.password-rule:last-child {
+  margin-bottom: 0;
+}
+
+.password-rule-icon {
+  flex-shrink: 0;
+  width: 1.1em;
+  text-align: center;
+}
+
+.password-rule-met {
+  color: #15803d;
+}
+
+.password-rule-unmet {
+  color: #b91c1c;
+}
+
+.inline-error {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #b91c1c;
+}
+
+.input-invalid {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12) !important;
+}

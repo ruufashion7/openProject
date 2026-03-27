@@ -7,6 +7,7 @@ import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideRepository;
 import org.example.upload.DetailedSalesInvoicesUpload;
 import org.example.upload.DetailedSalesInvoicesUploadRepository;
+import org.example.upload.ExcelUploadHeaderRules;
 import org.example.upload.ReceivableAgeingReportUpload;
 import org.example.upload.ReceivableAgeingReportUploadRepository;
 import org.example.upload.UploadedExcelFile;
@@ -119,7 +120,7 @@ public class AnalyticsController {
 
         for (UploadedExcelSheet sheet : file.sheets()) {
             List<String> customerHeaders = sheet.headers().stream()
-                    .filter(this::isCustomerHeader)
+                    .filter(ExcelUploadHeaderRules::isCustomerHeader)
                     .toList();
             if (customerHeaders.isEmpty()) {
                 continue;
@@ -239,7 +240,7 @@ public class AnalyticsController {
 
         for (UploadedExcelSheet sheet : file.sheets()) {
             List<String> voucherHeaders = sheet.headers().stream()
-                    .filter(this::isVoucherHeader)
+                    .filter(ExcelUploadHeaderRules::isVoucherHeader)
                     .toList();
             if (voucherHeaders.isEmpty()) {
                 continue;
@@ -388,18 +389,18 @@ public class AnalyticsController {
 
         for (UploadedExcelSheet sheet : file.sheets()) {
             List<String> customerHeaders = sheet.headers().stream()
-                    .filter(this::isCustomerHeader)
+                    .filter(ExcelUploadHeaderRules::isCustomerHeader)
                     .toList();
             if (customerHeaders.isEmpty()) {
                 continue;
             }
 
             List<String> phoneHeaders = sheet.headers().stream()
-                    .filter(this::isPhoneHeader)
+                    .filter(ExcelUploadHeaderRules::isPhoneHeader)
                     .toList();
 
             List<String> amountHeaders = sheet.headers().stream()
-                    .filter(this::isAmountHeader)
+                    .filter(ExcelUploadHeaderRules::isAmountHeader)
                     .toList();
 
             if (searchPhone != null && phoneHeaders.isEmpty()) {
@@ -628,27 +629,27 @@ public class AnalyticsController {
 
         for (UploadedExcelSheet sheet : file.sheets()) {
             List<String> customerHeaders = sheet.headers().stream()
-                    .filter(this::isCustomerHeader)
+                    .filter(ExcelUploadHeaderRules::isCustomerHeader)
                     .toList();
             if (customerHeaders.isEmpty()) {
                 continue;
             }
 
             List<String> phoneHeaders = sheet.headers().stream()
-                    .filter(this::isPhoneHeader)
+                    .filter(ExcelUploadHeaderRules::isPhoneHeader)
                     .toList();
 
             List<String> invoiceHeaders = sheet.headers().stream()
-                    .filter(this::isInvoiceDateHeader)
+                    .filter(ExcelUploadHeaderRules::isInvoiceDateHeader)
                     .toList();
             List<String> voucherHeaders = sheet.headers().stream()
-                    .filter(this::isVoucherHeader)
+                    .filter(ExcelUploadHeaderRules::isVoucherHeader)
                     .toList();
             List<String> receivedHeaders = sheet.headers().stream()
-                    .filter(this::isReceivedHeader)
+                    .filter(ExcelUploadHeaderRules::isReceivedHeader)
                     .toList();
             List<String> dueHeaders = sheet.headers().stream()
-                    .filter(this::isCurrentDueHeader)
+                    .filter(ExcelUploadHeaderRules::isCurrentDueHeader)
                     .toList();
             if (!receivedHeaders.isEmpty() || !dueHeaders.isEmpty()) {
                 logger.info("Ledger headers detected. sheet={}, received={}, due={}",
@@ -757,13 +758,13 @@ public class AnalyticsController {
         // Process customers from Excel and match with existing customer_master records
         for (UploadedExcelSheet sheet : file.sheets()) {
             List<String> customerHeaders = sheet.headers().stream()
-                    .filter(this::isCustomerHeader)
+                    .filter(ExcelUploadHeaderRules::isCustomerHeader)
                     .toList();
             if (customerHeaders.isEmpty()) {
                 continue;
             }
             List<String> amountHeaders = sheet.headers().stream()
-                    .filter(this::isAmountHeader)
+                    .filter(ExcelUploadHeaderRules::isAmountHeader)
                     .toList();
             if (amountHeaders.isEmpty()) {
                 continue;
@@ -1192,23 +1193,23 @@ public class AnalyticsController {
 
         for (UploadedExcelSheet sheet : file.sheets()) {
             List<String> customerHeaders = sheet.headers().stream()
-                    .filter(this::isCustomerHeader)
+                    .filter(ExcelUploadHeaderRules::isCustomerHeader)
                     .toList();
             if (customerHeaders.isEmpty()) {
                 continue;
             }
 
             List<String> invoiceHeaders = sheet.headers().stream()
-                    .filter(this::isInvoiceDateHeader)
+                    .filter(ExcelUploadHeaderRules::isInvoiceDateHeader)
                     .toList();
             List<String> voucherHeaders = sheet.headers().stream()
-                    .filter(this::isVoucherHeader)
+                    .filter(ExcelUploadHeaderRules::isVoucherHeader)
                     .toList();
             List<String> receivedHeaders = sheet.headers().stream()
-                    .filter(this::isReceivedHeader)
+                    .filter(ExcelUploadHeaderRules::isReceivedHeader)
                     .toList();
             List<String> dueHeaders = sheet.headers().stream()
-                    .filter(this::isCurrentDueHeader)
+                    .filter(ExcelUploadHeaderRules::isCurrentDueHeader)
                     .toList();
 
             for (Map<String, String> row : sheet.rows()) {
@@ -1312,19 +1313,19 @@ public class AnalyticsController {
 
         for (UploadedExcelSheet sheet : file.sheets()) {
             List<String> customerHeaders = sheet.headers().stream()
-                    .filter(this::isCustomerHeader)
+                    .filter(ExcelUploadHeaderRules::isCustomerHeader)
                     .toList();
             List<String> invoiceHeaders = sheet.headers().stream()
-                    .filter(this::isInvoiceDateHeader)
+                    .filter(ExcelUploadHeaderRules::isInvoiceDateHeader)
                     .toList();
             List<String> voucherHeaders = sheet.headers().stream()
-                    .filter(this::isVoucherHeader)
+                    .filter(ExcelUploadHeaderRules::isVoucherHeader)
                     .toList();
             List<String> receivedHeaders = sheet.headers().stream()
-                    .filter(this::isReceivedHeader)
+                    .filter(ExcelUploadHeaderRules::isReceivedHeader)
                     .toList();
             List<String> dueHeaders = sheet.headers().stream()
-                    .filter(this::isCurrentDueHeader)
+                    .filter(ExcelUploadHeaderRules::isCurrentDueHeader)
                     .toList();
 
             for (Map<String, String> row : sheet.rows()) {
@@ -1548,110 +1549,6 @@ public class AnalyticsController {
                 page,
                 size
         ));
-    }
-
-    private boolean isCustomerHeader(String header) {
-        if (header == null) {
-            return false;
-        }
-        String normalized = header.trim().toLowerCase(Locale.ROOT);
-        return normalized.contains("customer");
-    }
-
-    private boolean isPhoneHeader(String header) {
-        if (header == null) {
-            return false;
-        }
-        String normalized = header.trim().toLowerCase(Locale.ROOT);
-        return normalized.contains("mobile")
-                || normalized.contains("phone")
-                || normalized.contains("contact");
-    }
-
-    private boolean isCustomerPhoneHeader(String header) {
-        if (header == null) {
-            return false;
-        }
-        String normalized = header.trim().toLowerCase(Locale.ROOT);
-        // Specifically match "Customer Phone" column name
-        if (normalized.equals("customer phone")) {
-            return true;
-        }
-        return normalized.contains("customer") && isPhoneHeader(header);
-    }
-
-    private boolean isAmountHeader(String header) {
-        if (header == null) {
-            return false;
-        }
-        String normalized = header.trim().toLowerCase(Locale.ROOT);
-        boolean hasDigits = normalized.matches(".*\\d+.*");
-        return normalized.contains("amount")
-                || normalized.contains("outstanding")
-                || normalized.contains("balance")
-                || normalized.contains("total")
-                || (hasDigits && (normalized.contains("days") || normalized.contains("ageing") || normalized.contains("aging")));
-    }
-
-    private boolean isInvoiceDateHeader(String header) {
-        if (header == null) {
-            return false;
-        }
-        String normalized = header.trim().toLowerCase(Locale.ROOT);
-        return normalized.equals("invoice date")
-                || (normalized.contains("invoice") && normalized.contains("date"));
-    }
-
-    private boolean isVoucherHeader(String header) {
-        if (header == null) {
-            return false;
-        }
-        String normalized = header.trim().toLowerCase(Locale.ROOT);
-        return normalized.equals("voucher no.")
-                || normalized.equals("voucher no")
-                || normalized.contains("voucher")
-                || normalized.contains("invoice no")
-                || normalized.contains("inv no")
-                || normalized.contains("bill no");
-    }
-
-    private boolean isReceivedHeader(String header) {
-        if (header == null) {
-            return false;
-        }
-        String normalized = header.trim().toLowerCase(Locale.ROOT);
-        if (normalized.contains("date")) {
-            return false;
-        }
-        return normalized.equals("received amount")
-                || normalized.contains("received amount")
-                || normalized.contains("received")
-                || normalized.contains("receipt")
-                || normalized.contains("rcvd")
-                || normalized.contains("rcv")
-                || normalized.contains("paid")
-                || normalized.contains("payment")
-                || normalized.contains("collection");
-    }
-
-    private boolean isCurrentDueHeader(String header) {
-        if (header == null) {
-            return false;
-        }
-        String normalized = header.trim().toLowerCase(Locale.ROOT);
-        if (normalized.contains("date") || normalized.contains("days") || normalized.contains("ageing") || normalized.contains("aging")) {
-            return false;
-        }
-        return normalized.equals("current due")
-                || normalized.contains("current due")
-                || normalized.contains("current outstanding")
-                || normalized.contains("current")
-                || normalized.contains("due amount")
-                || normalized.contains("outstanding")
-                || normalized.contains("balance")
-                || normalized.contains("balance amt")
-                || normalized.contains("pending")
-                || normalized.equals("due");
     }
 
     private Optional<String> findCustomerValue(Map<String, String> row,
@@ -2311,10 +2208,10 @@ public class AnalyticsController {
 
         for (UploadedExcelSheet sheet : file.sheets()) {
             List<String> customerHeaders = sheet.headers().stream()
-                    .filter(this::isCustomerHeader)
+                    .filter(ExcelUploadHeaderRules::isCustomerHeader)
                     .toList();
             List<String> invoiceHeaders = sheet.headers().stream()
-                    .filter(this::isInvoiceDateHeader)
+                    .filter(ExcelUploadHeaderRules::isInvoiceDateHeader)
                     .toList();
             if (customerHeaders.isEmpty() || invoiceHeaders.isEmpty()) {
                 continue;
@@ -2480,16 +2377,16 @@ public class AnalyticsController {
 
         for (UploadedExcelSheet sheet : file.sheets()) {
             List<String> customerHeaders = sheet.headers().stream()
-                    .filter(this::isCustomerHeader)
+                    .filter(ExcelUploadHeaderRules::isCustomerHeader)
                     .toList();
             List<String> invoiceHeaders = sheet.headers().stream()
-                    .filter(this::isInvoiceDateHeader)
+                    .filter(ExcelUploadHeaderRules::isInvoiceDateHeader)
                     .toList();
             List<String> receivedHeaders = sheet.headers().stream()
-                    .filter(this::isReceivedHeader)
+                    .filter(ExcelUploadHeaderRules::isReceivedHeader)
                     .toList();
             List<String> dueHeaders = sheet.headers().stream()
-                    .filter(this::isCurrentDueHeader)
+                    .filter(ExcelUploadHeaderRules::isCurrentDueHeader)
                     .toList();
 
             for (Map<String, String> row : sheet.rows()) {

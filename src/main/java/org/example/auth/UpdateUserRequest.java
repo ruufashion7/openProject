@@ -24,8 +24,7 @@ public record UpdateUserRequest(
         String password,
 
         /**
-         * Required when {@link #password} is set and the authenticated user is changing <strong>their own</strong> password.
-         * Must match the account's current password. Not required when an admin sets another user's password.
+         * Required when {@link #password} is set. Must match this user's stored password (whether you are that user or an admin).
          */
         String currentPassword
 ) {
