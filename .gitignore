@@ -51,3 +51,6 @@ logs/
 
 ### Local tooling ###
 .venv-mongo/
+
+### Monitoring runtime data ###
+monitoring/.data/

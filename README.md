@@ -48,6 +48,8 @@ docker compose --profile monitoring up --build -d
 
 Full step-by-step guide: [monitoring/README.md](monitoring/README.md).
 
+**Production (Render):** `render.yaml` also deploys `openproject-prometheus` and `openproject-grafana` — see [monitoring/README.md](monitoring/README.md) Scenario C.
+
 ## Free deployment (Vercel + Render + MongoDB Atlas)
 
 The app can be deployed for free so the world can use it:

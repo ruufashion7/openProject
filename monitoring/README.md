@@ -32,8 +32,34 @@ flowchart LR
 
 ## Prerequisites
 
-- **Docker** and **Docker Compose** v2.
+- **Docker** and **Docker Compose** v2 (for Scenario A), **or** Homebrew (for Scenario B-native).
 - Backend reachable at **port 8080** from the Prometheus container (see scenarios below).
+
+---
+
+## Scenario B-native — Backend on host, no Docker (macOS Homebrew)
+
+Use this when Spring Boot runs locally (IntelliJ / `./mvnw spring-boot:run`) and Docker is not installed.
+
+### 1. Install and start
+
+```bash
+brew install prometheus grafana
+./monitoring/start-native.sh
+```
+
+Requires backend at `http://localhost:8080/actuator/prometheus`.
+
+### 2. Open UIs
+
+| Service | URL |
+|---------|-----|
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3000 (`admin` / `admin`) |
+
+Dashboard: **Dashboards → openProject — Spring Boot (Micrometer)**
+
+Prometheus target job: **`openproject-backend-host`** (should be **UP**).
 
 ---
 
@@ -129,22 +155,50 @@ Simplest path: run **full compose** with monitoring profile (Scenario A) so `bac
 
 ---
 
-## Scenario C — Production / cloud
+## Scenario C — Production on Render (implemented)
 
-1. **Expose metrics safely**  
-   - Prefer **network policies** or **private subnets** so `/actuator/prometheus` is not public.  
-   - Optionally put Prometheus/Grafana in the same VPC as the app, or use a managed Prometheus (e.g. Grafana Cloud, AWS AMP).
+The repo includes **Prometheus** and **Grafana** as additional Render web services in `render.yaml`. They scrape the deployed Spring Boot API over HTTPS with a shared bearer token.
 
-2. **Spring Security**  
-   - This project currently allows all routes at the security filter level; **treat `/actuator/*` as sensitive** in production.  
-   - Restrict by IP, reverse proxy, or Spring Security rules for `/actuator/prometheus` and `/actuator/metrics`.
+### Architecture
 
-3. **Secrets**  
-   - Change Grafana **admin** password (env vars in compose or Grafana UI).  
-   - Do not commit production credentials.
+```mermaid
+flowchart LR
+  SB[openproject-backend.onrender.com]
+  PR[openproject-prometheus.onrender.com]
+  GF[openproject-grafana.onrender.com]
+  SB -->|Bearer METRICS_SCRAPE_TOKEN| PR
+  PR --> GF
+```
 
-4. **Scrape URL**  
-   - Point Prometheus at your deployed backend, e.g. `https://api.example.com/actuator/prometheus`, with TLS and auth as required.
+### Deploy
+
+1. Push this repo and apply the **Render Blueprint** (`render.yaml`), or add the two new services manually from the Dockerfiles under `monitoring/docker/`.
+2. Render auto-generates:
+   - **`METRICS_SCRAPE_TOKEN`** on the backend (required for `/actuator/prometheus` in prod)
+   - **`GF_SECURITY_ADMIN_PASSWORD`** on Grafana
+3. After deploy, open:
+   - **Prometheus** → `https://openproject-prometheus.onrender.com` → Status → Targets (`openproject-backend-prod` = **UP**)
+   - **Grafana** → `https://openproject-grafana.onrender.com` → login `admin` + password from Render env → **Dashboards → openProject — Spring Boot (Micrometer)**
+
+### Render free-tier notes
+
+- Each service may **spin down** when idle; first load can be slow (cold start).
+- Free tier shares **750 hours/month** across all web services — three services (backend + prometheus + grafana) count toward that limit.
+- Metrics history is **ephemeral** on Prometheus restarts unless you add a persistent disk on Render.
+
+### Security
+
+- `/actuator/prometheus` requires `Authorization: Bearer <METRICS_SCRAPE_TOKEN>` when the token is set (production).
+- `/actuator/health` stays public for Render health checks.
+- Retrieve Grafana admin password from the Render dashboard → **openproject-grafana** → Environment.
+
+### Manual env (non-Blueprint)
+
+| Service | Required env |
+|---------|----------------|
+| `openproject-backend` | `METRICS_SCRAPE_TOKEN` (generate: `openssl rand -hex 32`) |
+| `openproject-prometheus` | `BACKEND_HOST` (e.g. `openproject-backend.onrender.com`), same `METRICS_SCRAPE_TOKEN` |
+| `openproject-grafana` | `PROMETHEUS_HOST` (e.g. `openproject-prometheus.onrender.com`), `GRAFANA_PUBLIC_HOST` (grafana hostname) |
 
 ---
 

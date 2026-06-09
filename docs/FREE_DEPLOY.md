@@ -25,7 +25,7 @@ Costs: Atlas M0, Render free web service, Vercel hobby — all have limits; fine
    - **`CORS_ALLOWED_ORIGINS`** — your Vercel URL (step 4). If Vercel is not ready yet, use `http://localhost:4200` and update later.  
    - **`SECURITY_ENCRYPTION_KEY`** / **`SECURITY_JWT_SECRET`** — auto-generated if you use the Blueprint as written; otherwise set manually in the dashboard. **`SECURITY_ENCRYPTION_KEY`** must be valid Base64 that decodes to **32 bytes** (same as `openssl rand -base64 32`). If the generated value ever fails startup, replace it with that command output.
 
-The Blueprint sets **`SPRING_PROFILES_ACTIVE=prod`**: the API disables Redis unless **`SPRING_DATA_REDIS_URL`** (or `spring.data.redis.url`) is set, so health checks pass without a local Redis. To use managed Redis (e.g. Upstash), add that URL and redeploy.
+The Blueprint sets **`SPRING_PROFILES_ACTIVE=prod`** and **`OPENPROJECT_REDIS_ENABLED=false`**: Redis is off by default so health checks pass without Upstash. To enable Redis: create Upstash (TCP **`rediss://`** URL from Connect), set **`OPENPROJECT_REDIS_ENABLED=true`** and **`SPRING_DATA_REDIS_URL`**, then redeploy. Delete any stale **`SPRING_DATA_REDIS_URL`** / **`REDIS_URL`** if deploy logs show an unknown Upstash host.
 
 **Option B — Web Service manually**  
 1. **New** → **Web Service** → connect repo.  
@@ -75,3 +75,18 @@ Save → **Manual Deploy** on Render.
 
 - Open the Vercel URL → log in with admin credentials from Render.  
 - If API calls fail: fix **`CORS_ALLOWED_ORIGINS`** and **`frontend/vercel.json`** destination, redeploy.
+
+## 7. Monitoring (optional — Prometheus + Grafana on Render)
+
+The Blueprint (`render.yaml`) deploys two extra free web services:
+
+| Service | URL pattern |
+|---------|-------------|
+| Prometheus | `https://openproject-prometheus.onrender.com` |
+| Grafana | `https://openproject-grafana.onrender.com` |
+
+- **`METRICS_SCRAPE_TOKEN`** is auto-generated on the backend; Prometheus uses the same token to scrape `/actuator/prometheus`.
+- Grafana admin password: Render → **openproject-grafana** → Environment → **`GF_SECURITY_ADMIN_PASSWORD`**.
+- Dashboard: **openProject — Spring Boot (Micrometer)** (provisioned on first login).
+
+Full guide: [monitoring/README.md](../monitoring/README.md) (Scenario C).

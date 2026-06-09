@@ -1,6 +1,7 @@
 package org.example.config;
 
 import org.example.auth.AuthSessionService;
+import org.example.security.ActuatorPrometheusAuthFilter;
 import org.example.security.ApiBearerAuthenticationFilter;
 import org.example.security.ApiMutatingCsrfFilter;
 import org.example.security.ApiRateLimitingFilter;
@@ -83,14 +84,22 @@ public class SecurityConfig {
     }
 
     @Bean
+    public ActuatorPrometheusAuthFilter actuatorPrometheusAuthFilter(
+            @Value("${metrics.scrape-token:}") String scrapeToken) {
+        return new ActuatorPrometheusAuthFilter(scrapeToken);
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             CorsConfigurationSource corsConfigurationSource,
+            ActuatorPrometheusAuthFilter actuatorPrometheusAuthFilter,
             ApiRateLimitingFilter apiRateLimitingFilter,
             RequestBodySizeLimitFilter requestBodySizeLimitFilter,
             ApiBearerAuthenticationFilter apiBearerAuthenticationFilter,
             ApiMutatingCsrfFilter apiMutatingCsrfFilter) throws Exception {
         http
+            .addFilterBefore(actuatorPrometheusAuthFilter, ApiRateLimitingFilter.class)
             .addFilterBefore(apiRateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(requestBodySizeLimitFilter, ApiRateLimitingFilter.class)
             .addFilterAfter(apiBearerAuthenticationFilter, RequestBodySizeLimitFilter.class)
