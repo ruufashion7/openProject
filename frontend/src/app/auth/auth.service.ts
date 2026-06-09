@@ -22,6 +22,7 @@ export interface UserPermissions {
   customerCategoryEdit: boolean;
   customerNotesEdit: boolean;
   customerLocationEdit: boolean;
+  whatsappBroadcast: boolean;
 }
 
 interface SessionData {

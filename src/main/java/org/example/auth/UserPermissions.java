@@ -21,6 +21,8 @@ public class UserPermissions {
     private boolean customerNotesEdit;
     /** Edit address / map location / place on customer master from Details / Outstanding. */
     private boolean customerLocationEdit;
+    /** WhatsApp outreach / broadcast page (wa.me now; Cloud API later). */
+    private boolean whatsappBroadcast;
 
     public UserPermissions() {
         // Default all permissions to false
@@ -30,7 +32,8 @@ public class UserPermissions {
                           boolean detailsPage, boolean wholeProjectDownload, boolean outstandingPage,
                           boolean paymentDateEdit, boolean whatsappDateChange, boolean followUpChange,
                           boolean rateListPage, boolean rateListUpload, boolean salesVisualization, boolean customerLocations,
-                          boolean customerCategoryEdit, boolean customerNotesEdit, boolean customerLocationEdit) {
+                          boolean customerCategoryEdit, boolean customerNotesEdit, boolean customerLocationEdit,
+                          boolean whatsappBroadcast) {
         this.fileUpload = fileUpload;
         this.hardDelete = hardDelete;
         this.invoicePage = invoicePage;
@@ -47,9 +50,9 @@ public class UserPermissions {
         this.customerCategoryEdit = customerCategoryEdit;
         this.customerNotesEdit = customerNotesEdit;
         this.customerLocationEdit = customerLocationEdit;
+        this.whatsappBroadcast = whatsappBroadcast;
     }
 
-    // Getters and Setters
     public boolean isFileUpload() {
         return fileUpload;
     }
@@ -177,5 +180,12 @@ public class UserPermissions {
     public void setCustomerLocationEdit(boolean customerLocationEdit) {
         this.customerLocationEdit = customerLocationEdit;
     }
-}
 
+    public boolean isWhatsappBroadcast() {
+        return whatsappBroadcast;
+    }
+
+    public void setWhatsappBroadcast(boolean whatsappBroadcast) {
+        this.whatsappBroadcast = whatsappBroadcast;
+    }
+}

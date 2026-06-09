@@ -2,6 +2,7 @@ import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { PermissionService } from '../../auth/permission.service';
 import { SessionBannerComponent } from '../session-banner/session-banner.component';
 
 @Component({
@@ -15,7 +16,11 @@ export class AppHeaderComponent {
   @Input() title = '';
   @Input() subtitle = '';
 
-  constructor(private auth: AuthService, private router: Router) {}
+  constructor(
+    private auth: AuthService,
+    private router: Router,
+    public permission: PermissionService
+  ) {}
 
   logout(): void {
     this.auth.logout();

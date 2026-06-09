@@ -10,6 +10,12 @@
       <a routerLink="/sales-details" routerLinkActive="active" class="btn btn-ghost">Invoice Details</a>
       <a routerLink="/outstanding" routerLinkActive="active" class="btn btn-ghost">Details</a>
       <a routerLink="/payment-dates" routerLinkActive="active" class="btn btn-ghost">Outstanding</a>
+      <a
+        *ngIf="permission.canAccessWhatsappBroadcast()"
+        routerLink="/whatsapp-outreach"
+        routerLinkActive="active"
+        class="btn btn-ghost"
+      >WhatsApp</a>
     </nav>
     <div class="session-logout-wrapper">
       <app-session-banner />

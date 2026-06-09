@@ -5,6 +5,7 @@ import org.example.auth.SessionInfo;
 import org.example.auth.SessionPermissions;
 import org.example.auth.User;
 import org.example.auth.UserService;
+import org.example.customer.CustomerPhoneNumbers;
 import org.example.payment.CustomerNote;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideRepository;
@@ -404,7 +405,8 @@ public class CustomerNotesController {
             // Note: This is not efficient for large datasets, but necessary since we don't have an index on phoneNumber
             List<PaymentDateOverride> all = paymentDateOverrideRepository.findAll();
             PaymentDateOverride found = all.stream()
-                    .filter(pdo -> pdo.phoneNumber() != null && phoneNumber.equals(pdo.phoneNumber().trim()))
+                    .filter(pdo -> pdo.phoneNumber() != null
+                            && CustomerPhoneNumbers.sameCanonicalPhone(pdo.phoneNumber(), phoneNumber))
                     .findFirst()
                     .orElse(null);
             if (found != null) {
@@ -436,20 +438,21 @@ public class CustomerNotesController {
             return existing;
         }
         
+        String storedPhone = phoneNumber != null ? toStoredPhone(phoneNumber) : null;
         // Create new PaymentDateOverride
-        String customerKey = customerName != null && !customerName.isEmpty() 
-                ? normalizeCustomer(customerName) 
-                : (phoneNumber != null ? phoneNumber : UUID.randomUUID().toString());
-        
-        logger.info("Creating new PaymentDateOverride: customerKey={}, customerName={}, phoneNumber={}", 
-                customerKey, customerName, phoneNumber);
-        
+        String customerKey = customerName != null && !customerName.isEmpty()
+                ? normalizeCustomer(customerName)
+                : (storedPhone != null ? storedPhone : UUID.randomUUID().toString());
+
+        logger.info("Creating new PaymentDateOverride: customerKey={}, customerName={}, phoneNumber={}",
+                customerKey, customerName, storedPhone);
+
         PaymentDateOverride newOverride = new PaymentDateOverride(
                 null, // Let MongoDB generate ID
                 customerKey,
                 customerName,
                 null, // nextPaymentDate
-                phoneNumber,
+                storedPhone,
                 null, // whatsAppStatus
                 null, // customerCategory
                 true, // active
@@ -479,6 +482,15 @@ public class CustomerNotesController {
                 .replaceAll("[^a-z0-9]+", " ")
                 .trim()
                 .replaceAll("\\s+", " ");
+    }
+
+    private static String toStoredPhone(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        String canon = CustomerPhoneNumbers.canonicalStorageForm(trimmed);
+        return canon != null ? canon : trimmed;
     }
 
     private String extractToken(String authHeader) {

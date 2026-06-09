@@ -1,0 +1,15 @@
+# Prometheus — scrape openProject Spring Boot (Micrometer) metrics
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Backend service name from docker-compose.yml (same Docker network)
+  - job_name: openproject-backend
+    metrics_path: /actuator/prometheus
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - backend:8080
+        labels:
+          env: docker-compose

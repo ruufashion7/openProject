@@ -76,6 +76,12 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
+    path: 'whatsapp-outreach',
+    loadComponent: () =>
+      import('./whatsapp-outreach/whatsapp-outreach.component').then((m) => m.WhatsappOutreachComponent),
+    canActivate: [authGuard]
+  },
+  {
     path: 'access-control',
     loadComponent: () =>
       import('./access-control/access-control.component').then((m) => m.AccessControlComponent),

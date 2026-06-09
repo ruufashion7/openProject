@@ -3,6 +3,7 @@ package org.example.api;
 import org.example.auth.AuthSessionService;
 import org.example.auth.SessionInfo;
 import org.example.auth.SessionPermissions;
+import org.example.customer.CustomerPhoneNumbers;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideRepository;
 import org.example.upload.DetailedSalesInvoicesUpload;
@@ -996,6 +997,12 @@ public class AnalyticsController {
             if (phoneNumber != null && phoneNumber.isBlank()) {
                 phoneNumber = null;
             }
+            if (phoneNumber != null) {
+                String canonPhone = CustomerPhoneNumbers.canonicalStorageForm(phoneNumber);
+                if (canonPhone != null) {
+                    phoneNumber = canonPhone;
+                }
+            }
 
             String whatsAppStatus = request.whatsAppStatus() == null ? null : request.whatsAppStatus().trim();
             if (whatsAppStatus != null && whatsAppStatus.isBlank()) {
@@ -1315,6 +1322,13 @@ public class AnalyticsController {
             List<String> customerHeaders = sheet.headers().stream()
                     .filter(ExcelUploadHeaderRules::isCustomerHeader)
                     .toList();
+            List<String> customerPhoneCols = sheet.headers().stream()
+                    .filter(ExcelUploadHeaderRules::isCustomerPhoneHeader)
+                    .toList();
+            List<String> genericPhoneCols = sheet.headers().stream()
+                    .filter(h -> ExcelUploadHeaderRules.isPhoneHeader(h)
+                            && !ExcelUploadHeaderRules.isCustomerPhoneHeader(h))
+                    .toList();
             List<String> invoiceHeaders = sheet.headers().stream()
                     .filter(ExcelUploadHeaderRules::isInvoiceDateHeader)
                     .toList();
@@ -1343,13 +1357,34 @@ public class AnalyticsController {
                     }
                 }
 
-                // Get phone number from customer_master only
+                // Prefer customer_master; fall back to sheet columns (same rules as upload ingest)
                 String key = normalizeCustomer(customer);
                 String customerPhone = customerPhoneMap.get(key);
+                if (customerPhone == null || customerPhone.isBlank()) {
+                    String rawPhone = firstNonBlank(row, customerPhoneCols);
+                    if (rawPhone == null) {
+                        rawPhone = firstNonBlank(row, genericPhoneCols);
+                    }
+                    if (rawPhone != null && !rawPhone.isBlank()) {
+                        String fromSheet = CustomerPhoneNumbers.canonicalStorageForm(rawPhone);
+                        if (fromSheet != null) {
+                            customerPhone = fromSheet;
+                        }
+                    }
+                }
 
-                // Apply phone filter
+                // Apply phone filter (normalized digits so +91 / spaces still match)
                 if (phoneFilter != null && !phoneFilter.isBlank()) {
-                    if (customerPhone == null || !customerPhone.contains(phoneFilter)) {
+                    if (customerPhone == null || customerPhone.isBlank()) {
+                        continue;
+                    }
+                    String needle = CustomerPhoneNumbers.normalizeDigitsKey(phoneFilter);
+                    if (needle != null) {
+                        String hay = CustomerPhoneNumbers.normalizeDigitsKey(customerPhone);
+                        if (hay == null || !hay.contains(needle)) {
+                            continue;
+                        }
+                    } else if (!customerPhone.contains(phoneFilter.trim())) {
                         continue;
                     }
                 }
@@ -1635,7 +1670,9 @@ public class AnalyticsController {
         String customerKey = normalizeCustomer(customer);
         PaymentDateOverride override = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
         if (override != null && override.phoneNumber() != null && !override.phoneNumber().isBlank()) {
-            return override.phoneNumber().trim();
+            String raw = override.phoneNumber().trim();
+            String canon = CustomerPhoneNumbers.canonicalStorageForm(raw);
+            return canon != null ? canon : raw;
         }
         return null;
     }
@@ -1644,12 +1681,15 @@ public class AnalyticsController {
         if (phone == null || phone.isBlank()) {
             return null;
         }
-        String phoneTrimmed = phone.trim();
+        String searchKey = CustomerPhoneNumbers.normalizeDigitsKey(phone);
+        if (searchKey == null) {
+            return null;
+        }
         List<PaymentDateOverride> allOverrides = paymentDateOverrideRepository.findAll();
         for (PaymentDateOverride override : allOverrides) {
             if (override.phoneNumber() != null && !override.phoneNumber().isBlank()) {
-                String storedPhone = override.phoneNumber().trim();
-                if (storedPhone.equals(phoneTrimmed) || storedPhone.contains(phoneTrimmed) || phoneTrimmed.contains(storedPhone)) {
+                String storedKey = CustomerPhoneNumbers.normalizeDigitsKey(override.phoneNumber());
+                if (searchKey.equals(storedKey)) {
                     return override.customerName();
                 }
             }
@@ -2192,7 +2232,9 @@ public class AnalyticsController {
         Map<String, String> phoneMap = new java.util.HashMap<>();
         for (PaymentDateOverride override : allOverrides) {
             if (override.phoneNumber() != null && !override.phoneNumber().isBlank()) {
-                phoneMap.put(override.customerKey(), override.phoneNumber().trim());
+                String raw = override.phoneNumber().trim();
+                String canon = CustomerPhoneNumbers.canonicalStorageForm(raw);
+                phoneMap.put(override.customerKey(), canon != null ? canon : raw);
             }
         }
         return phoneMap;

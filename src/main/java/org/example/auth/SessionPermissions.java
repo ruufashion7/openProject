@@ -139,4 +139,8 @@ public final class SessionPermissions {
         }
         return has(session, UserPermissions::isCustomerLocationEdit);
     }
+
+    public static boolean canAccessWhatsappBroadcast(SessionInfo session) {
+        return has(session, UserPermissions::isWhatsappBroadcast);
+    }
 }

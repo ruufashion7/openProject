@@ -37,6 +37,17 @@ This starts:
 - Backend on `http://localhost:8080`
 - Frontend on `http://localhost:4200`
 
+### Prometheus & Grafana (optional)
+
+```
+docker compose --profile monitoring up --build -d
+```
+
+- Grafana: `http://localhost:3000` (default `admin` / `admin`)
+- Prometheus: `http://localhost:9090`
+
+Full step-by-step guide: [monitoring/README.md](monitoring/README.md).
+
 ## Free deployment (Vercel + Render + MongoDB Atlas)
 
 The app can be deployed for free so the world can use it:

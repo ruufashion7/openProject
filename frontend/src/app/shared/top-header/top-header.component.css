@@ -52,14 +52,47 @@
   transform: scale(1.05);
 }
 
+/* Primary trade name — hero line */
 .brand-text {
-  font-size: 18px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 3px;
+  line-height: 1.1;
+}
+
+.brand-title {
+  font-size: 17px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height: 1.05;
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 45%, #3b82f6 100%);
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: 0.3px;
+  color: #1d4ed8; /* fallback when clip unsupported */
+  -webkit-text-fill-color: transparent;
+}
+
+@supports not (background-clip: text) {
+  .brand-title {
+    -webkit-text-fill-color: unset;
+    background: none;
+    color: #1d4ed8;
+  }
+}
+
+/* Subsidiary / parent company — small, muted, below the main brand */
+.brand-subtitle {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  line-height: 1.25;
+  text-transform: none;
+  -webkit-text-fill-color: currentColor;
+  max-width: 22em;
 }
 
 .header-right {
@@ -222,8 +255,15 @@
     font-size: 24px;
   }
   
-  .brand-text {
+  .brand-title {
     font-size: 14px;
+    letter-spacing: 0.06em;
+  }
+
+  .brand-subtitle {
+    font-size: 8px;
+    letter-spacing: 0.03em;
+    max-width: 18em;
   }
   
   .user-section {

@@ -10,6 +10,7 @@ import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.example.payment.CustomerMasterPhoneIngestService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.slf4j.Logger;
@@ -46,13 +47,16 @@ public class UploadStorageService {
     private final DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository;
     private final ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository;
     private final UploadAuditEntryRepository uploadAuditEntryRepository;
+    private final CustomerMasterPhoneIngestService customerMasterPhoneIngestService;
 
     public UploadStorageService(DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository,
                                 ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository,
-                                UploadAuditEntryRepository uploadAuditEntryRepository) {
+                                UploadAuditEntryRepository uploadAuditEntryRepository,
+                                CustomerMasterPhoneIngestService customerMasterPhoneIngestService) {
         this.detailedSalesInvoicesUploadRepository = detailedSalesInvoicesUploadRepository;
         this.receivableAgeingReportUploadRepository = receivableAgeingReportUploadRepository;
         this.uploadAuditEntryRepository = uploadAuditEntryRepository;
+        this.customerMasterPhoneIngestService = customerMasterPhoneIngestService;
     }
 
     public List<UploadFileInfo> storeFiles(MultipartFile file1, MultipartFile file2) throws IOException {
@@ -141,6 +145,12 @@ public class UploadStorageService {
                 new UploadAuditEntry(null, "ADDED", "receivable", receivableFile.originalFilename(), uploadedAt)
         );
         enforceUploadAuditRetention();
+
+        try {
+            customerMasterPhoneIngestService.syncPhonesFromUploadFiles(detailedFile, receivableFile);
+        } catch (RuntimeException ex) {
+            logger.error("customer_master phone ingest failed after upload; data is saved but phones may be stale", ex);
+        }
 
         logger.info("Upload completed.");
         return fileInfos;

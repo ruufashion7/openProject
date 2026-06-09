@@ -17,6 +17,7 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: 'outstandingPage', label: 'Outstanding Page', description: 'Access to outstanding/payment dates page' },
   { key: 'paymentDateEdit', label: 'Payment Date Edit', description: 'Permission to edit payment dates' },
   { key: 'whatsappDateChange', label: 'WhatsApp Date Change', description: 'Permission to change WhatsApp dates' },
+  { key: 'whatsappBroadcast', label: 'WhatsApp page', description: 'Access WhatsApp outreach: compose messages and track wa.me batches per customer' },
   { key: 'followUpChange', label: 'Follow Up Change', description: 'Permission to change follow-up flags' },
   { key: 'customerCategoryEdit', label: 'Customer Category Edit', description: 'Edit customer category (A/B/C, etc.) on Details or Outstanding' },
   { key: 'customerNotesEdit', label: 'Customer Notes Edit', description: 'Add, edit, or delete customer notes (viewing notes only needs Details or Outstanding page access)' },
@@ -39,6 +40,7 @@ export const ROUTE_PERMISSIONS: Record<string, keyof import('./auth.service').Us
   '/sales-visualization': 'salesVisualization',
   '/outstanding': 'detailsPage',
   '/payment-dates': 'outstandingPage',
+  '/whatsapp-outreach': 'whatsappBroadcast',
   '/customer-locations': 'customerLocations',
   '/access-control': 'admin'
 };

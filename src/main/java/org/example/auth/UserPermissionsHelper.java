@@ -9,55 +9,48 @@ package org.example.auth;
  * 4. Update the constructor call in AuthSessionService
  */
 public class UserPermissionsHelper {
-    
-    /**
-     * Returns a UserPermissions object with all permissions set to true
-     * IMPORTANT: When adding a new permission, update this method to include it
-     */
+
     public static UserPermissions getAllPermissions() {
         return new UserPermissions(
-            true,  // fileUpload
-            true,  // hardDelete
-            true,  // invoicePage
-            true,  // detailsPage
-            true,  // wholeProjectDownload
-            true,  // outstandingPage
-            true,  // paymentDateEdit
-            true,  // whatsappDateChange
-            true,  // followUpChange
-            true,  // rateListPage
-            true,  // rateListUpload
-            true,  // salesVisualization
-            true,  // customerLocations
-            true,  // customerCategoryEdit
-            true,  // customerNotesEdit
-            true   // customerLocationEdit
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true
         );
     }
-    
-    /**
-     * Returns a UserPermissions object with all permissions set to false
-     * IMPORTANT: When adding a new permission, update this method to include it
-     */
+
     public static UserPermissions getDefaultPermissions() {
         return new UserPermissions(
-            false,  // fileUpload
-            false,  // hardDelete
-            false,  // invoicePage
-            false,  // detailsPage
-            false,  // wholeProjectDownload
-            false,  // outstandingPage
-            false,  // paymentDateEdit
-            false,  // whatsappDateChange
-            false,  // followUpChange
-            false,  // rateListPage
-            false,  // rateListUpload
-            false,  // salesVisualization
-            false,  // customerLocations
-            false,  // customerCategoryEdit
-            false,  // customerNotesEdit
-            false   // customerLocationEdit
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
         );
     }
 }
-

@@ -1,3 +1,7 @@
+# Run monitoring stack: docker compose --profile monitoring up -d
+# UI: Grafana http://localhost:3000 (admin / admin) — change password on first login
+# Prometheus http://localhost:9090
+
 services:
   mongo:
     image: mongo:7
@@ -27,6 +31,38 @@ services:
       - "4200:4200"
     depends_on:
       - backend
+
+  prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:v2.55.1
+    container_name: openproject-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - backend
+
+  grafana:
+    profiles: ["monitoring"]
+    image: grafana/grafana:11.3.0
+    container_name: openproject-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: http://localhost:3000
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
 
 volumes:
   mongo_data:

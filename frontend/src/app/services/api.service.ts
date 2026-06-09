@@ -160,6 +160,55 @@ export interface PaymentDateCustomerCard {
   place?: string | null;
 }
 
+export interface WhatsappBroadcastRecipientInputDto {
+  customerKey: string;
+  displayName: string;
+  phoneNumber: string;
+  /** Optional {{token}} values merged per recipient (Payment Dates fields, etc.). */
+  placeholders?: Record<string, string> | null;
+}
+
+export interface WhatsappBroadcastCreateRequestDto {
+  messageTemplate: string;
+  recipients: WhatsappBroadcastRecipientInputDto[];
+}
+
+export interface WhatsappBroadcastRecipientResponseDto {
+  id: string;
+  customerKey: string;
+  displayName: string;
+  phoneDigits: string;
+  renderedMessage: string;
+  status: string;
+  failureReason: string | null;
+  openedAt: string | null;
+  sentAt: string | null;
+}
+
+export interface WhatsappBroadcastBatchResponseDto {
+  id: string;
+  messageTemplate: string;
+  channelMode: string;
+  createdAt: string | null;
+  recipients: WhatsappBroadcastRecipientResponseDto[];
+}
+
+export interface WhatsappBroadcastBatchSummaryDto {
+  id: string;
+  createdAt: string | null;
+  channelMode: string;
+  messagePreview: string;
+  recipientCount: number;
+  notSentCount: number;
+  inProgressCount: number;
+  sentCount: number;
+  failedCount: number;
+}
+
+export interface WhatsappWaLinkResponseDto {
+  url: string;
+}
+
 export interface SalesInvoiceEntry {
   invoiceDate: string | null;
   voucherNo: string | null;
@@ -724,7 +773,48 @@ export class ApiService {
       headers: this.auth.getAuthHeaders()
     });
   }
+
+  listWhatsappBroadcasts(): Observable<WhatsappBroadcastBatchSummaryDto[]> {
+    return this.http.get<WhatsappBroadcastBatchSummaryDto[]>(`${this.baseUrl}/whatsapp/broadcasts`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  createWhatsappBroadcast(body: WhatsappBroadcastCreateRequestDto): Observable<WhatsappBroadcastBatchResponseDto> {
+    return this.http.post<WhatsappBroadcastBatchResponseDto>(
+      `${this.baseUrl}/whatsapp/broadcasts`,
+      body,
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  getWhatsappBroadcast(batchId: string): Observable<WhatsappBroadcastBatchResponseDto> {
+    return this.http.get<WhatsappBroadcastBatchResponseDto>(
+      `${this.baseUrl}/whatsapp/broadcasts/${encodeURIComponent(batchId)}`,
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  getWhatsappWaLink(batchId: string, recipientId: string, markOpened = true): Observable<WhatsappWaLinkResponseDto> {
+    return this.http.get<WhatsappWaLinkResponseDto>(
+      `${this.baseUrl}/whatsapp/broadcasts/${encodeURIComponent(batchId)}/recipients/${encodeURIComponent(recipientId)}/wa-link`,
+      { headers: this.auth.getAuthHeaders(), params: { markOpened: String(markOpened) } }
+    );
+  }
+
+  patchWhatsappRecipient(
+    batchId: string,
+    recipientId: string,
+    body: { status: string; failureReason?: string | null }
+  ): Observable<WhatsappBroadcastRecipientResponseDto> {
+    return this.http.patch<WhatsappBroadcastRecipientResponseDto>(
+      `${this.baseUrl}/whatsapp/broadcasts/${encodeURIComponent(batchId)}/recipients/${encodeURIComponent(recipientId)}`,
+      body,
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
 }
+
 
 export interface MonthlyTrendData {
   month: string;

@@ -35,6 +35,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
     { label: 'Sales Analytics', route: '/sales-visualization', icon: '📈' },
     { label: 'Details', route: '/outstanding', icon: '📋' },
     { label: 'Outstanding', route: '/payment-dates', icon: '💰' },
+    { label: 'WhatsApp', route: '/whatsapp-outreach', icon: '💬' },
     { label: 'Customer Locations', route: '/customer-locations', icon: '📍' },
     { label: 'Access Control', route: '/access-control', icon: '🔐' }
   ];
@@ -121,6 +122,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       '/sales-visualization': 'Sales Analytics',
       '/outstanding': 'Details',
       '/payment-dates': 'Outstanding',
+      '/whatsapp-outreach': 'WhatsApp',
       '/customer-locations': 'Customer Locations',
       '/uploads': 'Latest Uploads',
       '/uploads-audit': 'Upload Audit Trail',

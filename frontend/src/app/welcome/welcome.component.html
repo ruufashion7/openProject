@@ -52,6 +52,13 @@
         </button>
         <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
       </div>
+    
+      <div class="card card-muted welcome-tile" *ngIf="canWhatsappBroadcast">
+        <h2>WhatsApp outreach</h2>
+        <p class="page-subtitle">Compose messages and track wa.me batches per customer.</p>
+        <button type="button" class="btn btn-soft" (click)="goToWhatsappOutreach()">Open WhatsApp outreach</button>
+      </div>
+
     </div>
   </div>
 </section>

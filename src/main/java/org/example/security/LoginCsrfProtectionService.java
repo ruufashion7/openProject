@@ -2,8 +2,11 @@ package org.example.security;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class LoginCsrfProtectionService {
 
+    private static final Logger logger = LoggerFactory.getLogger(LoginCsrfProtectionService.class);
     private static final String REDIS_PREFIX = "csrf:user:";
     private static final int TOKEN_BYTES = 32;
 
@@ -58,10 +62,14 @@ public class LoginCsrfProtectionService {
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
         String key = REDIS_PREFIX + userId;
         if (redisTemplate != null) {
-            redisTemplate.opsForValue().set(key, token, Duration.ofMinutes(ttlMinutes));
-        } else {
-            memoryStore.put(userId, token);
+            try {
+                redisTemplate.opsForValue().set(key, token, Duration.ofMinutes(ttlMinutes));
+                return token;
+            } catch (DataAccessException ex) {
+                logger.debug("Redis unavailable for CSRF store (issue); using in-memory for user {}: {}", userId, ex.getMessage());
+            }
         }
+        memoryStore.put(userId, token);
         return token;
     }
 
@@ -69,9 +77,17 @@ public class LoginCsrfProtectionService {
         if (!enabled || userId == null || userId.isBlank() || headerToken == null || headerToken.isBlank()) {
             return false;
         }
-        String expected = redisTemplate != null
-                ? redisTemplate.opsForValue().get(REDIS_PREFIX + userId)
-                : memoryStore.getIfPresent(userId);
+        String expected = null;
+        if (redisTemplate != null) {
+            try {
+                expected = redisTemplate.opsForValue().get(REDIS_PREFIX + userId);
+            } catch (DataAccessException ex) {
+                logger.debug("Redis unavailable for CSRF store (validate); trying in-memory for user {}: {}", userId, ex.getMessage());
+            }
+        }
+        if (expected == null) {
+            expected = memoryStore.getIfPresent(userId);
+        }
         if (expected == null) {
             return false;
         }
@@ -94,7 +110,11 @@ public class LoginCsrfProtectionService {
             return;
         }
         if (redisTemplate != null) {
-            redisTemplate.delete(REDIS_PREFIX + userId);
+            try {
+                redisTemplate.delete(REDIS_PREFIX + userId);
+            } catch (DataAccessException ex) {
+                logger.debug("Redis unavailable for CSRF store (clear); in-memory cleared for user {}: {}", userId, ex.getMessage());
+            }
         }
         memoryStore.invalidate(userId);
     }

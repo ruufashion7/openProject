@@ -20,6 +20,7 @@ export class WelcomeComponent implements OnInit {
   canAccessInvoicePage = false;
   canAccessDetailsPage = false;
   canAccessOutstandingPage = false;
+  canWhatsappBroadcast = false;
 
   constructor(
     private auth: AuthService,
@@ -33,6 +34,7 @@ export class WelcomeComponent implements OnInit {
     this.canAccessInvoicePage = this.permissionService.canAccessInvoicePage();
     this.canAccessDetailsPage = this.permissionService.canAccessDetailsPage();
     this.canAccessOutstandingPage = this.permissionService.canAccessOutstandingPage();
+    this.canWhatsappBroadcast = this.permissionService.canAccessWhatsappBroadcast();
     
     this.analyticsMessage = 'Checking upload status...';
     this.api.getUploadStatus().subscribe({
@@ -76,6 +78,10 @@ export class WelcomeComponent implements OnInit {
       return;
     }
     this.router.navigateByUrl('/payment-dates');
+  }
+
+  goToWhatsappOutreach(): void {
+    this.router.navigateByUrl('/whatsapp-outreach');
   }
 
   goToSalesDetails(): void {

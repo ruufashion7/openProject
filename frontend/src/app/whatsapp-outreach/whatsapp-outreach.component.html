@@ -1,0 +1,294 @@
+<section class="page wo-page">
+  <div class="page-header-modern wo-header">
+    <div>
+      <a routerLink="/welcome" class="wo-back">← Welcome</a>
+      <h1 class="page-title-modern">WhatsApp outreach</h1>
+      <p class="page-subtitle-modern">
+        Two steps: (1) pick recipients and write one message here; (2) after you create a batch, this page shows a table with
+        <strong>Open WhatsApp</strong> per row. Compose once, then open <strong>wa.me</strong> per customer (free). Cloud API can use the same batches later.
+      </p>
+    </div>
+    <div class="wo-header-actions" *ngIf="batch">
+      <button type="button" class="btn btn-primary" (click)="newBatch()">New batch</button>
+    </div>
+  </div>
+
+  <div class="wo-banner" *ngIf="!batch">
+    <p>
+      <strong>How it works:</strong> Select customers, write your message (tokens like <code>{{ placeholderHint }}</code> — use the insert buttons under the message box). Click
+      <strong>Create batch &amp; continue</strong> — then <strong>step 2</strong> appears: a progress table with Open WhatsApp, Copy, and status buttons for each customer. In WhatsApp, tap Send; then mark <em>Sent</em> or <em>Failed</em> here.
+    </p>
+  </div>
+
+  <!-- Composer + picker (steps 1 & 2 first) -->
+  <div class="card wo-card wo-composer-card" *ngIf="!batch && !loadingBatch">
+    <div class="wo-collapsible">
+      <button
+        type="button"
+        class="wo-section-head"
+        (click)="messageSectionExpanded = !messageSectionExpanded"
+        [attr.aria-expanded]="messageSectionExpanded"
+      >
+        <h2 class="wo-section-title wo-section-title-inline">1. Message</h2>
+        <span class="wo-chevron" [class.wo-chevron-open]="messageSectionExpanded" aria-hidden="true"></span>
+      </button>
+      <div class="wo-section-panel" *ngIf="messageSectionExpanded">
+        <textarea
+          #messageTextarea
+          class="wo-textarea"
+          [(ngModel)]="messageTemplate"
+          (ngModelChange)="onMessageTemplateDraftChange()"
+          rows="6"
+          [maxlength]="maxTemplate"
+          placeholder="Type your message…"
+        ></textarea>
+        <div class="wo-meta">
+          <span>{{ messageTemplate.length }} / {{ maxTemplate }}</span>
+          <span class="wo-hint" ngNonBindable>
+            Tokens like <code>{{customerName}}</code> can be used in above message template. Last text is saved per account on this browser.
+          </span>
+        </div>
+        <div class="wo-placeholder-chips" role="group" aria-label="Insert template tokens">
+          <span class="wo-chips-label">Insert</span>
+          <button
+            type="button"
+            class="wo-chip"
+            *ngFor="let chip of placeholderChips"
+            (click)="insertPlaceholder(chip.token)"
+            [title]="chip.token"
+          >
+            {{ chip.label }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="wo-collapsible wo-collapsible-recipients">
+      <button
+        type="button"
+        class="wo-section-head"
+        (click)="recipientsSectionExpanded = !recipientsSectionExpanded"
+        [attr.aria-expanded]="recipientsSectionExpanded"
+      >
+        <div class="wo-section-head-text">
+          <h2 class="wo-section-title wo-section-title-inline">2. Recipients</h2>
+          <p class="wo-section-summary wo-muted" *ngIf="!recipientsSectionExpanded && !loadingCards && !cardsLoadError">
+            {{ eligiblePickList.length }} with phone · {{ selectedCustomers.size }} selected
+          </p>
+        </div>
+        <span class="wo-chevron" [class.wo-chevron-open]="recipientsSectionExpanded" aria-hidden="true"></span>
+      </button>
+
+      <div class="wo-section-panel" *ngIf="recipientsSectionExpanded">
+        <p class="wo-error" *ngIf="cardsLoadError">
+          {{ cardsLoadError }}
+          <a *ngIf="permission.canAccessOutstandingPage()" routerLink="/payment-dates" class="wo-inline-link"> Open Payment Dates</a>
+        </p>
+        <p class="wo-muted" *ngIf="loadingCards">Loading customers…</p>
+
+        <div class="wo-banner wo-banner-soft" *ngIf="!loadingCards && !cardsLoadError && cards.length === 0">
+          <p>
+            No customer rows loaded yet. Open
+            <a routerLink="/payment-dates" class="wo-inline-link">Payment Dates</a>
+            to load or refresh data.
+          </p>
+        </div>
+
+        <div class="wo-banner wo-banner-soft" *ngIf="!loadingCards && !cardsLoadError && cards.length > 0 && !hasEligibleCustomers">
+          <p>
+            No customers have a phone number with at least 10 digits, so they cannot be messaged here. Check numbers on
+            <a routerLink="/payment-dates" class="wo-inline-link">Payment Dates</a>.
+          </p>
+        </div>
+
+        <div class="wo-toolbar" *ngIf="!loadingCards && !cardsLoadError">
+          <div class="search-container wo-toolbar-search">
+            <div class="search-input-wrapper">
+              <span class="search-icon" aria-hidden="true">🔍</span>
+              <input
+                type="text"
+                class="search-input-modern"
+                name="woCustomerSearch"
+                [(ngModel)]="customerSearch"
+                [ngModelOptions]="{ standalone: true }"
+                (input)="onRecipientSearchInput()"
+                (focus)="onRecipientSearchFocus()"
+                placeholder="Search by customer name or phone..."
+              />
+              <button
+                type="button"
+                class="btn-clear-search"
+                *ngIf="customerSearch"
+                (click)="clearRecipientSearch()"
+                title="Clear search"
+              >
+                ×
+              </button>
+            </div>
+            <div class="search-suggestions" *ngIf="showRecipientSuggestions && recipientSearchSuggestions.length">
+              <div
+                class="suggestion-item"
+                *ngFor="let s of recipientSearchSuggestions"
+                (mousedown)="$event.preventDefault()"
+                (click)="selectRecipientSuggestion(s)"
+              >
+                <span class="suggestion-name">{{ s.name }}</span>
+                <span class="suggestion-phone" *ngIf="s.phone">{{ s.phone }}</span>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="selectAllEligible()">Select all</button>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="selectAllVisible()">Select all shown</button>
+          <button type="button" class="btn btn-ghost btn-sm" (click)="clearSelection()">Clear</button>
+          <span class="wo-count">{{ selectedCustomers.size }} selected</span>
+        </div>
+
+        <div class="wo-table-wrap" *ngIf="!loadingCards && !cardsLoadError">
+          <table class="wo-table">
+            <thead>
+              <tr>
+                <th class="wo-th-check">
+                  <input
+                    type="checkbox"
+                    [checked]="allFilteredSelected"
+                    (change)="toggleSelectAllFiltered()"
+                    title="Select or clear all rows in the list below"
+                    [disabled]="recipientPickListFiltered.length === 0"
+                  />
+                </th>
+                <th>Customer</th>
+                <th>Phone</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let c of recipientPickListFiltered">
+                <td>
+                  <input
+                    type="checkbox"
+                    [checked]="isSelected(c.customer || '')"
+                    (change)="toggleCustomer(c.customer || '')"
+                  />
+                </td>
+                <td>{{ c.customer }}</td>
+                <td class="wo-mono">{{ c.phoneNumber }}</td>
+              </tr>
+              <tr *ngIf="recipientPickListFiltered.length === 0">
+                <td colspan="3" class="wo-empty">No customers with phone numbers match the filter.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="wo-actions">
+      <button type="button" class="btn btn-primary" (click)="openConfirm()" [disabled]="saving">
+        Create batch &amp; continue
+      </button>
+    </div>
+  </div>
+
+  <!-- Recent batches (below composer) -->
+  <div class="card wo-card wo-recent-card" *ngIf="!batch && !loadingBatch">
+    <div class="wo-collapsible wo-collapsible-recent">
+      <button
+        type="button"
+        class="wo-section-head"
+        (click)="recentBatchesSectionExpanded = !recentBatchesSectionExpanded"
+        [attr.aria-expanded]="recentBatchesSectionExpanded"
+      >
+        <div class="wo-section-head-text">
+          <h2 class="wo-section-title wo-section-title-inline">Recent batches</h2>
+          <p class="wo-section-summary wo-muted" *ngIf="!recentBatchesSectionExpanded">
+            <span *ngIf="loadingSummaries">Loading batches…</span>
+            <span *ngIf="!loadingSummaries && batchSummaries.length === 0">No batches yet</span>
+            <span *ngIf="!loadingSummaries && batchSummaries.length === 1">1 batch</span>
+            <span *ngIf="!loadingSummaries && batchSummaries.length > 1">{{ batchSummaries.length }} batches</span>
+          </p>
+        </div>
+        <span class="wo-chevron" [class.wo-chevron-open]="recentBatchesSectionExpanded" aria-hidden="true"></span>
+      </button>
+      <div class="wo-section-panel" *ngIf="recentBatchesSectionExpanded">
+        <p class="wo-muted" *ngIf="loadingSummaries">Loading batches…</p>
+        <p class="wo-muted" *ngIf="!loadingSummaries && batchSummaries.length === 0">
+          No batches yet. After you create one using the form above, it will show up here so you can reopen it anytime.
+        </p>
+        <ul class="wo-recent-list" *ngIf="!loadingSummaries && batchSummaries.length > 0">
+          <li class="wo-recent-item" *ngFor="let s of batchSummaries">
+            <a [routerLink]="[]" [queryParams]="{ batch: s.id }" class="wo-recent-link">
+              <span class="wo-recent-date" *ngIf="s.createdAt">{{ s.createdAt | date: 'medium' }}</span>
+              <span class="wo-recent-preview">{{ s.messagePreview || '(empty)' }}</span>
+              <span class="wo-recent-stats wo-muted">{{ summaryStatsLine(s) }}</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm modal -->
+  <div class="wo-modal-backdrop" *ngIf="showConfirm" (click)="cancelConfirm()"></div>
+  <div class="wo-modal" *ngIf="showConfirm" role="dialog" aria-modal="true">
+    <h3>Confirm batch</h3>
+    <p>You are about to create a batch for <strong>{{ selectedCustomers.size }}</strong> customers.</p>
+    <p class="wo-muted">Each chat still opens in WhatsApp for a human to press Send (wa.me). This screen tracks progress.</p>
+    <div class="wo-modal-actions">
+      <button type="button" class="btn btn-ghost" (click)="cancelConfirm()">Cancel</button>
+      <button type="button" class="btn btn-primary" (click)="submitBatch()" [disabled]="saving">
+        {{ saving ? 'Creating…' : 'Yes, create batch' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Batch progress -->
+  <div class="card wo-card" *ngIf="batch">
+    <div class="wo-batch-meta">
+      <span class="wo-pill">{{ channelLabel(batch.channelMode) }}</span>
+      <span class="wo-muted" *ngIf="batch.createdAt">Created {{ batch.createdAt | date: 'medium' }}</span>
+    </div>
+    <h2 class="wo-section-title">Message template</h2>
+    <pre class="wo-pre">{{ batch.messageTemplate }}</pre>
+
+    <div class="wo-toolbar">
+      <label class="wo-filter-label">Status</label>
+      <select class="wo-select" [(ngModel)]="statusFilter">
+        <option value="ALL">All</option>
+        <option value="NOT_SENT">Not sent</option>
+        <option value="IN_PROGRESS">In progress</option>
+        <option value="SENT">Sent</option>
+        <option value="FAILED">Failed</option>
+      </select>
+    </div>
+
+    <div class="wo-table-wrap">
+      <table class="wo-table wo-table-progress">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Phone</th>
+            <th>Status</th>
+            <th class="wo-th-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of filteredRecipients">
+            <td>{{ r.displayName }}</td>
+            <td class="wo-mono">{{ r.phoneDigits }}</td>
+            <td>
+              <span class="wo-status" [ngClass]="statusClass(r.status)">{{ statusLabel(r.status) }}</span>
+            </td>
+            <td class="wo-actions-cell">
+              <button type="button" class="btn btn-sm btn-primary" (click)="openWhatsapp(r)">Open WhatsApp</button>
+              <button type="button" class="btn btn-sm btn-secondary" (click)="copyText(r.renderedMessage)">Copy</button>
+              <button type="button" class="btn btn-sm btn-soft" (click)="markStatus(r, 'SENT')">Mark sent</button>
+              <button type="button" class="btn btn-sm btn-ghost" (click)="markStatus(r, 'FAILED')">Mark failed</button>
+              <button type="button" class="btn btn-sm btn-ghost" (click)="markStatus(r, 'NOT_SENT')">Reset</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="wo-muted wo-loading" *ngIf="loadingBatch">Loading batch…</p>
+</section>

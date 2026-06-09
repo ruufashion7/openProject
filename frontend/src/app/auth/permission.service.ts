@@ -48,6 +48,10 @@ export class PermissionService {
     return this.hasPermission('whatsappDateChange');
   }
 
+  canAccessWhatsappBroadcast(): boolean {
+    return this.hasPermission('whatsappBroadcast');
+  }
+
   canChangeFollowUp(): boolean {
     return this.hasPermission('followUpChange');
   }

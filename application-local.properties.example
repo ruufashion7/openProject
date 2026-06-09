@@ -9,6 +9,10 @@
 # MongoDB Atlas (MongoDB Compass) - full connection string
 # If your password contains @, encode it as %40 in the URI
 mongo_uri=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/openProject
+#
+# TLS "internal_error" / alert 80: fix Atlas Network Access (your public IP) or use local Mongo:
+#   docker compose up -d mongo
+#   mongo_uri=mongodb://localhost:27017/openProject
 
 # OR use individual properties:
 # mongo_db_hostname=cluster0.2m4d4r8.mongodb.net
