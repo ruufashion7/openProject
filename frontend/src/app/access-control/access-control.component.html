@@ -76,26 +76,9 @@
         </div>
       </div>
 
-      <div class="permissions-section" *ngIf="!newUser.isAdmin">
-        <div class="permissions-header">
-          <h3 class="permissions-title">Permissions</h3>
-          <button type="button" class="btn btn-ghost btn-sm" (click)="toggleAllPermissions(true)">
-            Toggle All
-          </button>
-        </div>
-        <div class="permissions-grid">
-          <label class="permission-item" *ngFor="let perm of getPermissionsList()">
-            <input 
-              type="checkbox" 
-              [name]="perm.key"
-              [checked]="newUser.permissions[perm.key]"
-              (change)="newUser.permissions[perm.key] = !newUser.permissions[perm.key]"
-              class="permission-checkbox">
-            <span class="permission-label">{{ perm.label }}</span>
-            <span class="permission-description" *ngIf="perm.description">{{ perm.description }}</span>
-          </label>
-        </div>
-      </div>
+      <ng-container *ngIf="!newUser.isAdmin">
+        <ng-container *ngTemplateOutlet="permissionsEditor; context: { isNewUser: true }"></ng-container>
+      </ng-container>
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" [disabled]="!canSubmitCreate()">
@@ -230,26 +213,9 @@
         </label>
       </div>
 
-      <div class="permissions-section" *ngIf="!editedUser.isAdmin">
-        <div class="permissions-header">
-          <h3 class="permissions-title">Permissions</h3>
-          <button type="button" class="btn btn-ghost btn-sm" (click)="toggleAllPermissions(false)">
-            Toggle All
-          </button>
-        </div>
-        <div class="permissions-grid" *ngIf="editedUser.permissions">
-          <label class="permission-item" *ngFor="let perm of getPermissionsList()">
-            <input 
-              type="checkbox" 
-              [name]="perm.key"
-              [checked]="editedUser.permissions[perm.key]"
-              (change)="editedUser.permissions![perm.key] = !editedUser.permissions[perm.key]"
-              class="permission-checkbox">
-            <span class="permission-label">{{ perm.label }}</span>
-            <span class="permission-description" *ngIf="perm.description">{{ perm.description }}</span>
-          </label>
-        </div>
-      </div>
+      <ng-container *ngIf="!editedUser.isAdmin">
+        <ng-container *ngTemplateOutlet="permissionsEditor; context: { isNewUser: false }"></ng-container>
+      </ng-container>
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" [disabled]="!canSubmitEdit()">
@@ -334,4 +300,116 @@
     </div>
   </div>
 </section>
+
+<ng-template #permissionsEditor let-isNewUser="isNewUser">
+  <div class="permissions-section">
+    <div class="permissions-header">
+      <div>
+        <h3 class="permissions-title">Page & action access</h3>
+        <p class="permissions-intro">Grouped like the sidebar — enable pages first, then fine-grained actions.</p>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" (click)="toggleAllPermissions(isNewUser)">
+        {{ allPermissionsEnabled(isNewUser) ? 'Clear all' : 'Enable all' }}
+      </button>
+    </div>
+
+    <div class="search-container perm-search">
+      <div class="search-input-wrapper">
+        <span class="search-icon">🔍</span>
+        <input
+          type="search"
+          class="search-input-modern"
+          placeholder="Search pages or actions..."
+          [(ngModel)]="permissionSearch"
+          [ngModelOptions]="{ standalone: true }"
+        />
+        <button
+          type="button"
+          class="btn-clear-search"
+          *ngIf="permissionSearch"
+          (click)="clearPermissionSearch()"
+          aria-label="Clear search"
+        >×</button>
+      </div>
+    </div>
+
+    <div class="perm-groups">
+      <section class="perm-group" *ngFor="let group of getFilteredGroups()">
+        <button
+          type="button"
+          class="perm-group-header"
+          (click)="toggleGroupExpanded(group.id)"
+          [attr.aria-expanded]="isGroupExpanded(group.id)"
+        >
+          <span class="perm-group-icon">{{ group.icon }}</span>
+          <span class="perm-group-text">
+            <span class="perm-group-title">{{ group.label }}</span>
+            <span class="perm-group-summary">{{ group.summary }}</span>
+          </span>
+          <span class="perm-group-meta">
+            <span class="perm-group-count">{{ countEnabledInGroup(group, isNewUser) }}/{{ group.items.length }}</span>
+            <span class="perm-group-chevron">{{ isGroupExpanded(group.id) ? '▾' : '▸' }}</span>
+          </span>
+        </button>
+
+        <div class="perm-group-body" *ngIf="isGroupExpanded(group.id)">
+          <div class="perm-group-toolbar">
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              (click)="toggleGroupPermissions(group, isNewUser); $event.stopPropagation()"
+            >
+              {{ allEnabledInGroup(group, isNewUser) ? 'Disable section' : 'Enable section' }}
+            </button>
+          </div>
+
+          <div class="perm-items">
+            <label
+              class="perm-item"
+              *ngFor="let item of group.items"
+              [class.perm-item-page]="item.kind === 'page'"
+              [class.perm-item-action]="item.kind === 'action'"
+              [class.perm-item-on]="isPermissionEnabled(item.key, isNewUser)"
+            >
+              <input
+                type="checkbox"
+                class="permission-checkbox"
+                [name]="item.key + (isNewUser ? '-new' : '-edit')"
+                [checked]="isPermissionEnabled(item.key, isNewUser)"
+                (change)="setPermission(item.key, !isPermissionEnabled(item.key, isNewUser), isNewUser)"
+              />
+              <span class="perm-item-content">
+                <span class="perm-item-head">
+                  <span class="permission-label">{{ item.label }}</span>
+                  <span class="perm-kind-badge" [class.perm-kind-page]="item.kind === 'page'">
+                    {{ item.kind === 'page' ? 'Page' : 'Action' }}
+                  </span>
+                </span>
+                <span class="permission-description">{{ item.description }}</span>
+                <span class="perm-routes" *ngIf="item.routes?.length">
+                  <span class="perm-route" *ngFor="let route of item.routes">{{ route }}</span>
+                </span>
+                <span class="perm-requires" *ngIf="item.requiresAny?.length">
+                  Needs: {{ requiresLabel(item) }}
+                </span>
+              </span>
+            </label>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="perm-admin-note">
+      <h4 class="perm-admin-title">Administration pages</h4>
+      <p class="perm-admin-intro">These are only available when <strong>Admin User</strong> is checked above — not grantable per permission.</p>
+      <ul class="perm-admin-list">
+        <li *ngFor="let page of adminOnlyPages">
+          <span class="perm-admin-page">{{ page.label }}</span>
+          <span class="perm-route">{{ page.route }}</span>
+          <span class="perm-admin-desc">{{ page.description }}</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+</ng-template>
 

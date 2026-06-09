@@ -57,6 +57,22 @@ public final class SessionPermissions {
         return has(session, UserPermissions::isFileUpload);
     }
 
+    /** Latest files listing — upload permission or dedicated view-only flag. */
+    public static boolean canAccessUploadsList(SessionInfo session) {
+        if (canAccessFileUpload(session)) {
+            return true;
+        }
+        return has(session, UserPermissions::isUploadsListPage);
+    }
+
+    /** Upload audit trail — upload permission or dedicated audit flag. */
+    public static boolean canAccessUploadAudit(SessionInfo session) {
+        if (canAccessFileUpload(session)) {
+            return true;
+        }
+        return has(session, UserPermissions::isUploadAuditPage);
+    }
+
     public static boolean canDownloadWholeProject(SessionInfo session) {
         return has(session, UserPermissions::isWholeProjectDownload);
     }

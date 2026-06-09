@@ -30,7 +30,7 @@ export class UploadsAuditComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    if (!this.permissionService.canAccessFileUpload()) {
+    if (!this.permissionService.canAccessUploadAudit()) {
       this.notificationService.showPermissionError();
       this.router.navigateByUrl('/welcome');
       return;

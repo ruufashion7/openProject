@@ -23,6 +23,10 @@ public class UserPermissions {
     private boolean customerLocationEdit;
     /** WhatsApp outreach / broadcast page (wa.me now; Cloud API later). */
     private boolean whatsappBroadcast;
+    /** Latest uploaded files listing (/uploads). */
+    private boolean uploadsListPage;
+    /** Upload audit trail (/uploads-audit). */
+    private boolean uploadAuditPage;
 
     public UserPermissions() {
         // Default all permissions to false
@@ -33,7 +37,7 @@ public class UserPermissions {
                           boolean paymentDateEdit, boolean whatsappDateChange, boolean followUpChange,
                           boolean rateListPage, boolean rateListUpload, boolean salesVisualization, boolean customerLocations,
                           boolean customerCategoryEdit, boolean customerNotesEdit, boolean customerLocationEdit,
-                          boolean whatsappBroadcast) {
+                          boolean whatsappBroadcast, boolean uploadsListPage, boolean uploadAuditPage) {
         this.fileUpload = fileUpload;
         this.hardDelete = hardDelete;
         this.invoicePage = invoicePage;
@@ -51,6 +55,8 @@ public class UserPermissions {
         this.customerNotesEdit = customerNotesEdit;
         this.customerLocationEdit = customerLocationEdit;
         this.whatsappBroadcast = whatsappBroadcast;
+        this.uploadsListPage = uploadsListPage;
+        this.uploadAuditPage = uploadAuditPage;
     }
 
     public boolean isFileUpload() {
@@ -187,5 +193,21 @@ public class UserPermissions {
 
     public void setWhatsappBroadcast(boolean whatsappBroadcast) {
         this.whatsappBroadcast = whatsappBroadcast;
+    }
+
+    public boolean isUploadsListPage() {
+        return uploadsListPage;
+    }
+
+    public void setUploadsListPage(boolean uploadsListPage) {
+        this.uploadsListPage = uploadsListPage;
+    }
+
+    public boolean isUploadAuditPage() {
+        return uploadAuditPage;
+    }
+
+    public void setUploadAuditPage(boolean uploadAuditPage) {
+        this.uploadAuditPage = uploadAuditPage;
     }
 }

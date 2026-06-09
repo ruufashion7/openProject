@@ -248,7 +248,7 @@ public class UploadController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canAccessFileUpload(session)) {
+        if (!SessionPermissions.canAccessUploadsList(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -280,7 +280,7 @@ public class UploadController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canAccessFileUpload(session)) {
+        if (!SessionPermissions.canAccessUploadsList(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -320,7 +320,7 @@ public class UploadController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canAccessFileUpload(session)) {
+        if (!SessionPermissions.canAccessUploadsList(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -356,7 +356,7 @@ public class UploadController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canAccessFileUpload(session)) {
+        if (!SessionPermissions.canAccessUploadAudit(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 

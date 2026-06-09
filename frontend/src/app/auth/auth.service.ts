@@ -23,6 +23,8 @@ export interface UserPermissions {
   customerNotesEdit: boolean;
   customerLocationEdit: boolean;
   whatsappBroadcast: boolean;
+  uploadsListPage: boolean;
+  uploadAuditPage: boolean;
 }
 
 interface SessionData {

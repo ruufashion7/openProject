@@ -73,5 +73,17 @@ public class UserPermissionsV2Migration implements ApplicationRunner {
         q3.addCriteria(Criteria.where("permissions.whatsappBroadcast").exists(false));
         Update u3 = new Update().set("permissions.whatsappBroadcast", true);
         mongoTemplate.updateMulti(q3, u3, User.class);
+
+        Query q4 = new Query();
+        q4.addCriteria(Criteria.where("permissions").exists(true));
+        q4.addCriteria(Criteria.where("permissions.fileUpload").is(true));
+        q4.addCriteria(new Criteria().orOperator(
+                Criteria.where("permissions.uploadsListPage").exists(false),
+                Criteria.where("permissions.uploadAuditPage").exists(false)
+        ));
+        Update u4 = new Update()
+                .set("permissions.uploadsListPage", true)
+                .set("permissions.uploadAuditPage", true);
+        mongoTemplate.updateMulti(q4, u4, User.class);
     }
 }

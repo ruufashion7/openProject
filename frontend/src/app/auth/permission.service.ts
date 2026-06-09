@@ -20,6 +20,14 @@ export class PermissionService {
     return this.hasPermission('fileUpload');
   }
 
+  canAccessUploadsList(): boolean {
+    return this.hasPermission('fileUpload') || this.hasPermission('uploadsListPage');
+  }
+
+  canAccessUploadAudit(): boolean {
+    return this.hasPermission('fileUpload') || this.hasPermission('uploadAuditPage');
+  }
+
   canAccessHardDelete(): boolean {
     return this.hasPermission('hardDelete');
   }
@@ -98,6 +106,12 @@ export class PermissionService {
 
   // Check if user can access a route
   canAccessRoute(route: string): boolean {
+    if (route === '/uploads') {
+      return this.canAccessUploadsList();
+    }
+    if (route === '/uploads-audit') {
+      return this.canAccessUploadAudit();
+    }
     const permission = ROUTE_PERMISSIONS[route];
     if (!permission) {
       return true; // No permission required

@@ -5,7 +5,17 @@ import { Router, RouterLink } from '@angular/router';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { AuthService, UserPermissions } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
-import { PERMISSIONS, getDefaultPermissions, getAllTruePermissions } from '../auth/permissions.config';
+import {
+  ADMIN_ONLY_PAGES,
+  PERMISSION_GROUPS,
+  PermissionDefinition,
+  PermissionGroup,
+  filterPermissionGroups,
+  getDefaultPermissions,
+  getAllTruePermissions,
+  getGroupPermissionKeys,
+  getPermissionLabel
+} from '../auth/permissions.config';
 import {
   DEFAULT_PASSWORD_POLICY,
   evaluatePasswordRules,
@@ -64,6 +74,11 @@ export class AccessControlComponent implements OnInit {
 
   /** Matches server {@code security.password.*} defaults; live hints stay in sync with backend validation. */
   readonly passwordPolicy = DEFAULT_PASSWORD_POLICY;
+  readonly adminOnlyPages = ADMIN_ONLY_PAGES;
+  permissionSearch = '';
+  private expandedGroups: Record<string, boolean> = Object.fromEntries(
+    PERMISSION_GROUPS.map((g) => [g.id, true])
+  );
 
   constructor(
     private http: HttpClient,
@@ -398,34 +413,79 @@ export class AccessControlComponent implements OnInit {
     });
   }
 
-  togglePermission(permission: keyof UserPermissions, isNewUser: boolean = false): void {
+  getFilteredGroups(): PermissionGroup[] {
+    return filterPermissionGroups(this.permissionSearch);
+  }
+
+  isGroupExpanded(groupId: string): boolean {
+    return this.expandedGroups[groupId] !== false;
+  }
+
+  toggleGroupExpanded(groupId: string): void {
+    this.expandedGroups[groupId] = !this.isGroupExpanded(groupId);
+  }
+
+  getPermissionsMap(isNewUser: boolean): UserPermissions {
     if (isNewUser) {
-      this.newUser.permissions[permission] = !this.newUser.permissions[permission];
-    } else if (this.editedUser.permissions) {
-      this.editedUser.permissions[permission] = !this.editedUser.permissions[permission];
+      return this.newUser.permissions;
+    }
+    if (!this.editedUser.permissions) {
+      this.editedUser.permissions = getDefaultPermissions();
+    }
+    return this.editedUser.permissions;
+  }
+
+  isPermissionEnabled(key: keyof UserPermissions, isNewUser: boolean): boolean {
+    return !!this.getPermissionsMap(isNewUser)[key];
+  }
+
+  setPermission(key: keyof UserPermissions, enabled: boolean, isNewUser: boolean): void {
+    this.getPermissionsMap(isNewUser)[key] = enabled;
+  }
+
+  countEnabledInGroup(group: PermissionGroup, isNewUser: boolean): number {
+    const map = this.getPermissionsMap(isNewUser);
+    return group.items.filter((item) => map[item.key]).length;
+  }
+
+  allEnabledInGroup(group: PermissionGroup, isNewUser: boolean): boolean {
+    const map = this.getPermissionsMap(isNewUser);
+    return group.items.every((item) => map[item.key]);
+  }
+
+  toggleGroupPermissions(group: PermissionGroup, isNewUser: boolean): void {
+    const enable = !this.allEnabledInGroup(group, isNewUser);
+    const map = this.getPermissionsMap(isNewUser);
+    for (const key of getGroupPermissionKeys(group)) {
+      map[key] = enable;
     }
   }
 
-  toggleAllPermissions(isNewUser: boolean = false): void {
-    const allTrue = isNewUser
-      ? Object.values(this.newUser.permissions).every(v => v === true)
-      : this.editedUser.permissions
-        ? Object.values(this.editedUser.permissions).every(v => v === true)
-        : false;
-
-    const newValue = !allTrue;
-    const permissions = newValue ? getAllTruePermissions() : getDefaultPermissions();
-
+  toggleAllPermissions(isNewUser: boolean): void {
+    const map = this.getPermissionsMap(isNewUser);
+    const allTrue = Object.values(map).every((v) => v === true);
+    const next = allTrue ? getDefaultPermissions() : getAllTruePermissions();
     if (isNewUser) {
-      this.newUser.permissions = { ...permissions };
+      this.newUser.permissions = { ...next };
     } else {
-      this.editedUser.permissions = { ...permissions };
+      this.editedUser.permissions = { ...next };
     }
   }
 
-  // Get permissions list for template iteration
-  getPermissionsList() {
-    return PERMISSIONS;
+  requiresLabel(item: PermissionDefinition): string {
+    if (!item.requiresAny?.length) {
+      return '';
+    }
+    return item.requiresAny.map((key) => getPermissionLabel(key)).join(' or ');
+  }
+
+  clearPermissionSearch(): void {
+    this.permissionSearch = '';
+  }
+
+  allPermissionsEnabled(isNewUser: boolean): boolean {
+    const map = this.getPermissionsMap(isNewUser);
+    return Object.values(map).every((v) => v === true);
   }
 }
 
