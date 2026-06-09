@@ -576,6 +576,7 @@ public class RateListController {
                 existingEntryKeys.add(key);
             }
             
+            org.example.upload.PoiSecurityLimits.apply();
             try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
                 Sheet sheet = workbook.getSheetAt(0);
                 

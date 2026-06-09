@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { SessionBannerComponent } from '../session-banner/session-banner.component';
+import { PageTitleService } from '../page-title.service';
 
 @Component({
   selector: 'app-top-header',
@@ -14,14 +15,19 @@ import { SessionBannerComponent } from '../session-banner/session-banner.compone
 export class TopHeaderComponent implements OnInit {
   displayName: string | null = null;
   isMobileMenuOpen = false;
+  pageTitle = '';
 
   constructor(
     private auth: AuthService,
-    private router: Router
+    private router: Router,
+    private pageTitleService: PageTitleService
   ) {}
 
   ngOnInit(): void {
     this.displayName = this.auth.getDisplayName();
+    this.pageTitleService.title$.subscribe((title) => {
+      this.pageTitle = title;
+    });
   }
 
   logout(): void {

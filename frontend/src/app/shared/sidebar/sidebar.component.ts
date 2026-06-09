@@ -5,11 +5,19 @@ import { filter, takeUntil } from 'rxjs/operators';
 import { Subject } from 'rxjs';
 import { PermissionService } from '../../auth/permission.service';
 import { ROUTE_PERMISSIONS } from '../../auth/permissions.config';
+import { PageTitleService } from '../page-title.service';
+
+interface NavChild {
+  label: string;
+  route: string;
+  icon: string;
+}
 
 interface NavItem {
   label: string;
   route: string;
   icon: string;
+  children?: NavChild[];
 }
 
 @Component({
@@ -29,15 +37,21 @@ export class SidebarComponent implements OnInit, OnDestroy {
   // Centralized navigation items - add new routes here
   allNavItems: NavItem[] = [
     { label: 'Welcome', route: '/welcome', icon: '🏠' },
-    { label: 'Upload Files', route: '/upload', icon: '📤' },
-    { label: 'Latest Uploads', route: '/uploads', icon: '📁' },
-    { label: 'Upload Audit', route: '/uploads-audit', icon: '📜' },
-    { label: 'Hard Delete', route: '/uploads-purge', icon: '🗑️' },
+    {
+      label: 'Upload Files',
+      route: '/upload',
+      icon: '📤',
+      children: [
+        { label: 'Latest Uploads', route: '/uploads', icon: '📁' },
+        { label: 'Upload Audit', route: '/uploads-audit', icon: '📜' },
+        { label: 'Hard Delete', route: '/uploads-purge', icon: '🗑️' }
+      ]
+    },
     { label: 'Rate List', route: '/rate-list', icon: '💵' },
     { label: 'Invoice Details', route: '/sales-details', icon: '📊' },
     { label: 'Sales Analytics', route: '/sales-visualization', icon: '📈' },
-    { label: 'Details', route: '/outstanding', icon: '📋' },
-    { label: 'Outstanding', route: '/payment-dates', icon: '💰' },
+    { label: 'Customer Details', route: '/outstanding', icon: '📋' },
+    { label: 'Payment Dates', route: '/payment-dates', icon: '💰' },
     { label: 'WhatsApp', route: '/whatsapp-outreach', icon: '💬' },
     { label: 'Customer Locations', route: '/customer-locations', icon: '📍' },
     { label: 'System Dashboard', route: '/dashboard', icon: '🖥️' },
@@ -47,7 +61,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
   constructor(
     private router: Router,
-    private permissionService: PermissionService
+    private permissionService: PermissionService,
+    private pageTitleService: PageTitleService
   ) {
     // Track current route for active state
     this.router.events
@@ -57,11 +72,13 @@ export class SidebarComponent implements OnInit, OnDestroy {
       )
       .subscribe((event: any) => {
         this.currentRoute = event.urlAfterRedirects;
+        this.pageTitleService.setFromUrl(this.currentRoute);
       });
   }
 
   ngOnInit(): void {
     this.currentRoute = this.router.url;
+    this.pageTitleService.setFromUrl(this.currentRoute);
     this.filterNavItems();
     
     // Listen for mobile menu toggle events - store handler for proper cleanup
@@ -72,10 +89,33 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   filterNavItems(): void {
-    // Automatically filter based on ROUTE_PERMISSIONS config
-    this.navItems = this.allNavItems.filter(item => {
-      return this.permissionService.canAccessRoute(item.route);
-    });
+    this.navItems = this.allNavItems
+      .map((item) => {
+        const children = item.children?.filter((child) =>
+          this.permissionService.canAccessRoute(child.route)
+        );
+        const canParent = this.permissionService.canAccessRoute(item.route);
+        if (children?.length) {
+          if (!canParent && children.length === 0) {
+            return null;
+          }
+          return { ...item, children };
+        }
+        return canParent ? item : null;
+      })
+      .filter((item): item is NavItem => item !== null);
+  }
+
+  hasVisibleChildren(item: NavItem): boolean {
+    return !!item.children && item.children.length > 0;
+  }
+
+  isParentActive(item: NavItem): boolean {
+    if (!this.hasVisibleChildren(item)) {
+      return this.isActive(item.route);
+    }
+    const childActive = item.children!.some((child) => this.isActive(child.route));
+    return this.isActive(item.route) && !childActive;
   }
 
   private getPathWithoutQuery(url: string): string {
@@ -125,8 +165,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
       '/rate-list': 'Rate List',
       '/sales-details': 'Invoice Details',
       '/sales-visualization': 'Sales Analytics',
-      '/outstanding': 'Details',
-      '/payment-dates': 'Outstanding',
+      '/outstanding': 'Customer Details',
+      '/payment-dates': 'Payment Dates',
       '/whatsapp-outreach': 'WhatsApp',
       '/customer-locations': 'Customer Locations',
       '/uploads': 'Latest Uploads',

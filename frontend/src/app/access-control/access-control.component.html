@@ -9,7 +9,7 @@
         <span>🔐</span>
         <span>Manage Sessions</span>
       </a>
-      <button class="btn btn-primary" (click)="startCreate()" *ngIf="!isCreating && !isEditing">
+      <button class="btn btn-primary" (click)="startCreate()" *ngIf="!isCreating && !isEditing" [disabled]="status === 'loading'">
         <span>➕</span>
         <span>Create New User</span>
       </button>
@@ -261,8 +261,10 @@
     </form>
   </div>
 
+  <app-page-state *ngIf="status === 'loading'" kind="loading" message="Loading users..."></app-page-state>
+
   <!-- Users List -->
-  <div class="card" *ngIf="!isCreating && !isEditing">
+  <div class="card" *ngIf="!isCreating && !isEditing && status === 'idle'">
     <div class="table-header">
       <h3 class="table-title">Users</h3>
       <span class="table-count">{{ users.length }} {{ users.length === 1 ? 'user' : 'users' }}</span>

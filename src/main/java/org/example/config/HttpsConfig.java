@@ -30,9 +30,23 @@ public class HttpsConfig {
      * Filter to redirect HTTP to HTTPS in production.
      * Only active when SSL is enabled.
      */
+    @Value("${security.force-https:false}")
+    private boolean forceHttps;
+
     @Bean
-    @Profile("production")
+    @Profile("prod")
     public OncePerRequestFilter httpsRedirectFilter() {
+        if (!forceHttps) {
+            return new OncePerRequestFilter() {
+                @Override
+                protected void doFilterInternal(HttpServletRequest request,
+                                                HttpServletResponse response,
+                                                jakarta.servlet.FilterChain filterChain)
+                        throws jakarta.servlet.ServletException, IOException {
+                    filterChain.doFilter(request, response);
+                }
+            };
+        }
         return new OncePerRequestFilter() {
             @Override
             protected void doFilterInternal(HttpServletRequest request, 

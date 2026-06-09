@@ -47,7 +47,7 @@ public final class SalesReceivableExcelUploadValidation {
         if (contentType != null) {
             String ct = contentType.toLowerCase(Locale.ROOT);
             if (!ALLOWED_CONTENT_TYPES.contains(ct)) {
-                log.warn("Upload with unexpected content type: {} for file: {}", contentType, file.getOriginalFilename());
+                return "Invalid content type. Only Excel .xlsx files are allowed";
             }
         }
         return null;

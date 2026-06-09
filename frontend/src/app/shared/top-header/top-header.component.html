@@ -8,7 +8,10 @@
         <div class="brand-icon">📦</div>
         <div class="brand-text" aria-label="BURNING ICE, A Unit of RUU FASHION">
           <span class="brand-title">BURNING ICE</span>
-          <span class="brand-subtitle">A Unit of RUU FASHION</span>
+          <span class="brand-subtitle" *ngIf="pageTitle; else defaultSubtitle">{{ pageTitle }}</span>
+          <ng-template #defaultSubtitle>
+            <span class="brand-subtitle">A Unit of RUU FASHION</span>
+          </ng-template>
         </div>
       </div>
     </div>

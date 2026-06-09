@@ -12,6 +12,10 @@ import {
   passwordMeetsPolicy,
   PasswordRuleCheck
 } from '../auth/password-policy';
+import { NotificationService } from '../shared/notification.service';
+import { PageStateComponent } from '../shared/page-state/page-state.component';
+import { messageFromHttpError } from '../shared/api-error.util';
+import { HttpErrorResponse } from '@angular/common/http';
 
 interface User {
   id: string;
@@ -29,7 +33,7 @@ interface User {
 @Component({
   selector: 'app-access-control',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, PageStateComponent],
   templateUrl: './access-control.component.html',
   styleUrl: './access-control.component.css'
 })
@@ -39,6 +43,8 @@ export class AccessControlComponent implements OnInit {
   isEditing = false;
   isCreating = false;
   currentAdmin: User | null = null;
+  status: 'idle' | 'loading' | 'failed' = 'idle';
+  saving = false;
   
   newUser = {
     username: '',
@@ -63,7 +69,8 @@ export class AccessControlComponent implements OnInit {
     private http: HttpClient,
     private authService: AuthService,
     private permissionService: PermissionService,
-    private router: Router
+    private router: Router,
+    private notifications: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -75,15 +82,17 @@ export class AccessControlComponent implements OnInit {
   }
 
   loadUsers(): void {
+    this.status = 'loading';
     const headers = this.authService.getAuthHeaders();
     this.http.get<User[]>('/api/users', { headers }).subscribe({
       next: (users) => {
         this.users = users;
         this.currentAdmin = users.find(u => u.isAdmin && u.active) || null;
+        this.status = 'idle';
       },
-      error: (error) => {
-        // Error loading users
-        alert('Failed to load users');
+      error: (error: HttpErrorResponse) => {
+        this.status = 'failed';
+        this.notifications.showError(messageFromHttpError(error, 'Failed to load users'));
       }
     });
   }
@@ -128,7 +137,7 @@ export class AccessControlComponent implements OnInit {
 
   createUser(): void {
     if (!this.newUser.username || !this.newUser.password || !this.newUser.displayName) {
-      alert('Please fill in all required fields');
+      this.notifications.showError('Please fill in all required fields');
       return;
     }
 
@@ -142,20 +151,21 @@ export class AccessControlComponent implements OnInit {
       }
     }
 
+    this.saving = true;
     const headers = this.authService.getAuthHeaders();
     this.http.post<User>('/api/users', this.newUser, { headers }).subscribe({
       next: () => {
+        this.saving = false;
         this.loadUsers();
         this.cancelCreate();
         const message = this.newUser.isAdmin && this.hasAdmin()
           ? 'User created successfully. Previous admin has been demoted.'
           : 'User created successfully';
-        alert(message);
+        this.notifications.showSuccess(message);
       },
-      error: (error) => {
-        // Error creating user
-        const errorMsg = error.error?.message || 'Failed to create user. Username may already exist.';
-        alert(errorMsg);
+      error: (error: HttpErrorResponse) => {
+        this.saving = false;
+        this.notifications.showError(messageFromHttpError(error, 'Failed to create user. Username may already exist.'));
       }
     });
   }
@@ -314,8 +324,10 @@ export class AccessControlComponent implements OnInit {
 
     const passwordChanged = !!newPw;
 
+    this.saving = true;
     this.http.put<User>(`/api/users/${this.selectedUser.id}`, payload, { headers }).subscribe({
       next: () => {
+        this.saving = false;
         this.loadUsers();
         this.cancelEdit();
         let message = 'User updated successfully';
@@ -327,23 +339,22 @@ export class AccessControlComponent implements OnInit {
         if (passwordChanged) {
           message += ' Password was updated; all sessions for this user were signed out.';
         }
-        alert(message);
+        this.notifications.showSuccess(message);
         if (passwordChanged && editedSelf) {
           this.authService.logout();
           this.router.navigateByUrl('/login');
         }
       },
-      error: (error) => {
-        // Error updating user
-        const errorMsg = error.error?.message || 'Failed to update user';
-        alert(errorMsg);
+      error: (error: HttpErrorResponse) => {
+        this.saving = false;
+        this.notifications.showError(messageFromHttpError(error, 'Failed to update user'));
       }
     });
   }
 
   deleteUser(user: User): void {
     if (user.isAdmin && this.hasAdmin() && this.currentAdmin?.id === user.id) {
-      alert('Cannot deactivate the last admin user. Please assign admin to another user first.');
+      this.notifications.showError('Cannot deactivate the last admin user. Please assign admin to another user first.');
       return;
     }
 
@@ -355,12 +366,10 @@ export class AccessControlComponent implements OnInit {
     this.http.delete(`/api/users/${user.id}`, { headers }).subscribe({
       next: () => {
         this.loadUsers();
-        alert('User deactivated successfully');
+        this.notifications.showSuccess('User deactivated successfully');
       },
-      error: (error) => {
-        // Error deleting user
-        const errorMsg = error.error?.message || 'Failed to deactivate user';
-        alert(errorMsg);
+      error: (error: HttpErrorResponse) => {
+        this.notifications.showError(messageFromHttpError(error, 'Failed to deactivate user'));
       }
     });
   }
@@ -381,11 +390,10 @@ export class AccessControlComponent implements OnInit {
     this.http.put<User>(`/api/users/${user.id}`, updateData, { headers }).subscribe({
       next: () => {
         this.loadUsers();
-        alert('User activated successfully');
+        this.notifications.showSuccess('User activated successfully');
       },
-      error: (error) => {
-        // Error activating user
-        alert('Failed to activate user');
+      error: (error: HttpErrorResponse) => {
+        this.notifications.showError(messageFromHttpError(error, 'Failed to activate user'));
       }
     });
   }

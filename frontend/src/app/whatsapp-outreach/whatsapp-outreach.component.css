@@ -465,3 +465,27 @@
   text-align: center;
   padding: 24px;
 }
+
+@media (max-width: 768px) {
+  .wo-th-actions {
+    min-width: 0;
+  }
+
+  .wo-actions-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 140px;
+  }
+
+  .wo-actions-cell .btn {
+    width: 100%;
+    margin: 0;
+  }
+
+  .wo-table-progress th,
+  .wo-table-progress td {
+    padding: 8px;
+    font-size: 13px;
+  }
+}

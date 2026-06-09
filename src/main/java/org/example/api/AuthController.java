@@ -96,14 +96,12 @@ public class AuthController {
         }
 
         if (!rateLimitingService.areLoginAttemptsAllowed(request.username(), clientIp)) {
-            int remaining = rateLimitingService.getRemainingLoginAttempts(request.username(), clientIp);
             securityAuditService.logRateLimitViolation(request.username(), "LOGIN", clientIp);
             securityAuditService.logFailedLogin(request.username(), clientIp, "Rate limit exceeded");
 
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body(Map.of(
                             "error", "Too many login attempts. Please try again later.",
-                            "remainingAttempts", remaining,
                             "retryAfter", "15 minutes"
                     ));
         }
@@ -113,10 +111,7 @@ public class AuthController {
             rateLimitingService.onFailedLogin(request.username(), clientIp);
             securityAuditService.logFailedLogin(request.username(), clientIp, "Invalid credentials");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of(
-                            "error", "Invalid username or password",
-                            "remainingAttempts", rateLimitingService.getRemainingLoginAttempts(request.username(), clientIp)
-                    ));
+                    .body(Map.of("error", "Invalid username or password"));
         }
 
         rateLimitingService.onSuccessfulLogin(request.username(), clientIp);
@@ -215,16 +210,15 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        if (request == null || request.token() == null || request.token().isBlank() || request.expiresAt() == null) {
+        if (request == null || request.userId() == null || request.userId().isBlank() || request.expiresAt() == null) {
             return ResponseEntity.badRequest().build();
         }
 
-        // SECURITY: Validate token length
-        if (request.token().length() > 500) {
+        if (request.userId().length() > 200) {
             return ResponseEntity.badRequest().build();
         }
 
-        boolean updated = authSessionService.updateSessionExpiry(request.token(), request.expiresAt());
+        boolean updated = authSessionService.updateSessionExpiryByUserId(request.userId(), request.expiresAt());
         if (!updated) {
             return ResponseEntity.notFound().build();
         }
@@ -247,25 +241,20 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        String token = request != null ? request.get("token") : null;
-        
-        // SECURITY: Validate token
-        if (token == null || token.isBlank() || token.length() > 500) {
+        String userId = request != null ? request.get("userId") : null;
+        if (userId == null || userId.isBlank() || userId.length() > 200) {
             return ResponseEntity.badRequest().build();
         }
 
-        // Check if user is admin or trying to delete their own session
-        SessionInfo targetSession = authSessionService.getSessionInfo(token);
-        if (targetSession == null) {
-            return ResponseEntity.notFound().build();
-        }
-
-        // Admin can delete any session, regular users can only delete their own
-        if (!session.isAdmin() && !session.userId().equals(targetSession.userId())) {
+        if (!session.isAdmin() && !session.userId().equals(userId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        boolean deleted = authSessionService.deleteSession(token);
+        String targetUserId = session.isAdmin() ? userId : session.userId();
+        if (!session.isAdmin() && !session.userId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        boolean deleted = authSessionService.deleteSessionByUserId(targetUserId);
         if (!deleted) {
             return ResponseEntity.notFound().build();
         }

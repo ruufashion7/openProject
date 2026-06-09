@@ -19,6 +19,9 @@ jobs:
           cache: maven
       - name: Run tests
         run: ./mvnw -B test
+      - name: OWASP dependency check
+        run: ./mvnw -B -Psecurity-dependencies dependency-check:check
+        continue-on-error: true
 
   frontend:
     name: Frontend build
@@ -37,5 +40,6 @@ jobs:
       - name: Install, test, and build
         run: |
           npm ci
+          npm run audit:deps
           npx ng test --no-watch --browsers=ChromeHeadless
           npm run build

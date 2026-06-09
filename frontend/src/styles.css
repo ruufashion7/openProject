@@ -236,6 +236,16 @@ a {
   cursor: not-allowed;
 }
 
+.btn-secondary {
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
 .btn-ghost {
   background: #fff;
   border: 1px solid var(--border);

@@ -228,16 +228,16 @@ export interface SalesInvoicePageResponse {
 }
 
 export interface SessionListItem {
-  token: string;
+  userId: string;
+  tokenPreview: string;
   displayName: string;
   expiresAt: string;
-  userId: string;
   isAdmin: boolean;
   isExpired: boolean;
 }
 
 export interface UpdateSessionRequest {
-  token: string;
+  userId: string;
   expiresAt: string;
 }
 
@@ -662,16 +662,14 @@ export class ApiService {
     });
   }
 
-  updateSession(token: string, expiresAt: string): Observable<void> {
-    // SECURITY: Send session token in request body, NOT in URL path
-    return this.http.put<void>(`${this.baseUrl}/sessions/update`, { token, expiresAt }, {
+  updateSession(userId: string, expiresAt: string): Observable<void> {
+    return this.http.put<void>(`${this.baseUrl}/sessions/update`, { userId, expiresAt }, {
       headers: this.auth.getAuthHeaders()
     });
   }
 
-  deleteSession(token: string): Observable<void> {
-    // SECURITY: Send session token in request body, NOT in URL path
-    return this.http.post<void>(`${this.baseUrl}/sessions/delete`, { token }, {
+  deleteSession(userId: string): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/sessions/delete`, { userId }, {
       headers: this.auth.getAuthHeaders()
     });
   }

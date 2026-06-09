@@ -1,0 +1,40 @@
+import { Injectable } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
+
+const ROUTE_TITLES: Record<string, string> = {
+  '/welcome': 'Welcome',
+  '/upload': 'Upload Files',
+  '/rate-list': 'Rate List',
+  '/sales-details': 'Invoice Details',
+  '/sales-visualization': 'Sales Analytics',
+  '/outstanding': 'Customer Details',
+  '/payment-dates': 'Payment Dates',
+  '/whatsapp-outreach': 'WhatsApp Outreach',
+  '/customer-locations': 'Customer Locations',
+  '/uploads': 'Latest Uploads',
+  '/uploads-audit': 'Upload Audit Trail',
+  '/uploads-purge': 'Hard Delete Uploads',
+  '/dashboard': 'System Dashboard',
+  '/sessions': 'Sessions',
+  '/access-control': 'Access Control'
+};
+
+@Injectable({ providedIn: 'root' })
+export class PageTitleService {
+  private readonly titleSubject = new BehaviorSubject<string>('');
+  readonly title$ = this.titleSubject.asObservable();
+
+  resolveFromUrl(url: string): string {
+    const path = url.split('?')[0].split('#')[0];
+    for (const [route, title] of Object.entries(ROUTE_TITLES)) {
+      if (path === route || path.startsWith(route + '/')) {
+        return title;
+      }
+    }
+    return '';
+  }
+
+  setFromUrl(url: string): void {
+    this.titleSubject.next(this.resolveFromUrl(url));
+  }
+}

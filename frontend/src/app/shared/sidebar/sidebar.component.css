@@ -131,6 +131,35 @@
   transform: translateX(0);
 }
 
+.nav-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 4px 0;
+  padding-left: 12px;
+  border-left: 2px solid #e2e8f0;
+  margin-left: 20px;
+}
+
+.nav-item-sub {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.nav-item-sub .nav-icon-sub {
+  font-size: 16px;
+  width: 20px;
+}
+
+.nav-item-sub:hover {
+  transform: translateX(2px);
+}
+
+.nav-item-sub.active {
+  border-width: 1px;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
+}
+
 
 
 /* Mobile Overlay */

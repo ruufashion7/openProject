@@ -6,8 +6,10 @@
     </div>
   </div>
 
-  <div class="card">
-    <p class="status-text failed" *ngIf="status === 'failed' && message">{{ message }}</p>
+  <app-page-state *ngIf="status === 'loading' && rateListEntries.length === 0" kind="loading" message="Loading rate list..."></app-page-state>
+  <app-page-state *ngIf="status === 'failed' && message" kind="error" [message]="message"></app-page-state>
+
+  <div class="card" *ngIf="status !== 'loading' || rateListEntries.length > 0">
     <p class="status-text success" *ngIf="status === 'idle' && message">{{ message }}</p>
 
     <!-- Bulk Upload Section (separate permission from viewing/editing rate list) -->

@@ -7,6 +7,7 @@ import { ApiService } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
+import { PageStateComponent } from '../shared/page-state/page-state.component';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -32,7 +33,7 @@ export interface RateListEntry {
 @Component({
   selector: 'app-rate-list',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PageStateComponent],
   templateUrl: './rate-list.component.html',
   styleUrl: './rate-list.component.css'
 })

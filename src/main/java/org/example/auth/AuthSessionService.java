@@ -320,9 +320,6 @@ public class AuthSessionService {
         if (token == null || token.isBlank() || newExpiry == null) {
             return false;
         }
-        if (jwtTokenService.parse(token).isPresent()) {
-            return false;
-        }
         Optional<AuthSessionDocument> existing = authSessionRepository.findById(token);
         if (existing.isEmpty()) {
             return false;
@@ -331,6 +328,28 @@ public class AuthSessionService {
         doc.setExpiresAt(newExpiry);
         authSessionRepository.save(doc);
         return true;
+    }
+
+    public boolean updateSessionExpiryByUserId(String userId, Instant newExpiry) {
+        if (userId == null || userId.isBlank() || newExpiry == null) {
+            return false;
+        }
+        Optional<AuthSessionDocument> existing = authSessionRepository.findFirstByUserId(userId);
+        if (existing.isEmpty()) {
+            return false;
+        }
+        return updateSessionExpiry(existing.get().getToken(), newExpiry);
+    }
+
+    public boolean deleteSessionByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+        Optional<AuthSessionDocument> existing = authSessionRepository.findFirstByUserId(userId);
+        if (existing.isEmpty()) {
+            return false;
+        }
+        return deleteSession(existing.get().getToken());
     }
 
     public boolean deleteSession(String token) {

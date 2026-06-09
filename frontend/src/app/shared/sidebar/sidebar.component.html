@@ -1,18 +1,35 @@
 <aside class="sidebar" [class.mobile-open]="isMobileMenuOpen">
   <div class="sidebar-overlay" (click)="closeMobileMenu()" *ngIf="isMobileMenuOpen"></div>
   <nav class="sidebar-nav">
-    <a 
-      *ngFor="let item of navItems"
-      [routerLink]="item.route"
-      routerLinkActive="active"
-      [routerLinkActiveOptions]="{ exact: false }"
-      [class.active]="isActive(item.route)"
-      class="nav-item"
-      [title]="item.label"
-      (click)="closeMobileMenu()">
-      <span class="nav-icon">{{ item.icon }}</span>
-      <span class="nav-label" [title]="item.label">{{ item.label }}</span>
-    </a>
+    <ng-container *ngFor="let item of navItems">
+      <a
+        [routerLink]="item.route"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        [class.active]="isParentActive(item)"
+        class="nav-item"
+        [title]="item.label"
+        (click)="closeMobileMenu()"
+      >
+        <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
+        <span class="nav-label" [title]="item.label">{{ item.label }}</span>
+      </a>
+
+      <div class="nav-subgroup" *ngIf="hasVisibleChildren(item)">
+        <a
+          *ngFor="let child of item.children"
+          [routerLink]="child.route"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: true }"
+          [class.active]="isActive(child.route)"
+          class="nav-item nav-item-sub"
+          [title]="child.label"
+          (click)="closeMobileMenu()"
+        >
+          <span class="nav-icon nav-icon-sub" aria-hidden="true">{{ child.icon }}</span>
+          <span class="nav-label" [title]="child.label">{{ child.label }}</span>
+        </a>
+      </div>
+    </ng-container>
   </nav>
 </aside>
-

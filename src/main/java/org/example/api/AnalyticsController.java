@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.core.env.Environment;
 import jakarta.validation.Valid;
 
 import java.util.ArrayList;
@@ -66,15 +67,30 @@ public class AnalyticsController {
     private final DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository;
     private final ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository;
     private final PaymentDateOverrideRepository paymentDateOverrideRepository;
+    private final Environment environment;
 
     public AnalyticsController(AuthSessionService authSessionService,
                                DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository,
                                ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository,
-                               PaymentDateOverrideRepository paymentDateOverrideRepository) {
+                               PaymentDateOverrideRepository paymentDateOverrideRepository,
+                               Environment environment) {
         this.authSessionService = authSessionService;
         this.detailedSalesInvoicesUploadRepository = detailedSalesInvoicesUploadRepository;
         this.receivableAgeingReportUploadRepository = receivableAgeingReportUploadRepository;
         this.paymentDateOverrideRepository = paymentDateOverrideRepository;
+        this.environment = environment;
+    }
+
+    private boolean isProdProfile() {
+        if (environment == null) {
+            return false;
+        }
+        for (String profile : environment.getActiveProfiles()) {
+            if ("prod".equalsIgnoreCase(profile) || "production".equalsIgnoreCase(profile)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @PostMapping("/customers")
@@ -1175,6 +1191,9 @@ public class AnalyticsController {
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam("customer") String customer
     ) {
+        if (isProdProfile()) {
+            return ResponseEntity.notFound().build();
+        }
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

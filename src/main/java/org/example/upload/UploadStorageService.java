@@ -201,6 +201,7 @@ public class UploadStorageService {
     private UploadedExcelFile parseExcel(InputStream inputStream, String originalFilename, UploadCancelChecker checker)
             throws IOException {
         checker.checkCancelled();
+        PoiSecurityLimits.apply();
         try (InputStream in = inputStream;
              Workbook workbook = WorkbookFactory.create(in)) {
             List<UploadedExcelSheet> sheets = new ArrayList<>();

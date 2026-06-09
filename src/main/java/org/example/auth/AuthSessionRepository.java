@@ -9,5 +9,7 @@ public interface AuthSessionRepository extends MongoRepository<AuthSessionDocume
 
     List<AuthSessionDocument> findByExpiresAtAfter(Instant instant);
 
+    java.util.Optional<AuthSessionDocument> findFirstByUserId(String userId);
+
     long deleteByUserId(String userId);
 }
