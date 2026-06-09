@@ -99,7 +99,8 @@ public class SecurityConfig {
             ApiBearerAuthenticationFilter apiBearerAuthenticationFilter,
             ApiMutatingCsrfFilter apiMutatingCsrfFilter) throws Exception {
         http
-            .addFilterBefore(actuatorPrometheusAuthFilter, ApiRateLimitingFilter.class)
+            // Register before UsernamePasswordAuthenticationFilter (custom filters cannot be used as order anchors).
+            .addFilterBefore(actuatorPrometheusAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(apiRateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(requestBodySizeLimitFilter, ApiRateLimitingFilter.class)
             .addFilterAfter(apiBearerAuthenticationFilter, RequestBodySizeLimitFilter.class)
