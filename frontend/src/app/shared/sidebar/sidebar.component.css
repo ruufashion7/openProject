@@ -20,11 +20,33 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 6px 12px;
+  padding: 8px 12px 16px;
   margin-top: 64px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+}
+
+.nav-section {
+  margin-bottom: 8px;
+}
+
+.nav-section:last-child {
+  margin-bottom: 0;
+}
+
+.nav-section-label {
+  margin: 12px 8px 6px;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.nav-section:first-child .nav-section-label {
+  margin-top: 4px;
 }
 
 .sidebar-nav::-webkit-scrollbar {
@@ -158,6 +180,12 @@
 .nav-item-sub.active {
   border-width: 1px;
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
+}
+
+.nav-item-group-active:not(.active) {
+  color: #1e40af;
+  font-weight: 600;
+  background: #f8fafc;
 }
 
 

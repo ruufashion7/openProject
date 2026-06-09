@@ -7,4 +7,6 @@ import java.util.List;
 public interface WhatsappBroadcastBatchRepository extends MongoRepository<WhatsappBroadcastBatch, String> {
 
     List<WhatsappBroadcastBatch> findByCreatedByUserIdOrderByCreatedAtDesc(String createdByUserId);
+
+    WhatsappBroadcastBatch findFirstByOrderByCreatedAtDesc();
 }

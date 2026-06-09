@@ -4,7 +4,6 @@ import { Router, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/ro
 import { filter, takeUntil } from 'rxjs/operators';
 import { Subject } from 'rxjs';
 import { PermissionService } from '../../auth/permission.service';
-import { ROUTE_PERMISSIONS } from '../../auth/permissions.config';
 import { PageTitleService } from '../page-title.service';
 
 interface NavChild {
@@ -20,6 +19,12 @@ interface NavItem {
   children?: NavChild[];
 }
 
+interface NavSection {
+  id: string;
+  label: string;
+  items: NavItem[];
+}
+
 @Component({
   selector: 'app-sidebar',
   standalone: true,
@@ -29,34 +34,66 @@ interface NavItem {
 })
 export class SidebarComponent implements OnInit, OnDestroy {
   currentRoute = '';
-  navItems: NavItem[] = [];
+  navSections: NavSection[] = [];
   isMobileMenuOpen = false;
   private destroy$ = new Subject<void>();
   private mobileMenuHandler?: EventListener;
 
-  // Centralized navigation items - add new routes here
-  allNavItems: NavItem[] = [
-    { label: 'Welcome', route: '/welcome', icon: '🏠' },
+  /** Grouped by workflow — add routes in the matching section. */
+  private readonly allNavSections: NavSection[] = [
     {
-      label: 'Upload Files',
-      route: '/upload',
-      icon: '📤',
-      children: [
-        { label: 'Latest Uploads', route: '/uploads', icon: '📁' },
-        { label: 'Upload Audit', route: '/uploads-audit', icon: '📜' },
-        { label: 'Hard Delete', route: '/uploads-purge', icon: '🗑️' }
+      id: 'home',
+      label: 'Home',
+      items: [{ label: 'Welcome', route: '/welcome', icon: '🏠' }]
+    },
+    {
+      id: 'data',
+      label: 'Data Import',
+      items: [
+        {
+          label: 'Upload Files',
+          route: '/upload',
+          icon: '📤',
+          children: [
+            { label: 'Latest Files', route: '/uploads', icon: '📁' },
+            { label: 'Audit Trail', route: '/uploads-audit', icon: '📜' },
+            { label: 'Hard Delete', route: '/uploads-purge', icon: '🗑️' }
+          ]
+        }
       ]
     },
-    { label: 'Rate List', route: '/rate-list', icon: '💵' },
-    { label: 'Invoice Details', route: '/sales-details', icon: '📊' },
-    { label: 'Sales Analytics', route: '/sales-visualization', icon: '📈' },
-    { label: 'Customer Details', route: '/outstanding', icon: '📋' },
-    { label: 'Payment Dates', route: '/payment-dates', icon: '💰' },
-    { label: 'WhatsApp', route: '/whatsapp-outreach', icon: '💬' },
-    { label: 'Customer Locations', route: '/customer-locations', icon: '📍' },
-    { label: 'System Dashboard', route: '/dashboard', icon: '🖥️' },
-    { label: 'Sessions', route: '/sessions', icon: '👥' },
-    { label: 'Access Control', route: '/access-control', icon: '🔐' }
+    {
+      id: 'pricing',
+      label: 'Pricing',
+      items: [{ label: 'Rate List', route: '/rate-list', icon: '💵' }]
+    },
+    {
+      id: 'customers',
+      label: 'Customers & Sales',
+      items: [
+        { label: 'Payment Dates', route: '/payment-dates', icon: '💰' },
+        { label: 'Customer Details', route: '/outstanding', icon: '📋' },
+        { label: 'Invoice Details', route: '/sales-details', icon: '📊' },
+        { label: 'Sales Analytics', route: '/sales-visualization', icon: '📈' }
+      ]
+    },
+    {
+      id: 'outreach',
+      label: 'Outreach',
+      items: [
+        { label: 'WhatsApp', route: '/whatsapp-outreach', icon: '💬' },
+        { label: 'Customer Locations', route: '/customer-locations', icon: '📍' }
+      ]
+    },
+    {
+      id: 'admin',
+      label: 'Administration',
+      items: [
+        { label: 'Operations Overview', route: '/dashboard', icon: '🖥️' },
+        { label: 'Sessions', route: '/sessions', icon: '👥' },
+        { label: 'Access Control', route: '/access-control', icon: '🔐' }
+      ]
+    }
   ];
 
   constructor(
@@ -64,7 +101,6 @@ export class SidebarComponent implements OnInit, OnDestroy {
     private permissionService: PermissionService,
     private pageTitleService: PageTitleService
   ) {
-    // Track current route for active state
     this.router.events
       .pipe(
         filter(event => event instanceof NavigationEnd),
@@ -79,31 +115,38 @@ export class SidebarComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.currentRoute = this.router.url;
     this.pageTitleService.setFromUrl(this.currentRoute);
-    this.filterNavItems();
-    
-    // Listen for mobile menu toggle events - store handler for proper cleanup
+    this.buildNavSections();
+
     this.mobileMenuHandler = ((event: CustomEvent) => {
       this.isMobileMenuOpen = event.detail.open;
     }) as EventListener;
     window.addEventListener('toggleMobileMenu', this.mobileMenuHandler);
   }
 
-  filterNavItems(): void {
-    this.navItems = this.allNavItems
-      .map((item) => {
-        const children = item.children?.filter((child) =>
-          this.permissionService.canAccessRoute(child.route)
-        );
-        const canParent = this.permissionService.canAccessRoute(item.route);
-        if (children?.length) {
-          if (!canParent && children.length === 0) {
-            return null;
-          }
-          return { ...item, children };
-        }
-        return canParent ? item : null;
+  private filterItem(item: NavItem): NavItem | null {
+    const children = item.children?.filter((child) =>
+      this.permissionService.canAccessRoute(child.route)
+    );
+    const canParent = this.permissionService.canAccessRoute(item.route);
+
+    if (item.children?.length) {
+      if (!canParent && (!children || children.length === 0)) {
+        return null;
+      }
+      return { ...item, children: children ?? [] };
+    }
+    return canParent ? item : null;
+  }
+
+  buildNavSections(): void {
+    this.navSections = this.allNavSections
+      .map((section) => {
+        const items = section.items
+          .map((item) => this.filterItem(item))
+          .filter((item): item is NavItem => item !== null);
+        return items.length ? { ...section, items } : null;
       })
-      .filter((item): item is NavItem => item !== null);
+      .filter((section): section is NavSection => section !== null);
   }
 
   hasVisibleChildren(item: NavItem): boolean {
@@ -118,9 +161,17 @@ export class SidebarComponent implements OnInit, OnDestroy {
     return this.isActive(item.route) && !childActive;
   }
 
+  isGroupActive(item: NavItem): boolean {
+    if (!this.hasVisibleChildren(item)) {
+      return false;
+    }
+    return (
+      this.isActive(item.route) ||
+      item.children!.some((child) => this.isActive(child.route))
+    );
+  }
+
   private getPathWithoutQuery(url: string): string {
-    // Remove query parameters and hash from URL
-    // Handle both absolute and relative URLs
     if (url.includes('?')) {
       return url.split('?')[0];
     }
@@ -131,60 +182,20 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    // Cleanup event listener
     if (this.mobileMenuHandler) {
       window.removeEventListener('toggleMobileMenu', this.mobileMenuHandler);
     }
-    // Complete destroy subject to cleanup subscriptions
     this.destroy$.next();
     this.destroy$.complete();
-  }
-
-  toggleMobileMenu(): void {
-    this.isMobileMenuOpen = !this.isMobileMenuOpen;
   }
 
   closeMobileMenu(): void {
     this.isMobileMenuOpen = false;
   }
 
-
   isActive(route: string): boolean {
-    // Get path without query parameters
     const currentPath = this.getPathWithoutQuery(this.currentRoute);
     const routePath = this.getPathWithoutQuery(route);
-    
-    // Exact match or starts with route + '/'
     return currentPath === routePath || currentPath.startsWith(routePath + '/');
   }
-
-  getCurrentPageTitle(): string {
-    const routeMap: Record<string, string> = {
-      '/welcome': 'Welcome',
-      '/upload': 'Upload Files',
-      '/rate-list': 'Rate List',
-      '/sales-details': 'Invoice Details',
-      '/sales-visualization': 'Sales Analytics',
-      '/outstanding': 'Customer Details',
-      '/payment-dates': 'Payment Dates',
-      '/whatsapp-outreach': 'WhatsApp',
-      '/customer-locations': 'Customer Locations',
-      '/uploads': 'Latest Uploads',
-      '/uploads-audit': 'Upload Audit Trail',
-      '/uploads-purge': 'Hard Delete Uploads',
-      '/dashboard': 'System Dashboard',
-      '/sessions': 'Sessions',
-      '/access-control': 'Access Control'
-    };
-
-    const currentPath = this.getPathWithoutQuery(this.currentRoute);
-    for (const [route, title] of Object.entries(routeMap)) {
-      const routePath = this.getPathWithoutQuery(route);
-      if (currentPath === routePath || currentPath.startsWith(routePath + '/')) {
-        return title;
-      }
-    }
-    return '';
-  }
 }
-

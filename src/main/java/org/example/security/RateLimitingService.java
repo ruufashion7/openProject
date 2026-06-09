@@ -291,6 +291,15 @@ public class RateLimitingService {
         }
     }
 
+    /** For admin dashboard: whether rate limits are shared via Redis or per JVM only. */
+    public boolean isRedisBackendActive() {
+        return useRedis;
+    }
+
+    public String rateLimitBackendLabel() {
+        return useRedis ? "Redis (shared)" : "In-memory (this server only)";
+    }
+
     private record LoginAttemptInfo(int attemptCount, Instant firstAttempt) {
     }
 }

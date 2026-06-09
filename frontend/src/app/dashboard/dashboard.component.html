@@ -1,49 +1,236 @@
-<section class="page">
+<section class="page dashboard-page">
   <div class="page-header">
     <div>
-      <h1 class="page-title">System Dashboard</h1>
-      <p class="page-subtitle">Live snapshot from the backend API</p>
+      <h1 class="page-title">Operations Overview</h1>
+      <p class="page-subtitle">Admin control center — live data health, users, uploads, and outreach</p>
+    </div>
+    <div class="page-actions dash-actions">
+      <label class="dash-auto-refresh">
+        <input type="checkbox" [checked]="autoRefresh" (change)="toggleAutoRefresh()" />
+        Auto-refresh (60s)
+      </label>
+      <button type="button" class="btn btn-ghost" (click)="load()" [disabled]="refreshing">
+        {{ refreshing ? 'Refreshing…' : 'Refresh' }}
+      </button>
     </div>
   </div>
-    <div class="health" *ngIf="health$ | async as health">
-    <span class="badge" [class.success]="health.status === 'ok'">
-        {{ health.status | uppercase }}
+
+  <app-page-state *ngIf="status === 'loading'" kind="loading" message="Loading operations data..."></app-page-state>
+  <app-page-state *ngIf="status === 'failed'" kind="error" [message]="errorMessage"></app-page-state>
+
+  <ng-container *ngIf="status === 'idle' && summary as s">
+    <div class="dash-banner" [class.dash-banner-ok]="s.analyticsReady" [class.dash-banner-warn]="!s.analyticsReady">
+      <div class="dash-banner-main">
+        <span class="dash-banner-icon">{{ s.analyticsReady ? '✅' : '⚠️' }}</span>
+        <div>
+          <strong>{{ s.analyticsReady ? 'Analytics ready' : 'Analytics not ready' }}</strong>
+          <p>{{ s.uploadJob.message }}</p>
+          <p class="dash-meta" *ngIf="s.uploadJob.busy">
+            Phase: {{ s.uploadJob.phase || s.uploadJob.state }}
+            <span *ngIf="s.uploadJob.startedBy"> · started by {{ s.uploadJob.startedBy }}</span>
+          </p>
+          <p class="dash-meta" *ngIf="!s.uploadJob.busy && s.uploadJob.completedAt">
+            Last finished {{ s.uploadJob.completedAt | date:'medium' }}
+            <span *ngIf="s.uploadJob.startedBy"> · {{ s.uploadJob.startedBy }}</span>
+          </p>
+        </div>
+      </div>
+      <span class="badge" [class.success]="s.analyticsReady" [class.warning]="!s.analyticsReady">
+        {{ s.analyticsReady ? 'Both files loaded' : 'Upload incomplete' }}
       </span>
-      <span class="timestamp">{{ health.timestamp | date:'medium' }}</span>
     </div>
 
-  <ng-container *ngIf="summary$ | async as summary; else loading">
+    <div class="dash-alerts" *ngIf="s.alerts.length">
+      <h2 class="dash-section-title">Action needed</h2>
+      <ul>
+        <li *ngFor="let alert of s.alerts">{{ alert }}</li>
+      </ul>
+    </div>
+
+    <h2 class="dash-section-title">Quick admin links</h2>
+    <div class="dash-quick-links">
+      <a routerLink="/access-control" class="btn btn-secondary">Users & permissions</a>
+      <a routerLink="/sessions" class="btn btn-secondary">Sessions</a>
+      <a routerLink="/upload" class="btn btn-secondary">Upload files</a>
+      <a routerLink="/uploads-audit" class="btn btn-secondary">Upload audit</a>
+      <a routerLink="/whatsapp-outreach" class="btn btn-secondary">WhatsApp outreach</a>
+      <a routerLink="/customer-locations" class="btn btn-secondary">Customer map</a>
+    </div>
+
+    <h2 class="dash-section-title">System</h2>
     <div class="cards">
       <div class="card">
-        <span class="label">Total Users</span>
-        <span class="value">{{ summary.totalUsers }}</span>
+        <span class="label">Application</span>
+        <span class="value dash-value-sm">{{ s.system.applicationName }}</span>
+        <span class="dash-meta">v{{ s.system.version }} · {{ s.system.activeProfiles }}</span>
       </div>
       <div class="card">
-        <span class="label">Active Sessions</span>
-        <span class="value">{{ summary.activeSessions }}</span>
+        <span class="label">Rate limiting</span>
+        <span class="value dash-value-sm">{{ s.system.rateLimitBackend }}</span>
+        <span class="badge" [class.success]="s.system.redisRateLimitActive" [class.warning]="!s.system.redisRateLimitActive">
+          {{ s.system.redisRateLimitActive ? 'Shared' : 'Per server' }}
+        </span>
       </div>
       <div class="card">
-        <span class="label">System Load</span>
-        <span class="value">{{ summary.systemLoad | number:'1.0-2' }}</span>
+        <span class="label">Upload job</span>
+        <span class="value dash-value-sm">{{ s.uploadJob.busy ? 'Running' : (s.uploadJob.state | titlecase) }}</span>
+        <a routerLink="/upload" class="dash-link">Upload page →</a>
       </div>
       <div class="card">
-        <span class="label">Generated</span>
-        <span class="value">{{ summary.generatedAt | date:'medium' }}</span>
+        <span class="label">Audit entries</span>
+        <span class="value">{{ s.uploadAuditEntries | number }}</span>
+        <a routerLink="/uploads-audit" class="dash-link">Audit trail →</a>
       </div>
     </div>
 
-    <section class="highlights">
-      <h2>Highlights</h2>
-      <ul>
-        <li *ngFor="let highlight of summary.highlights">
-          {{ highlight }}
-        </li>
-      </ul>
-    </section>
+    <h2 class="dash-section-title">Uploaded data files</h2>
+    <div class="dash-file-grid">
+      <div class="card dash-file-card" [class.dash-file-missing]="!s.detailedFile.present">
+        <span class="label">Detailed sales invoices</span>
+        <span class="value">{{ s.detailedFile.present ? 'Loaded' : 'Missing' }}</span>
+        <p class="dash-meta" *ngIf="s.detailedFile.present">
+          {{ s.detailedFile.filename }}<br>
+          {{ s.detailedFile.rowCount | number }} rows · {{ s.detailedFile.uploadedAt | date:'medium' }}
+        </p>
+        <a routerLink="/upload" class="btn btn-ghost btn-sm" *ngIf="!s.detailedFile.present">Upload files</a>
+      </div>
+      <div class="card dash-file-card" [class.dash-file-missing]="!s.receivableFile.present">
+        <span class="label">Receivable ageing</span>
+        <span class="value">{{ s.receivableFile.present ? 'Loaded' : 'Missing' }}</span>
+        <p class="dash-meta" *ngIf="s.receivableFile.present">
+          {{ s.receivableFile.filename }}<br>
+          {{ s.receivableFile.rowCount | number }} rows · {{ s.receivableFile.uploadedAt | date:'medium' }}
+        </p>
+        <a routerLink="/upload" class="btn btn-ghost btn-sm" *ngIf="!s.receivableFile.present">Upload files</a>
+      </div>
+    </div>
+
+    <h2 class="dash-section-title">Customer master</h2>
+    <div class="cards">
+      <div class="card">
+        <span class="label">Total records</span>
+        <span class="value">{{ s.customers.totalRecords | number }}</span>
+      </div>
+      <div class="card">
+        <span class="label">Active in upload</span>
+        <span class="value">{{ s.customers.activeInUpload | number }}</span>
+        <a routerLink="/payment-dates" class="dash-link">Payment Dates →</a>
+      </div>
+      <div class="card">
+        <span class="label">With phone</span>
+        <span class="value">{{ s.customers.withPhone | number }}</span>
+        <a routerLink="/whatsapp-outreach" class="dash-link">WhatsApp →</a>
+      </div>
+      <div class="card">
+        <span class="label">With map location</span>
+        <span class="value">{{ s.customers.withLocation | number }}</span>
+        <a routerLink="/customer-locations" class="dash-link">Map →</a>
+      </div>
+      <div class="card">
+        <span class="label">Rate list entries</span>
+        <span class="value">{{ s.rateListEntries | number }}</span>
+        <a routerLink="/rate-list" class="dash-link">Rate List →</a>
+      </div>
+    </div>
+
+    <h2 class="dash-section-title">WhatsApp outreach</h2>
+    <div class="cards">
+      <div class="card">
+        <span class="label">Batches</span>
+        <span class="value">{{ s.whatsapp.batches | number }}</span>
+      </div>
+      <div class="card">
+        <span class="label">Recipients</span>
+        <span class="value">{{ s.whatsapp.recipients | number }}</span>
+      </div>
+      <div class="card">
+        <span class="label">Sent</span>
+        <span class="value dash-value-ok">{{ s.whatsapp.sent | number }}</span>
+      </div>
+      <div class="card">
+        <span class="label">Not sent / in progress</span>
+        <span class="value">{{ (s.whatsapp.notSent + s.whatsapp.inProgress) | number }}</span>
+      </div>
+      <div class="card" [class.dash-card-warn]="s.whatsapp.failed > 0">
+        <span class="label">Failed</span>
+        <span class="value">{{ s.whatsapp.failed | number }}</span>
+      </div>
+      <div class="card">
+        <span class="label">Latest batch</span>
+        <span class="value dash-value-sm">{{ s.whatsapp.latestBatchAt ? (s.whatsapp.latestBatchAt | date:'medium') : '—' }}</span>
+      </div>
+    </div>
+
+    <h2 class="dash-section-title">Users & sessions</h2>
+    <div class="cards dash-user-summary">
+      <div class="card">
+        <span class="label">Active users</span>
+        <span class="value">{{ s.activeUsers }}</span>
+      </div>
+      <div class="card">
+        <span class="label">Inactive</span>
+        <span class="value">{{ s.inactiveUsers }}</span>
+      </div>
+      <div class="card">
+        <span class="label">Admins</span>
+        <span class="value">{{ s.adminUsers }}</span>
+      </div>
+      <div class="card">
+        <span class="label">Mirrored sessions</span>
+        <span class="value">{{ s.activeSessions }}</span>
+        <a routerLink="/sessions" class="dash-link">Manage →</a>
+      </div>
+    </div>
+
+    <div class="card" *ngIf="s.users.length">
+      <table class="dash-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let user of s.users; trackBy: trackUser" [class.dash-row-inactive]="!user.active">
+            <td>{{ user.displayName }}</td>
+            <td class="dash-mono">{{ user.username }}</td>
+            <td><span class="badge" [class.success]="user.admin">{{ user.admin ? 'Admin' : 'User' }}</span></td>
+            <td><span class="badge" [class.success]="user.active" [class.warning]="!user.active">{{ user.active ? 'Active' : 'Inactive' }}</span></td>
+            <td>{{ user.updatedAt | date:'short' }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <a routerLink="/access-control" class="dash-link">Manage all users →</a>
+    </div>
+
+    <h2 class="dash-section-title">Recent upload activity</h2>
+    <div class="card" *ngIf="s.recentUploadActivity.length; else noActivity">
+      <table class="dash-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Action</th>
+            <th>Type</th>
+            <th>File</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of s.recentUploadActivity">
+            <td>{{ item.uploadedAt | date:'short' }}</td>
+            <td><span class="badge" [class.warning]="item.action === 'DELETED'">{{ item.action }}</span></td>
+            <td>{{ item.type }}</td>
+            <td>{{ item.filename }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <ng-template #noActivity>
+      <app-page-state kind="empty" message="No upload activity recorded yet."></app-page-state>
+    </ng-template>
+
+    <p class="dash-refreshed">Snapshot at {{ s.generatedAt | date:'medium' }}</p>
   </ng-container>
-
-  <ng-template #loading>
-    <app-page-state kind="loading" message="Loading dashboard data..."></app-page-state>
-  </ng-template>
 </section>
-

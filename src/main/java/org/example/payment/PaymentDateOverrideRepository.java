@@ -20,5 +20,14 @@ public interface PaymentDateOverrideRepository extends MongoRepository<PaymentDa
      */
     @Query("{ 'notes.id': ?0 }")
     Optional<PaymentDateOverride> findByNotesId(String noteId);
+
+    @Query(value = "{ 'phoneNumber': { $exists: true, $nin: [null, ''] } }", count = true)
+    long countWithPhoneNumber();
+
+    @Query(value = "{ 'latitude': { $exists: true, $ne: null }, 'longitude': { $exists: true, $ne: null } }", count = true)
+    long countWithCoordinates();
+
+    @Query(value = "{ 'active': { $ne: false } }", count = true)
+    long countActiveCustomers();
 }
 

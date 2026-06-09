@@ -9,12 +9,82 @@ export interface HealthStatus {
   timestamp: string;
 }
 
+export interface DashboardFileStatus {
+  present: boolean;
+  filename: string | null;
+  uploadedAt: string | null;
+  rowCount: number;
+}
+
+export interface DashboardActivityItem {
+  action: string;
+  type: string;
+  filename: string;
+  uploadedAt: string;
+}
+
+export interface DashboardSystemInfo {
+  applicationName: string;
+  version: string;
+  activeProfiles: string;
+  rateLimitBackend: string;
+  redisRateLimitActive: boolean;
+}
+
+export interface DashboardUploadJobInfo {
+  busy: boolean;
+  state: string;
+  phase: string | null;
+  message: string;
+  startedBy: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  filenames: string[];
+}
+
+export interface DashboardCustomerStats {
+  totalRecords: number;
+  activeInUpload: number;
+  withPhone: number;
+  withLocation: number;
+}
+
+export interface DashboardWhatsappStats {
+  batches: number;
+  recipients: number;
+  notSent: number;
+  inProgress: number;
+  sent: number;
+  failed: number;
+  latestBatchAt: string | null;
+}
+
+export interface DashboardUserRow {
+  displayName: string;
+  username: string;
+  admin: boolean;
+  active: boolean;
+  updatedAt: string;
+}
+
 export interface DashboardSummary {
-  totalUsers: number;
-  activeSessions: number;
-  systemLoad: number;
-  highlights: string[];
   generatedAt: string;
+  analyticsReady: boolean;
+  system: DashboardSystemInfo;
+  uploadJob: DashboardUploadJobInfo;
+  customers: DashboardCustomerStats;
+  whatsapp: DashboardWhatsappStats;
+  activeUsers: number;
+  inactiveUsers: number;
+  adminUsers: number;
+  activeSessions: number;
+  rateListEntries: number;
+  uploadAuditEntries: number;
+  detailedFile: DashboardFileStatus;
+  receivableFile: DashboardFileStatus;
+  users: DashboardUserRow[];
+  recentUploadActivity: DashboardActivityItem[];
+  alerts: string[];
 }
 
 export interface UploadResponse {

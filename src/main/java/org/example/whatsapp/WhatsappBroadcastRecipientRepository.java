@@ -9,4 +9,6 @@ public interface WhatsappBroadcastRecipientRepository extends MongoRepository<Wh
     List<WhatsappBroadcastRecipient> findByBatchIdOrderByDisplayNameAsc(String batchId);
 
     List<WhatsappBroadcastRecipient> findByBatchIdIn(Collection<String> batchIds);
+
+    long countByStatus(WhatsappRecipientStatus status);
 }

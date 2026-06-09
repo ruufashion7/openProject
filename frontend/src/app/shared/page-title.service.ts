@@ -11,10 +11,10 @@ const ROUTE_TITLES: Record<string, string> = {
   '/payment-dates': 'Payment Dates',
   '/whatsapp-outreach': 'WhatsApp Outreach',
   '/customer-locations': 'Customer Locations',
-  '/uploads': 'Latest Uploads',
-  '/uploads-audit': 'Upload Audit Trail',
+  '/uploads': 'Latest Files',
+  '/uploads-audit': 'Audit Trail',
   '/uploads-purge': 'Hard Delete Uploads',
-  '/dashboard': 'System Dashboard',
+  '/dashboard': 'Operations Overview',
   '/sessions': 'Sessions',
   '/access-control': 'Access Control'
 };
