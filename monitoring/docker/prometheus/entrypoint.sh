@@ -11,10 +11,13 @@ if [ -z "${METRICS_SCRAPE_TOKEN:-}" ]; then
   exit 1
 fi
 
-export BACKEND_HOST METRICS_SCRAPE_TOKEN
-envsubst < /etc/prometheus/prometheus.yml.template > /etc/prometheus/prometheus.yml
+CONFIG=/prometheus/prometheus.yml
+sed \
+  -e "s|\${BACKEND_HOST}|${BACKEND_HOST}|g" \
+  -e "s|\${METRICS_SCRAPE_TOKEN}|${METRICS_SCRAPE_TOKEN}|g" \
+  /etc/prometheus/prometheus.yml.template > "${CONFIG}"
 
 exec /bin/prometheus \
-  --config.file=/etc/prometheus/prometheus.yml \
+  --config.file="${CONFIG}" \
   --storage.tsdb.path=/prometheus \
   --web.enable-lifecycle
