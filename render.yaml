@@ -42,11 +42,9 @@ services:
     dockerContext: ./monitoring
     healthCheckPath: /-/healthy
     envVars:
+      # Public hostname — fromService property "host" is private-network only and fails DNS from Prometheus.
       - key: BACKEND_HOST
-        fromService:
-          type: web
-          name: openproject-backend
-          property: host
+        value: openproject-backend.onrender.com
       - key: METRICS_SCRAPE_TOKEN
         fromService:
           type: web
@@ -69,12 +67,6 @@ services:
       - key: GF_USERS_ALLOW_SIGN_UP
         value: "false"
       - key: PROMETHEUS_HOST
-        fromService:
-          type: web
-          name: openproject-prometheus
-          property: host
+        value: openproject-prometheus.onrender.com
       - key: GRAFANA_PUBLIC_HOST
-        fromService:
-          type: web
-          name: openproject-grafana
-          property: host
+        value: openproject-grafana.onrender.com
