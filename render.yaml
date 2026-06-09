@@ -51,7 +51,6 @@ services:
         fromService:
           type: web
           name: openproject-backend
-          property: envVar
           envVarKey: METRICS_SCRAPE_TOKEN
 
   - type: web
