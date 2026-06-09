@@ -30,6 +30,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
   allNavItems: NavItem[] = [
     { label: 'Welcome', route: '/welcome', icon: '🏠' },
     { label: 'Upload Files', route: '/upload', icon: '📤' },
+    { label: 'Latest Uploads', route: '/uploads', icon: '📁' },
+    { label: 'Upload Audit', route: '/uploads-audit', icon: '📜' },
+    { label: 'Hard Delete', route: '/uploads-purge', icon: '🗑️' },
     { label: 'Rate List', route: '/rate-list', icon: '💵' },
     { label: 'Invoice Details', route: '/sales-details', icon: '📊' },
     { label: 'Sales Analytics', route: '/sales-visualization', icon: '📈' },
@@ -37,6 +40,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
     { label: 'Outstanding', route: '/payment-dates', icon: '💰' },
     { label: 'WhatsApp', route: '/whatsapp-outreach', icon: '💬' },
     { label: 'Customer Locations', route: '/customer-locations', icon: '📍' },
+    { label: 'System Dashboard', route: '/dashboard', icon: '🖥️' },
+    { label: 'Sessions', route: '/sessions', icon: '👥' },
     { label: 'Access Control', route: '/access-control', icon: '🔐' }
   ];
 
@@ -128,6 +133,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       '/uploads-audit': 'Upload Audit Trail',
       '/uploads-purge': 'Hard Delete Uploads',
       '/dashboard': 'System Dashboard',
+      '/sessions': 'Sessions',
       '/access-control': 'Access Control'
     };
 

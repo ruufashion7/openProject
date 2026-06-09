@@ -6,11 +6,13 @@ import { ApiService, UploadEntry } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
+import { PageStateComponent } from '../shared/page-state/page-state.component';
+import { messageFromHttpError } from '../shared/api-error.util';
 
 @Component({
   selector: 'app-uploads',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, PageStateComponent],
   templateUrl: './uploads.component.html',
   styleUrl: './uploads.component.css'
 })
@@ -51,7 +53,8 @@ export class UploadsComponent implements OnInit {
           this.logout();
           return;
         }
-        this.message = 'Failed to load uploads.';
+        this.message = messageFromHttpError(err, 'Failed to load uploads.');
+        this.notificationService.showError(this.message);
       }
     });
   }

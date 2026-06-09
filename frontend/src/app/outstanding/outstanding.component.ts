@@ -20,11 +20,12 @@ import {
 } from '../shared/export-watermark';
 import { formatInrForExcel, formatInrForPdf } from '../shared/format-inr-export';
 import { ensurePdfUnicodeFonts, PDF_UNICODE_FONT } from '../shared/pdf-unicode-font';
+import { PageStateComponent } from '../shared/page-state/page-state.component';
 
 @Component({
   selector: 'app-outstanding',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LocationInputComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LocationInputComponent, PageStateComponent],
   templateUrl: './outstanding.component.html',
   styleUrl: './outstanding.component.css'
 })

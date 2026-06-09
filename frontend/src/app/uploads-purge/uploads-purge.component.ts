@@ -7,6 +7,7 @@ import { ApiService, UploadPurgeResponse } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
+import { messageFromHttpError } from '../shared/api-error.util';
 
 @Component({
   selector: 'app-uploads-purge',
@@ -44,6 +45,9 @@ export class UploadsPurgeComponent implements OnInit {
       this.message = 'Please confirm before deleting.';
       return;
     }
+    if (!window.confirm('Delete all current data for both upload files? This cannot be undone.')) {
+      return;
+    }
     this.status = 'loading';
     this.message = '';
     this.result = undefined;
@@ -60,11 +64,8 @@ export class UploadsPurgeComponent implements OnInit {
           this.logout();
           return;
         }
-        if (err.error && err.error.message) {
-          this.message = err.error.message;
-        } else {
-          this.message = 'Delete failed.';
-        }
+        this.message = messageFromHttpError(err, 'Delete failed.');
+        this.notificationService.showError(this.message);
       }
     });
   }

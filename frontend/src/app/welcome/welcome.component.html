@@ -1,12 +1,14 @@
 <section class="page">
   <div class="page-header">
     <div>
-      <h1 class="page-title">Welcome {{ displayName || 'Akash' }}!</h1>
+      <h1 class="page-title">Welcome{{ displayName ? ' ' + displayName : '' }}!</h1>
       <p class="page-subtitle">Choose what you want to do next.</p>
     </div>
   </div>
 
-  <div class="card welcome-card">
+  <app-page-state *ngIf="statusLoading" kind="loading" message="Checking upload status..."></app-page-state>
+
+  <div class="card welcome-card" *ngIf="!statusLoading">
     <div class="welcome-grid">
       <div class="card card-muted welcome-tile" *ngIf="canUpload">
         <h2>Upload Files</h2>

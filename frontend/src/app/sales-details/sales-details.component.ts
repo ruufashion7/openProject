@@ -8,11 +8,12 @@ import { ApiService, SalesInvoiceEntry } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
+import { PageStateComponent } from '../shared/page-state/page-state.component';
 
 @Component({
   selector: 'app-sales-details',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PageStateComponent],
   templateUrl: './sales-details.component.html',
   styleUrl: './sales-details.component.css'
 })

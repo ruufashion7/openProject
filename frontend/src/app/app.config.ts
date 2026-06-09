@@ -6,10 +6,11 @@ import { NgChartsModule } from 'ng2-charts';
 import { routes } from './app.routes';
 import { apiBaseUrlInterceptor } from './api-base-url.interceptor';
 import { authInterceptor } from './auth/auth.interceptor';
+import { slowRequestInterceptor } from './shared/slow-request.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideHttpClient(withInterceptors([apiBaseUrlInterceptor, authInterceptor])),
+    provideHttpClient(withInterceptors([apiBaseUrlInterceptor, slowRequestInterceptor, authInterceptor])),
     provideRouter(routes),
     importProvidersFrom(NgChartsModule)
   ]

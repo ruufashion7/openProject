@@ -35,6 +35,7 @@ export const ROUTE_PERMISSIONS: Record<string, keyof import('./auth.service').Us
   '/upload': 'fileUpload',
   '/uploads': 'fileUpload',
   '/uploads-audit': 'fileUpload',
+  '/uploads-purge': 'hardDelete',
   '/rate-list': 'rateListPage',
   '/sales-details': 'invoicePage',
   '/sales-visualization': 'salesVisualization',
@@ -42,7 +43,9 @@ export const ROUTE_PERMISSIONS: Record<string, keyof import('./auth.service').Us
   '/payment-dates': 'outstandingPage',
   '/whatsapp-outreach': 'whatsappBroadcast',
   '/customer-locations': 'customerLocations',
-  '/access-control': 'admin'
+  '/access-control': 'admin',
+  '/sessions': 'admin',
+  '/dashboard': 'admin'
 };
 
 /**

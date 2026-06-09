@@ -12,10 +12,10 @@
       <a routerLink="/uploads-audit" class="btn btn-ghost">Audit Trail</a>
       <a routerLink="/uploads-purge" class="btn btn-ghost">Hard Delete</a>
     </div>
-    <p class="status-text failed" *ngIf="status === 'failed'">{{ message }}</p>
-    <p class="page-subtitle" *ngIf="status === 'loading'">Loading...</p>
+    <app-page-state *ngIf="status === 'loading'" kind="loading" message="Loading uploads..."></app-page-state>
+    <app-page-state *ngIf="status === 'failed'" kind="error" [message]="message"></app-page-state>
 
-    <div class="latest-grid" *ngIf="status !== 'loading'">
+    <div class="latest-grid" *ngIf="status === 'idle'">
       <div class="card card-muted">
         <div class="latest-header">
           <span class="badge">Detailed</span>

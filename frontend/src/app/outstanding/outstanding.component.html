@@ -7,8 +7,8 @@
   </div>
 
   <div class="card">
-    <p class="status-text failed" *ngIf="status === 'failed' && message">{{ message }}</p>
-    <p class="page-subtitle" *ngIf="status === 'loading'">Loading...</p>
+    <app-page-state *ngIf="status === 'loading'" kind="loading" message="Loading customer data..."></app-page-state>
+    <app-page-state *ngIf="status === 'failed' && message" kind="error" [message]="message"></app-page-state>
 
     <div *ngIf="status === 'idle'">
       <p class="status-text" [class.success]="ready" [class.failed]="!ready" *ngIf="message">

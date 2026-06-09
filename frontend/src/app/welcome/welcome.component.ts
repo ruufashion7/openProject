@@ -1,19 +1,24 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../auth/auth.service';
 import { ApiService } from '../services/api.service';
 import { PermissionService } from '../auth/permission.service';
+import { NotificationService } from '../shared/notification.service';
+import { PageStateComponent } from '../shared/page-state/page-state.component';
+import { messageFromHttpError } from '../shared/api-error.util';
 
 @Component({
   selector: 'app-welcome',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, PageStateComponent],
   templateUrl: './welcome.component.html',
   styleUrl: './welcome.component.css'
 })
 export class WelcomeComponent implements OnInit {
   displayName = this.auth.getDisplayName();
+  statusLoading = true;
   analyticsEnabled = false;
   analyticsMessage = '';
   canUpload = false;
@@ -26,7 +31,8 @@ export class WelcomeComponent implements OnInit {
     private auth: AuthService,
     private api: ApiService,
     private router: Router,
-    private permissionService: PermissionService
+    private permissionService: PermissionService,
+    private notifications: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -35,10 +41,10 @@ export class WelcomeComponent implements OnInit {
     this.canAccessDetailsPage = this.permissionService.canAccessDetailsPage();
     this.canAccessOutstandingPage = this.permissionService.canAccessOutstandingPage();
     this.canWhatsappBroadcast = this.permissionService.canAccessWhatsappBroadcast();
-    
-    this.analyticsMessage = 'Checking upload status...';
+
     this.api.getUploadStatus().subscribe({
       next: (status) => {
+        this.statusLoading = false;
         this.analyticsEnabled = status.ready;
         if (status.ready) {
           this.analyticsMessage = 'Ready to view analytics.';
@@ -50,9 +56,11 @@ export class WelcomeComponent implements OnInit {
           this.analyticsMessage = 'Upload both files to enable analytics.';
         }
       },
-      error: () => {
+      error: (err: HttpErrorResponse) => {
+        this.statusLoading = false;
         this.analyticsEnabled = false;
-        this.analyticsMessage = 'Unable to load upload status.';
+        this.analyticsMessage = messageFromHttpError(err, 'Unable to load upload status.');
+        this.notifications.showError(this.analyticsMessage);
       }
     });
   }
@@ -90,6 +98,4 @@ export class WelcomeComponent implements OnInit {
     }
     this.router.navigateByUrl('/sales-details');
   }
-
 }
-

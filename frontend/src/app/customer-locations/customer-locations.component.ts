@@ -7,6 +7,9 @@ import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { NotificationService } from '../shared/notification.service';
+import { PageStateComponent } from '../shared/page-state/page-state.component';
+import { messageFromHttpError } from '../shared/api-error.util';
 
 interface CustomerMarker {
   customer: CustomerLocation;
@@ -16,7 +19,7 @@ interface CustomerMarker {
 @Component({
   selector: 'app-customer-locations',
   standalone: true,
-  imports: [CommonModule, ZoomableImageComponent],
+  imports: [CommonModule, ZoomableImageComponent, PageStateComponent],
   templateUrl: './customer-locations.component.html',
   styleUrl: './customer-locations.component.css'
 })
@@ -38,7 +41,8 @@ export class CustomerLocationsComponent implements OnInit, AfterViewInit, OnDest
     private auth: AuthService,
     private permissionService: PermissionService,
     private router: Router,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private notifications: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -145,7 +149,8 @@ export class CustomerLocationsComponent implements OnInit, AfterViewInit, OnDest
           return;
         }
         this.status = 'failed';
-        this.message = 'Unable to load customer locations.';
+        this.message = messageFromHttpError(err, 'Unable to load customer locations.');
+        this.notifications.showError(this.message);
       }
     });
   }
@@ -232,26 +237,34 @@ export class CustomerLocationsComponent implements OnInit, AfterViewInit, OnDest
 
   onSearchChange(query: string): void {
     this.searchQuery = query;
-    const lowerQuery = query.toLowerCase().trim();
-    
-    if (!lowerQuery) {
+    this.applySearchFilter();
+  }
+
+  private applySearchFilter(): void {
+    const query = this.searchQuery.toLowerCase().trim();
+    const normalizedQuery = query.replace(/\D/g, '');
+
+    if (!query) {
       this.filteredCustomers = this.customers;
     } else {
       this.filteredCustomers = this.customers.filter(customer => {
-        const nameMatch = customer.customerName?.toLowerCase().includes(lowerQuery);
-        const phoneMatch = customer.phoneNumber?.toLowerCase().includes(lowerQuery);
-        const addressMatch = customer.address?.toLowerCase().includes(lowerQuery);
+        const name = (customer.customerName || '').toLowerCase();
+        const phone = (customer.phoneNumber || '').replace(/\D/g, '');
+        const address = (customer.address || '').toLowerCase();
+        const nameMatch = name.includes(query);
+        const phoneMatch =
+          normalizedQuery && phone && (phone.includes(normalizedQuery) || normalizedQuery.includes(phone));
+        const addressMatch = address.includes(query);
         return nameMatch || phoneMatch || addressMatch;
       });
     }
-    
+
     this.createMarkers();
   }
 
   clearSearch(): void {
     this.searchQuery = '';
-    this.filteredCustomers = this.customers;
-    this.createMarkers();
+    this.applySearchFilter();
   }
 
   openCustomerDetails(customer: CustomerLocation): void {
