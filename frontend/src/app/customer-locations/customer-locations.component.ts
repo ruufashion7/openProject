@@ -1,6 +1,9 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import * as L from 'leaflet';
+import { configureLeafletDefaults } from '../shared/leaflet-defaults';
+
+configureLeafletDefaults();
 import { ApiService, CustomerLocation } from '../services/api.service';
 import { ZoomableImageComponent } from '../shared/zoomable-image/zoomable-image.component';
 import { AuthService } from '../auth/auth.service';
@@ -10,6 +13,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { NotificationService } from '../shared/notification.service';
 import { PageStateComponent } from '../shared/page-state/page-state.component';
 import { messageFromHttpError } from '../shared/api-error.util';
+import { formatPhoneDisplay, normalizePhoneDigits, phoneDigitsMatch } from '../shared/phone.util';
 
 interface CustomerMarker {
   customer: CustomerLocation;
@@ -24,6 +28,8 @@ interface CustomerMarker {
   styleUrl: './customer-locations.component.css'
 })
 export class CustomerLocationsComponent implements OnInit, AfterViewInit, OnDestroy {
+  formatPhoneDisplay = formatPhoneDisplay;
+
   @ViewChild('mapContainer', { static: false }) mapContainer!: ElementRef;
 
   status: 'idle' | 'loading' | 'failed' = 'loading';
@@ -203,7 +209,7 @@ export class CustomerLocationsComponent implements OnInit, AfterViewInit, OnDest
           <div class="info-window-content">
             <h3 class="info-window-title">${this.escapeHtml(customer.customerName)}</h3>
             <div class="info-window-body">
-              ${customer.phoneNumber ? `<div class="info-window-item"><strong>Phone:</strong> ${this.escapeHtml(customer.phoneNumber)}</div>` : ''}
+              ${customer.phoneNumber ? `<div class="info-window-item"><strong>Phone:</strong> ${this.escapeHtml(formatPhoneDisplay(customer.phoneNumber))}</div>` : ''}
               ${customer.address ? `<div class="info-window-item"><strong>Address:</strong> ${this.escapeHtml(customer.address)}</div>` : ''}
             </div>
             <div class="info-window-actions">
@@ -249,11 +255,9 @@ export class CustomerLocationsComponent implements OnInit, AfterViewInit, OnDest
     } else {
       this.filteredCustomers = this.customers.filter(customer => {
         const name = (customer.customerName || '').toLowerCase();
-        const phone = (customer.phoneNumber || '').replace(/\D/g, '');
         const address = (customer.address || '').toLowerCase();
         const nameMatch = name.includes(query);
-        const phoneMatch =
-          normalizedQuery && phone && (phone.includes(normalizedQuery) || normalizedQuery.includes(phone));
+        const phoneMatch = normalizedQuery ? phoneDigitsMatch(customer.phoneNumber, normalizedQuery) : false;
         const addressMatch = address.includes(query);
         return nameMatch || phoneMatch || addressMatch;
       });

@@ -1,12 +1,13 @@
 .app-container {
+  --sidebar-width: 280px;
   display: flex;
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
 }
 
-.app-container:hover ::ng-deep app-top-header .top-header {
-  left: 280px;
+.app-container.sidebar-closed {
+  --sidebar-width: 0px;
 }
 
 .app-content {
@@ -17,8 +18,7 @@
 }
 
 .app-content.with-sidebar {
-  margin-left: 280px;
-  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-left: var(--sidebar-width);
 }
 
 .app-content.with-header {
@@ -26,15 +26,15 @@
 }
 
 @media (max-width: 768px) {
+  .app-container {
+    --sidebar-width: 0px;
+  }
+
   .app-content.with-sidebar {
     margin-left: 0;
   }
   
   .app-content.with-header {
     padding-top: 60px;
-  }
-  
-  .app-container:hover ::ng-deep app-top-header .top-header {
-    left: 0;
   }
 }

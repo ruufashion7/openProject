@@ -13,6 +13,7 @@ import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
 import { formatInrForExcel } from '../shared/format-inr-export';
+import { formatPhoneDisplay, normalizePhoneDigits, phoneDigitsMatch } from '../shared/phone.util';
 
 const MAX_TEMPLATE = 3500;
 const MAX_BATCH = 500;
@@ -37,6 +38,8 @@ function normalizeCustomerKey(displayName: string): string {
   styleUrl: './whatsapp-outreach.component.css'
 })
 export class WhatsappOutreachComponent implements OnInit, OnDestroy {
+  formatPhoneDisplay = formatPhoneDisplay;
+
   readonly maxTemplate = MAX_TEMPLATE;
 
   /**
@@ -315,7 +318,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
 
   get hasEligibleCustomers(): boolean {
     return this.cards.some(
-      (c) => c.phoneNumber && String(c.phoneNumber).replace(/\D/g, '').length >= 10
+      (c) => normalizePhoneDigits(c.phoneNumber).length >= 10
     );
   }
 
@@ -339,7 +342,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
 
   private eligibleCardsWithPhone(): PaymentDateCustomerCard[] {
     return this.cards.filter(
-      (c) => c.phoneNumber && String(c.phoneNumber).replace(/\D/g, '').length >= 10
+      (c) => normalizePhoneDigits(c.phoneNumber).length >= 10
     );
   }
 
@@ -356,12 +359,8 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
     }
     const normalizedQuery = q.replace(/\D/g, '');
     const name = (card.customer || '').toLowerCase();
-    const phone = (card.phoneNumber || '').replace(/\D/g, '');
     const nameMatch = name.includes(q);
-    const phoneMatch =
-      !!normalizedQuery &&
-      !!phone &&
-      (phone.includes(normalizedQuery) || normalizedQuery.includes(phone));
+    const phoneMatch = normalizedQuery ? phoneDigitsMatch(card.phoneNumber, normalizedQuery) : false;
     return nameMatch || phoneMatch;
   }
 

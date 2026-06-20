@@ -103,6 +103,10 @@
         Follow-up: {{ filters.followUp }}
         <button (click)="setFilter('followUp', 'all')">×</button>
       </span>
+      <span class="filter-chip" *ngIf="filters.location !== 'all'">
+        Location: {{ filters.location === 'with' ? 'Added' : 'Missing' }}
+        <button (click)="setFilter('location', 'all')">×</button>
+      </span>
       <span class="filter-chip" *ngIf="filters.orderDate !== 'all'">
         Order Date: {{ filters.orderDate }}
         <button (click)="setFilter('orderDate', 'all')">×</button>
@@ -312,6 +316,42 @@
     </div>
 
     <div class="filter-group">
+      <label class="filter-group-label">Location</label>
+      <div class="filter-buttons">
+        <button
+          type="button"
+          class="filter-btn filter-location-all"
+          [class.active]="filters.location === 'all'"
+          (click)="setFilter('location', 'all')"
+          [attr.aria-label]="'All, ' + formatFilterCount(filterCounts.location.all) + ' customers'"
+        >
+          <span class="filter-btn-text">All</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.location.all) }}</span>
+        </button>
+        <button
+          type="button"
+          class="filter-btn filter-location-with"
+          [class.active]="filters.location === 'with'"
+          (click)="setFilter('location', 'with')"
+          [attr.aria-label]="'Location added, ' + formatFilterCount(filterCounts.location.with) + ' customers'"
+        >
+          <span class="filter-btn-text">Added</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.location.with) }}</span>
+        </button>
+        <button
+          type="button"
+          class="filter-btn filter-location-without"
+          [class.active]="filters.location === 'without'"
+          (click)="setFilter('location', 'without')"
+          [attr.aria-label]="'No location, ' + formatFilterCount(filterCounts.location.without) + ' customers'"
+        >
+          <span class="filter-btn-text">Missing</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.location.without) }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group">
       <label class="filter-group-label">Last Order Date</label>
       <div class="filter-buttons">
         <button
@@ -434,7 +474,7 @@
         <div class="customer-info">
           <h3 class="customer-name">{{ card.customer }}</h3>
           <div class="customer-phone-container" *ngIf="card.phoneNumber">
-            <p class="customer-phone">{{ card.phoneNumber }}</p>
+            <p class="customer-phone">{{ formatPhoneDisplay(card.phoneNumber) }}</p>
             <div class="phone-actions-small">
               <button
                 type="button"
@@ -461,7 +501,13 @@
           </div>
         </div>
         <div class="card-badges">
-          <span class="badge-location" *ngIf="card.address || (card.latitude && card.longitude)" (click)="openCustomerDetails(card); $event.stopPropagation()" title="View Location">
+          <span
+            class="badge-location"
+            [class.has-location]="hasLocation(card)"
+            [class.no-location]="!hasLocation(card)"
+            (click)="openCustomerDetails(card); $event.stopPropagation()"
+            [title]="hasLocation(card) ? 'Location added — view details' : 'No location — view customer details'"
+          >
             📍
           </span>
           <span 

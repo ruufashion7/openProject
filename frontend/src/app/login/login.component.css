@@ -10,6 +10,30 @@
   width: min(380px, 100%);
 }
 
+.auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.auth-logo {
+  width: min(280px, 100%);
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+.auth-tagline {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  text-align: center;
+}
+
 form {
   display: flex;
   flex-direction: column;

@@ -66,7 +66,7 @@
               <span class="location-badge" *ngIf="customer.latitude && customer.longitude">📍</span>
             </div>
             <div class="customer-list-details">
-              <p class="customer-phone" *ngIf="customer.phoneNumber">{{ customer.phoneNumber }}</p>
+              <p class="customer-phone" *ngIf="customer.phoneNumber">{{ formatPhoneDisplay(customer.phoneNumber) }}</p>
               <p class="customer-address" *ngIf="customer.address">{{ customer.address }}</p>
             </div>
           </div>

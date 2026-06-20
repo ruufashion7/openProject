@@ -49,7 +49,7 @@
           type="button"
           class="btn btn-save-location"
           (click)="saveLocation()"
-          [disabled]="isGeocoding"
+          [disabled]="!canSaveLocation()"
         >
           Save Location
         </button>
@@ -122,8 +122,9 @@
         <div #mapContainer class="map-container"></div>
 
         <div class="map-picker-footer">
-          <div class="location-preview" *ngIf="address">
-            <strong>Selected:</strong> {{ address }}
+          <div class="location-preview" *ngIf="address || (latitude !== null && longitude !== null)">
+            <strong>Selected:</strong>
+            {{ address || (latitude + ', ' + longitude) }}
           </div>
           <div class="map-picker-actions">
             <button type="button" class="btn btn-cancel" (click)="cancel()">
@@ -133,7 +134,7 @@
               type="button"
               class="btn btn-save"
               (click)="saveLocation()"
-              [disabled]="!address || latitude === null || longitude === null"
+              [disabled]="!canSaveLocation()"
             >
               Save Location
             </button>

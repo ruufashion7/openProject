@@ -170,7 +170,7 @@
                   />
                 </td>
                 <td>{{ c.customer }}</td>
-                <td class="wo-mono">{{ c.phoneNumber }}</td>
+                <td class="wo-mono">{{ formatPhoneDisplay(c.phoneNumber) }}</td>
               </tr>
               <tr *ngIf="recipientPickListFiltered.length === 0">
                 <td colspan="3" class="wo-empty">No customers with phone numbers match the filter.</td>

@@ -5,6 +5,7 @@ import { filter, takeUntil } from 'rxjs/operators';
 import { Subject } from 'rxjs';
 import { PermissionService } from '../../auth/permission.service';
 import { PageTitleService } from '../page-title.service';
+import { SidebarService } from './sidebar.service';
 
 interface NavChild {
   label: string;
@@ -35,9 +36,9 @@ interface NavSection {
 export class SidebarComponent implements OnInit, OnDestroy {
   currentRoute = '';
   navSections: NavSection[] = [];
-  isMobileMenuOpen = false;
+  isOpen = true;
+  isMobile = false;
   private destroy$ = new Subject<void>();
-  private mobileMenuHandler?: EventListener;
 
   /** Grouped by workflow — add routes in the matching section. */
   private readonly allNavSections: NavSection[] = [
@@ -99,7 +100,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
   constructor(
     private router: Router,
     private permissionService: PermissionService,
-    private pageTitleService: PageTitleService
+    private pageTitleService: PageTitleService,
+    private sidebarService: SidebarService
   ) {
     this.router.events
       .pipe(
@@ -116,12 +118,21 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.currentRoute = this.router.url;
     this.pageTitleService.setFromUrl(this.currentRoute);
     this.buildNavSections();
+    this.isMobile = this.sidebarService.isMobile();
+    this.isOpen = this.sidebarService.isOpen();
 
-    this.mobileMenuHandler = ((event: CustomEvent) => {
-      this.isMobileMenuOpen = event.detail.open;
-    }) as EventListener;
-    window.addEventListener('toggleMobileMenu', this.mobileMenuHandler);
+    this.sidebarService.isOpen$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((open) => {
+        this.isOpen = open;
+      });
+
+    window.addEventListener('resize', this.syncMobile);
   }
+
+  private syncMobile = (): void => {
+    this.isMobile = this.sidebarService.isMobile();
+  };
 
   private filterItem(item: NavItem): NavItem | null {
     const children = item.children?.filter((child) =>
@@ -182,15 +193,13 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.mobileMenuHandler) {
-      window.removeEventListener('toggleMobileMenu', this.mobileMenuHandler);
-    }
+    window.removeEventListener('resize', this.syncMobile);
     this.destroy$.next();
     this.destroy$.complete();
   }
 
-  closeMobileMenu(): void {
-    this.isMobileMenuOpen = false;
+  closeSidebar(): void {
+    this.sidebarService.close();
   }
 
   isActive(route: string): boolean {

@@ -599,6 +599,24 @@
   color: #065f46;
 }
 
+.filter-btn.filter-location-all.active {
+  background: #eef2ff;
+  border-color: #6366f1;
+  color: #4338ca;
+}
+
+.filter-btn.filter-location-with.active {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+}
+
+.filter-btn.filter-location-without.active {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #475569;
+}
+
 /* Cards Container */
 .cards-container {
   display: grid;
@@ -786,14 +804,26 @@
   transition: all 0.2s;
 }
 
-.badge-location {
+.badge-location.has-location {
   background: #ecfdf5;
   border: 1px solid #a7f3d0;
 }
 
-.badge-location:hover {
+.badge-location.has-location:hover {
   background: #d1fae5;
   transform: scale(1.1);
+}
+
+.badge-location.no-location {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  opacity: 0.35;
+  filter: grayscale(0.85);
+}
+
+.badge-location.no-location:hover {
+  opacity: 0.55;
+  transform: scale(1.05);
 }
 
 .badge-followup {

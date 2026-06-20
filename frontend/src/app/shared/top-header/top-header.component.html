@@ -1,13 +1,24 @@
 <header class="top-header">
   <div class="header-content">
     <div class="header-left">
-      <button class="mobile-menu-btn" (click)="toggleMobileMenu()" aria-label="Toggle menu">
-        <span class="hamburger-icon">☰</span>
+      <button
+        class="sidebar-toggle-btn"
+        (click)="toggleSidebar()"
+        [attr.aria-expanded]="sidebarOpen"
+        [attr.aria-label]="sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'"
+        [title]="sidebarOpen ? 'Close menu' : 'Open menu'"
+      >
+        <span class="toggle-icon" aria-hidden="true">{{ sidebarOpen ? '‹' : '☰' }}</span>
       </button>
       <div class="brand-section">
-        <div class="brand-icon">📦</div>
+        <img
+          class="brand-logo"
+          src="assets/brand/burning-ice-logo.png"
+          alt="BURNING ICE"
+          width="499"
+          height="317"
+        />
         <div class="brand-text" aria-label="BURNING ICE, A Unit of RUU FASHION">
-          <span class="brand-title">BURNING ICE</span>
           <span class="brand-subtitle" *ngIf="pageTitle; else defaultSubtitle">{{ pageTitle }}</span>
           <ng-template #defaultSubtitle>
             <span class="brand-subtitle">A Unit of RUU FASHION</span>

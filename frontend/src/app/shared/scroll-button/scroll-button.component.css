@@ -65,9 +65,9 @@
   }
 }
 
-/* Adjust position when sidebar is visible */
+/* Scroll button stays at viewport edge */
 .app-content.with-sidebar .scroll-button {
-  right: calc(24px + 280px);
+  right: 24px;
   transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

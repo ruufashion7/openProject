@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -10,6 +10,9 @@ import { NotificationService } from '../shared/notification.service';
 import { LocationInputComponent, LocationData } from '../shared/location-input/location-input.component';
 import { HttpErrorResponse } from '@angular/common/http';
 import * as L from 'leaflet';
+import { configureLeafletDefaults } from '../shared/leaflet-defaults';
+
+configureLeafletDefaults();
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -21,6 +24,12 @@ import {
 import { formatInrForExcel, formatInrForPdf } from '../shared/format-inr-export';
 import { ensurePdfUnicodeFonts, PDF_UNICODE_FONT } from '../shared/pdf-unicode-font';
 import { PageStateComponent } from '../shared/page-state/page-state.component';
+import { formatCoordinatesDms } from '../shared/coordinates.util';
+import {
+  formatPhoneDisplay,
+  formatPhoneForTel,
+  formatPhoneForWhatsApp
+} from '../shared/phone.util';
 
 @Component({
   selector: 'app-outstanding',
@@ -29,7 +38,9 @@ import { PageStateComponent } from '../shared/page-state/page-state.component';
   templateUrl: './outstanding.component.html',
   styleUrl: './outstanding.component.css'
 })
-export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked {
+export class OutstandingComponent implements OnInit, OnDestroy {
+  formatPhoneDisplay = formatPhoneDisplay;
+
   status: 'idle' | 'loading' | 'failed' = 'idle';
   message = '';
   ready = false;
@@ -62,6 +73,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
   locationMarker: L.Marker | null = null;
   private mapInitialized: boolean = false;
   addressExpanded: boolean = false;
+  coordinatesExpanded: boolean = false;
   mapExpanded: boolean = false;
   private customerTimer?: number;
   private phoneTimer?: number;
@@ -441,8 +453,8 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     this.customerLedger = [];
     this.paymentDate = null;
     this.whatsappStatus = null;
-    
-    // Save to localStorage and update URL only if different and not a phone number
+    this.editingLocation = false;
+    this.syncLocationFieldsFromSummary();
     if (!isPhoneNumber) {
       const currentSaved = this.getSavedCustomer();
       if (currentSaved !== name) {
@@ -504,6 +516,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
         // Set follow-up flag
         this.followUpFlag = summary.needsFollowUp ?? false;
         this.followUpFlagEdit = this.followUpFlag;
+        this.syncLocationFieldsFromSummary(summary);
         this.applyCanonicalCustomerNameFromSummary(summary);
       },
       error: (err: HttpErrorResponse) => {
@@ -571,7 +584,9 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     this.paymentDate = null;
     this.whatsappStatus = null;
     this.customerNotes = [];
-    
+    this.editingLocation = false;
+    this.syncLocationFieldsFromSummary();
+
     this.api.getCustomerSummary(undefined, phone).subscribe({
       next: (summary) => {
         this.customerSummary = summary;
@@ -619,6 +634,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
         // Set follow-up flag
         this.followUpFlag = summary.needsFollowUp ?? false;
         this.followUpFlagEdit = this.followUpFlag;
+        this.syncLocationFieldsFromSummary(summary);
         this.applyCanonicalCustomerNameFromSummary(summary);
       },
       error: (err: HttpErrorResponse) => {
@@ -692,6 +708,8 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     this.editingNoteId = null;
     this.editingNoteContent = '';
     this.newNoteContent = '';
+    this.editingLocation = false;
+    this.syncLocationFieldsFromSummary();
   }
 
   clearCustomerSelection(): void {
@@ -1477,17 +1495,26 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     if (!this.getCustomerNameForMasterWrites()) {
       return;
     }
+    this.syncLocationFieldsFromSummary();
     this.editingLocation = true;
   }
 
   cancelLocationEdit(): void {
     this.editingLocation = false;
-    // Reset to current values from summary
-    if (this.customerSummary) {
-      this.locationAddress = this.customerSummary.address || '';
-      this.locationLatitude = this.customerSummary.latitude ?? null;
-      this.locationLongitude = this.customerSummary.longitude ?? null;
+    this.syncLocationFieldsFromSummary();
+  }
+
+  private syncLocationFieldsFromSummary(summary?: CustomerSummaryResponse): void {
+    const source = summary ?? this.customerSummary;
+    if (!source) {
+      this.locationAddress = '';
+      this.locationLatitude = null;
+      this.locationLongitude = null;
+      return;
     }
+    this.locationAddress = source.address || '';
+    this.locationLatitude = source.latitude ?? null;
+    this.locationLongitude = source.longitude ?? null;
   }
 
   saveLocation(locationData: LocationData): void {
@@ -1539,6 +1566,31 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     }
   }
 
+  getCustomerCoordinatesDms(): string | null {
+    const lat = this.customerSummary?.latitude;
+    const lng = this.customerSummary?.longitude;
+    if (lat == null || lng == null) {
+      return null;
+    }
+    return formatCoordinatesDms(lat, lng);
+  }
+
+  copyCoordinates(): void {
+    const coordinates = this.getCustomerCoordinatesDms();
+    if (!coordinates) {
+      return;
+    }
+    navigator.clipboard.writeText(coordinates).then(() => {
+      this.notificationService.showSuccess('Coordinates copied to clipboard', 2000);
+    }).catch(() => {
+      this.notificationService.showError('Failed to copy coordinates', 2000);
+    });
+  }
+
+  toggleCoordinates(): void {
+    this.coordinatesExpanded = !this.coordinatesExpanded;
+  }
+
   deleteLocation(): void {
     if (!this.canEditCustomerLocation) {
       this.permissionService.notifyRoleDenied('edit customer location', 'customerLocationEdit');
@@ -1564,13 +1616,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
         this.locationAddress = '';
         this.locationLatitude = null;
         this.locationLongitude = null;
-        // Cleanup map if exists
-        if (this.locationMap) {
-          this.locationMap.remove();
-          this.locationMap = null;
-          this.locationMarker = null;
-          this.mapInitialized = false;
-        }
+        this.destroyLocationMap();
         // Refresh customer summary to get latest data
         this.refreshCustomerSummary();
         this.notificationService.showSuccess('Location deleted successfully', 3000);
@@ -1589,18 +1635,21 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     });
   }
 
-  ngAfterViewChecked(): void {
-    if (this.locationMapPreview && !this.mapInitialized && this.mapExpanded && this.customerSummary?.latitude && this.customerSummary?.longitude) {
-      setTimeout(() => {
-        this.initLocationMap();
-      }, 100);
+  private destroyLocationMap(): void {
+    if (this.locationMap) {
+      this.locationMap.remove();
+      this.locationMap = null;
+      this.locationMarker = null;
     }
+    this.mapInitialized = false;
   }
 
   initLocationMap(): void {
-    if (!this.locationMapPreview || this.mapInitialized || !this.customerSummary?.latitude || !this.customerSummary?.longitude) {
+    if (!this.locationMapPreview?.nativeElement || !this.customerSummary?.latitude || !this.customerSummary?.longitude) {
       return;
     }
+
+    this.destroyLocationMap();
 
     const lat = this.customerSummary.latitude;
     const lng = this.customerSummary.longitude;
@@ -1614,13 +1663,11 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
 
     this.locationMarker = L.marker([lat, lng]).addTo(this.locationMap);
     this.mapInitialized = true;
-    
-    // Invalidate map size when expanded/collapsed
+
+    // Panel height animates 0 → 150px — resize map after layout settles
     setTimeout(() => {
-      if (this.locationMap) {
-        this.locationMap.invalidateSize();
-      }
-    }, 300);
+      this.locationMap?.invalidateSize();
+    }, 350);
   }
 
   toggleAddress(): void {
@@ -1629,20 +1676,13 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
 
   toggleMap(): void {
     this.mapExpanded = !this.mapExpanded;
-    if (this.mapExpanded) {
-      // Initialize map if not already initialized
-      if (!this.mapInitialized && this.locationMapPreview && this.customerSummary?.latitude && this.customerSummary?.longitude) {
-        setTimeout(() => {
-          this.initLocationMap();
-        }, 100);
-      } else if (this.locationMap) {
-        // Resize map when expanded
-        setTimeout(() => {
-          if (this.locationMap) {
-            this.locationMap.invalidateSize();
-          }
-        }, 300);
-      }
+    if (!this.mapExpanded) {
+      this.destroyLocationMap();
+      return;
+    }
+
+    if (this.customerSummary?.latitude && this.customerSummary?.longitude) {
+      setTimeout(() => this.initLocationMap(), 50);
     }
   }
 
@@ -1667,16 +1707,10 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
         this.whatsappStatusEdit = this.whatsappStatus;
         this.followUpFlag = summary.needsFollowUp ?? false;
         this.followUpFlagEdit = this.followUpFlag;
-        // Set location data
-        this.locationAddress = summary.address || '';
-        this.locationLatitude = summary.latitude ?? null;
-        this.locationLongitude = summary.longitude ?? null;
-        // Reset map to reinitialize with new location
-        if (this.locationMap) {
-          this.locationMap.remove();
-          this.locationMap = null;
-          this.locationMarker = null;
-          this.mapInitialized = false;
+        this.syncLocationFieldsFromSummary(summary);
+        this.destroyLocationMap();
+        if (this.mapExpanded && summary.latitude && summary.longitude) {
+          setTimeout(() => this.initLocationMap(), 50);
         }
       },
       error: (err: HttpErrorResponse) => {
@@ -1706,7 +1740,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     // Prepare customer details at the top
     const customerDetails = [
       ['Customer Name', this.selectedCustomerName],
-      ['Phone Number', this.customerSummary.phoneNumber || 'Not available'],
+      ['Phone Number', formatPhoneDisplay(this.customerSummary.phoneNumber) || 'Not available'],
       ['']
     ];
 
@@ -1839,7 +1873,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     doc.setFont(PDF_UNICODE_FONT, 'normal');
     doc.text(`Customer Name: ${this.selectedCustomerName}`, 14, yPos);
     yPos += 7;
-    doc.text(`Phone Number: ${this.customerSummary.phoneNumber || 'Not available'}`, 14, yPos);
+    doc.text(`Phone Number: ${formatPhoneDisplay(this.customerSummary.phoneNumber) || 'Not available'}`, 14, yPos);
     yPos += 10;
 
     // Prepare table data
@@ -2084,14 +2118,9 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
     if (!phoneNumber || phoneNumber.trim() === '') {
       return;
     }
-    
-    // Clean phone number (remove spaces, dashes, etc.)
-    const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
-    
-    // Copy to clipboard first
+
+    const cleanPhone = formatPhoneForTel(phoneNumber);
     this.copyPhoneNumber(phoneNumber, false);
-    
-    // Initiate call using tel: protocol
     window.location.href = `tel:${cleanPhone}`;
   }
 
@@ -2102,9 +2131,11 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
       }
       return;
     }
-    
-    // Clean phone number for copying
-    const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
+
+    const cleanPhone = formatPhoneDisplay(phoneNumber);
+    if (!cleanPhone) {
+      return;
+    }
     
     // Use Clipboard API if available
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -2161,13 +2192,7 @@ export class OutstandingComponent implements OnInit, OnDestroy, AfterViewChecked
       window.clearTimeout(this.messageTimer);
     }
     this.clearPendingMasterWriteTimers();
-    // Cleanup map
-    if (this.locationMap) {
-      this.locationMap.remove();
-      this.locationMap = null;
-      this.locationMarker = null;
-      this.mapInitialized = false;
-    }
+    this.destroyLocationMap();
     // Complete destroy subject to cleanup subscriptions
     this.destroy$.next();
     this.destroy$.complete();

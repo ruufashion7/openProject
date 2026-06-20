@@ -1,4 +1,4 @@
-<div class="app-container">
+<div class="app-container" [class.sidebar-open]="sidebarOpen" [class.sidebar-closed]="!sidebarOpen">
   <app-notification />
   <app-top-header *ngIf="showSidebar" />
   <app-sidebar *ngIf="showSidebar" />

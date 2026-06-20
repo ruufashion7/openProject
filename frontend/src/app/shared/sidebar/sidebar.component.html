@@ -1,5 +1,14 @@
-<aside class="sidebar" [class.mobile-open]="isMobileMenuOpen">
-  <div class="sidebar-overlay" (click)="closeMobileMenu()" *ngIf="isMobileMenuOpen"></div>
+<aside class="sidebar" [class.is-open]="isOpen">
+  <div class="sidebar-overlay" (click)="closeSidebar()" *ngIf="isOpen && isMobile"></div>
+  <button
+    type="button"
+    class="sidebar-close-btn"
+    (click)="closeSidebar()"
+    aria-label="Close navigation"
+    title="Close menu"
+  >
+    ×
+  </button>
   <nav class="sidebar-nav" aria-label="Main navigation">
     <section
       class="nav-section"
@@ -17,7 +26,7 @@
           [class.nav-item-group-active]="isGroupActive(item)"
           class="nav-item"
           [title]="item.label"
-          (click)="closeMobileMenu()"
+          (click)="closeSidebar()"
         >
           <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
           <span class="nav-label" [title]="item.label">{{ item.label }}</span>
@@ -32,7 +41,7 @@
             [class.active]="isActive(child.route)"
             class="nav-item nav-item-sub"
             [title]="child.label"
-            (click)="closeMobileMenu()"
+            (click)="closeSidebar()"
           >
             <span class="nav-icon nav-icon-sub" aria-hidden="true">{{ child.icon }}</span>
             <span class="nav-label" [title]="child.label">{{ child.label }}</span>

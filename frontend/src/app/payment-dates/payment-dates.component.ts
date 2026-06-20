@@ -18,12 +18,19 @@ import {
 } from '../shared/export-watermark';
 import { formatInrForExcel, formatInrForPdf } from '../shared/format-inr-export';
 import { ensurePdfUnicodeFonts, PDF_UNICODE_FONT } from '../shared/pdf-unicode-font';
+import {
+  formatPhoneDisplay,
+  formatPhoneForTel,
+  formatPhoneForWhatsApp,
+  phoneDigitsMatch
+} from '../shared/phone.util';
 
 interface FilterState {
   paymentDate: 'all' | 'past' | 'today' | 'future' | 'none';
   whatsappStatus: 'all' | 'not sent' | 'sent' | 'delivered';
   customerCategory: 'all' | 'semi-wholesale' | 'A' | 'B' | 'C';
   followUp: 'all' | 'needed' | 'not-needed';
+  location: 'all' | 'with' | 'without';
   orderDate: 'all' | '0-45' | '46-85' | '85+' | 'custom';
   places: string[];
   orderDateFrom?: string;
@@ -36,6 +43,7 @@ interface FilterDimensionCounts {
   whatsappStatus: Record<'all' | 'not sent' | 'sent' | 'delivered', number>;
   customerCategory: Record<'all' | 'semi-wholesale' | 'A' | 'B' | 'C', number>;
   followUp: Record<'all' | 'needed' | 'not-needed', number>;
+  location: Record<'all' | 'with' | 'without', number>;
   orderDate: Record<'all' | '0-45' | '46-85' | '85+', number>;
 }
 
@@ -47,6 +55,8 @@ interface FilterDimensionCounts {
   styleUrl: './payment-dates.component.css'
 })
 export class PaymentDatesComponent implements OnInit, OnDestroy {
+  formatPhoneDisplay = formatPhoneDisplay;
+
   // Status
   status: 'idle' | 'loading' | 'failed' = 'loading';
   message = '';
@@ -68,6 +78,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     whatsappStatus: 'all',
     customerCategory: 'all',
     followUp: 'all',
+    location: 'all',
     orderDate: 'all',
     places: []
   };
@@ -136,6 +147,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     whatsappStatus: { all: 0, 'not sent': 0, sent: 0, delivered: 0 },
     customerCategory: { all: 0, 'semi-wholesale': 0, A: 0, B: 0, C: 0 },
     followUp: { all: 0, needed: 0, 'not-needed': 0 },
+    location: { all: 0, with: 0, without: 0 },
     orderDate: { all: 0, '0-45': 0, '46-85': 0, '85+': 0 }
   };
 
@@ -326,10 +338,8 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
       const normalizedQuery = query.replace(/\D/g, '');
       filtered = filtered.filter(card => {
         const name = (card.customer || '').toLowerCase();
-        const phone = (card.phoneNumber || '').replace(/\D/g, '');
         const nameMatch = name.includes(query);
-        const phoneMatch =
-          normalizedQuery && phone && (phone.includes(normalizedQuery) || normalizedQuery.includes(phone));
+        const phoneMatch = normalizedQuery ? phoneDigitsMatch(card.phoneNumber, normalizedQuery) : false;
         return nameMatch || phoneMatch;
       });
     }
@@ -350,6 +360,13 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
       filtered = filtered.filter(card => {
         const needsFollowUp = card.needsFollowUp ?? false;
         return f.followUp === 'needed' ? needsFollowUp : !needsFollowUp;
+      });
+    }
+
+    if (f.location !== 'all') {
+      filtered = filtered.filter(card => {
+        const hasLocation = this.hasLocation(card);
+        return f.location === 'with' ? hasLocation : !hasLocation;
       });
     }
 
@@ -467,6 +484,13 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
       }).length
     };
 
+    const baseLoc = this.filterCardsByState(this.cards, this.mergeFilterState({ location: 'all' }));
+    this.filterCounts.location = {
+      all: baseLoc.length,
+      with: baseLoc.filter(c => this.hasLocation(c)).length,
+      without: baseLoc.filter(c => !this.hasLocation(c)).length
+    };
+
     const baseOrder = this.filterCardsByState(this.cards, this.mergeFilterState({ orderDate: 'all' }));
     this.filterCounts.orderDate = {
       all: baseOrder.length,
@@ -517,15 +541,14 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     this.searchSuggestions = this.cards
       .filter(card => {
         const name = (card.customer || '').toLowerCase();
-        const phone = (card.phoneNumber || '').replace(/\D/g, '');
         const nameMatch = name.includes(query);
-        const phoneMatch = normalizedQuery && phone && (phone.includes(normalizedQuery) || normalizedQuery.includes(phone));
+        const phoneMatch = normalizedQuery ? phoneDigitsMatch(card.phoneNumber, normalizedQuery) : false;
         return nameMatch || phoneMatch;
       })
       .slice(0, 8)
       .map(card => ({
         name: card.customer || '',
-        phone: card.phoneNumber || ''
+        phone: formatPhoneDisplay(card.phoneNumber)
       }));
     this.showSuggestions = this.searchSuggestions.length > 0;
   }
@@ -556,6 +579,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
       whatsappStatus: 'all',
       customerCategory: 'all',
       followUp: 'all',
+      location: 'all',
       orderDate: 'all',
       places: []
     };
@@ -568,6 +592,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
            this.filters.whatsappStatus !== 'all' ||
            this.filters.customerCategory !== 'all' ||
            this.filters.followUp !== 'all' ||
+           this.filters.location !== 'all' ||
            this.filters.orderDate !== 'all' ||
            this.filters.places.length > 0;
   }
@@ -881,6 +906,10 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     return m ? m[1].trim() : '';
   }
 
+  hasLocation(card: PaymentDateCustomerCard): boolean {
+    return !!(card.address?.trim() || (card.latitude != null && card.longitude != null));
+  }
+
   onFollowUpToggle(card: PaymentDateCustomerCard): void {
     if (!card.customer) return;
     if (!this.canChangeFollowUp) {
@@ -921,14 +950,9 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
   }
 
   openWhatsApp(card: PaymentDateCustomerCard): void {
-    if (card.phoneNumber) {
-      // Remove any non-digit characters and ensure it starts with country code
-      const phone = card.phoneNumber.replace(/\D/g, '');
-      if (phone) {
-        // Open WhatsApp with the phone number
-        const whatsappUrl = `https://wa.me/${phone}`;
-        window.open(whatsappUrl, '_blank');
-      }
+    const phone = formatPhoneForWhatsApp(card.phoneNumber);
+    if (phone) {
+      window.open(`https://wa.me/${phone}`, '_blank');
     }
   }
 
@@ -936,14 +960,9 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     if (!phoneNumber || phoneNumber.trim() === '') {
       return;
     }
-    
-    // Clean phone number (remove spaces, dashes, etc.)
-    const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
-    
-    // Copy to clipboard first
+
+    const cleanPhone = formatPhoneForTel(phoneNumber);
     this.copyPhoneNumber(phoneNumber, false);
-    
-    // Initiate call using tel: protocol
     window.location.href = `tel:${cleanPhone}`;
   }
 
@@ -951,9 +970,11 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     if (!phoneNumber || phoneNumber.trim() === '') {
       return;
     }
-    
-    // Clean phone number for copying
-    const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
+
+    const cleanPhone = formatPhoneDisplay(phoneNumber);
+    if (!cleanPhone) {
+      return;
+    }
     
     // Use Clipboard API if available
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1036,7 +1057,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     const headerRow = [...cols];
     const bodyRows = this.filteredCards.map(card => [
       card.customer,
-      card.phoneNumber || '',
+      card.phoneNumber ? formatPhoneDisplay(card.phoneNumber) : '',
       formatInrForExcel(card.totalAmount),
       card.customerCategory || '',
       card.lastOrderDate || '',
@@ -1084,7 +1105,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
       head: [['Customer', 'Phone', 'Amount', 'Category', 'Last Order Date', 'Payment Date', 'Status']],
       body: this.filteredCards.map(card => [
         card.customer || '',
-        card.phoneNumber || '',
+        card.phoneNumber ? formatPhoneDisplay(card.phoneNumber) : '',
         formatInrForPdf(card.totalAmount),
         card.customerCategory || '',
         card.lastOrderDate || '',

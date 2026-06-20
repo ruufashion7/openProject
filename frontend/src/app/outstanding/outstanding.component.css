@@ -255,75 +255,6 @@
   color: #78350f;
 }
 
-/* All matches section: show all search results without needing to click a customer */
-.all-matches-section {
-  margin-top: 20px;
-  padding: 16px;
-  background: #f8fafc;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-
-.all-matches-title {
-  margin: 0 0 4px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.all-matches-hint {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.all-matches-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.all-matches-list li {
-  margin: 0;
-}
-
-.btn-match {
-  width: 100%;
-  padding: 10px 14px;
-  justify-content: flex-start;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  text-align: left;
-  font-size: 14px;
-  color: var(--text);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.btn-match:hover {
-  background: #eef2ff;
-  border-color: #6366f1;
-}
-
-.match-text {
-  flex: 1;
-  line-height: 1.5;
-}
-
-.match-text mark {
-  background: #fef3c7;
-  color: #92400e;
-  font-weight: 600;
-  padding: 2px 4px;
-  border-radius: 4px;
-}
-
 .status-text.info {
   color: #6b7280;
   font-size: 13px;
@@ -1434,6 +1365,37 @@
   padding: 8px;
 }
 
+.coordinates-display {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 0;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  position: relative;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+}
+
+.coordinates-display.expanded {
+  max-height: 80px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.coordinates-text {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  padding-right: 28px;
+}
+
 .no-location-text {
   margin: 0;
   padding: 8px;
@@ -1512,18 +1474,19 @@
   opacity: 1;
 }
 
+.location-map-preview {
+  width: 100%;
+  height: 150px;
+  min-height: 150px;
+  border-radius: 6px;
+}
+
 .no-location-map {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 150px;
   background: #f8fafc;
-}
-
-.location-map-preview {
-  width: 100%;
-  height: 100%;
-  border-radius: 10px;
 }
 
 .location-empty {

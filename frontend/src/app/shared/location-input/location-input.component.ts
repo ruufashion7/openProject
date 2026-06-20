@@ -1,7 +1,10 @@
-import { Component, EventEmitter, Input, Output, OnInit, ViewChild, ElementRef, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, EventEmitter, Input, Output, OnInit, OnChanges, SimpleChanges, ViewChild, ElementRef, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import * as L from 'leaflet';
+import { configureLeafletDefaults } from '../leaflet-defaults';
+
+configureLeafletDefaults();
 
 export interface LocationData {
   address: string;
@@ -16,7 +19,7 @@ export interface LocationData {
   templateUrl: './location-input.component.html',
   styleUrl: './location-input.component.css'
 })
-export class LocationInputComponent implements OnInit, AfterViewInit, OnDestroy {
+export class LocationInputComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
   @Input() initialAddress: string = '';
   @Input() initialLatitude: number | null = null;
   @Input() initialLongitude: number | null = null;
@@ -37,15 +40,34 @@ export class LocationInputComponent implements OnInit, AfterViewInit, OnDestroy 
   addressSuggestions: any[] = [];
   showAddressSuggestions: boolean = false;
   private addressSearchTimer: any = null;
+  private searchQueryTimer: any = null;
 
   private readonly NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
 
   constructor() {}
 
   ngOnInit(): void {
+    this.applyInitialValues();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (
+      changes['initialAddress'] ||
+      changes['initialLatitude'] ||
+      changes['initialLongitude']
+    ) {
+      this.applyInitialValues();
+    }
+  }
+
+  private applyInitialValues(): void {
     this.address = this.initialAddress || '';
     this.latitude = this.initialLatitude;
     this.longitude = this.initialLongitude;
+    this.searchQuery = '';
+    this.searchResults = [];
+    this.addressSuggestions = [];
+    this.showAddressSuggestions = false;
   }
 
   ngAfterViewInit(): void {
@@ -53,6 +75,12 @@ export class LocationInputComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   ngOnDestroy(): void {
+    if (this.addressSearchTimer) {
+      clearTimeout(this.addressSearchTimer);
+    }
+    if (this.searchQueryTimer) {
+      clearTimeout(this.searchQueryTimer);
+    }
     if (this.map) {
       this.map.remove();
       this.map = null;
@@ -119,36 +147,103 @@ export class LocationInputComponent implements OnInit, AfterViewInit, OnDestroy 
   setLocation(lat: number, lng: number, address?: string): void {
     this.latitude = lat;
     this.longitude = lng;
-    
+
     if (this.map) {
       this.addMarker([lat, lng]);
     }
-    
+
     if (address) {
       this.address = address;
     } else {
-      // Reverse geocode to get address
-      this.reverseGeocode(lat, lng);
+      this.address = this.formatCoordinates(lat, lng);
+      void this.reverseGeocode(lat, lng);
     }
+  }
+
+  canSaveLocation(): boolean {
+    const hasCoords = this.latitude !== null && this.longitude !== null;
+    const hasAddress = !!this.address.trim();
+    return hasCoords || hasAddress;
+  }
+
+  private formatCoordinates(lat: number, lng: number): string {
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  }
+
+  private parseCoordinateQuery(query: string): { lat: number; lng: number } | null {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const decimalPair = trimmed.match(
+      /^(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)$/
+    );
+    if (decimalPair) {
+      const lat = parseFloat(decimalPair[1]);
+      const lng = parseFloat(decimalPair[2]);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+        return { lat, lng };
+      }
+    }
+
+    const dmsPart =
+      /(\d+(?:\.\d+)?)\s*°\s*(\d+(?:\.\d+)?)?['′]?\s*(\d+(?:\.\d+)?)?["″]?\s*([NnSsEeWw])/g;
+    const parts = [...trimmed.matchAll(dmsPart)];
+    if (parts.length < 2) {
+      return null;
+    }
+
+    const toDecimal = (match: RegExpMatchArray, kind: 'lat' | 'lng'): number | null => {
+      const direction = match[4].toUpperCase();
+      if (kind === 'lat' && direction !== 'N' && direction !== 'S') {
+        return null;
+      }
+      if (kind === 'lng' && direction !== 'E' && direction !== 'W') {
+        return null;
+      }
+
+      const degrees = parseFloat(match[1]);
+      const minutes = parseFloat(match[2] || '0');
+      const seconds = parseFloat(match[3] || '0');
+      let value = degrees + minutes / 60 + seconds / 3600;
+      if (direction === 'S' || direction === 'W') {
+        value *= -1;
+      }
+      return value;
+    };
+
+    const lat = toDecimal(parts[0], 'lat');
+    const lng = toDecimal(parts[1], 'lng');
+    if (
+      lat === null ||
+      lng === null ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      Math.abs(lat) > 90 ||
+      Math.abs(lng) > 180
+    ) {
+      return null;
+    }
+
+    return { lat, lng };
   }
 
   async reverseGeocode(lat: number, lng: number): Promise<void> {
     this.isGeocoding = true;
     try {
       const response = await fetch(
-        `${this.NOMINATIM_URL}/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'OpenProject/1.0' // Required by Nominatim
-          }
-        }
+        `${this.NOMINATIM_URL}/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
       );
+      if (!response.ok) {
+        return;
+      }
       const data = await response.json();
-      if (data && data.display_name) {
+      if (data?.display_name) {
         this.address = data.display_name;
       }
-    } catch (error) {
-      // Reverse geocoding failed
+    } catch {
+      // Keep coordinate fallback already set in setLocation
     } finally {
       this.isGeocoding = false;
     }
@@ -160,20 +255,25 @@ export class LocationInputComponent implements OnInit, AfterViewInit, OnDestroy 
       return;
     }
 
+    const parsed = this.parseCoordinateQuery(this.searchQuery);
+    if (parsed) {
+      this.setLocation(parsed.lat, parsed.lng);
+      this.searchResults = [];
+      return;
+    }
+
     this.isGeocoding = true;
     try {
       const response = await fetch(
-        `${this.NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(this.searchQuery)}&limit=5&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'OpenProject/1.0'
-          }
-        }
+        `${this.NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(this.searchQuery)}&limit=5&addressdetails=1`
       );
+      if (!response.ok) {
+        this.searchResults = [];
+        return;
+      }
       const data = await response.json();
       this.searchResults = data || [];
-    } catch (error) {
-      // Geocoding failed
+    } catch {
       this.searchResults = [];
     } finally {
       this.isGeocoding = false;
@@ -195,13 +295,11 @@ export class LocationInputComponent implements OnInit, AfterViewInit, OnDestroy 
     this.showAddressSuggestions = false;
     try {
       const response = await fetch(
-        `${this.NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(this.address)}&limit=1&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'OpenProject/1.0'
-          }
-        }
+        `${this.NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(this.address)}&limit=1&addressdetails=1`
       );
+      if (!response.ok) {
+        return;
+      }
       const data = await response.json();
       if (data && data.length > 0) {
         const result = data[0];
@@ -245,13 +343,13 @@ export class LocationInputComponent implements OnInit, AfterViewInit, OnDestroy 
     this.isGeocoding = true;
     try {
       const response = await fetch(
-        `${this.NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(this.address)}&limit=5&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'OpenProject/1.0'
-          }
-        }
+        `${this.NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(this.address)}&limit=5&addressdetails=1`
       );
+      if (!response.ok) {
+        this.addressSuggestions = [];
+        this.showAddressSuggestions = false;
+        return;
+      }
       const data = await response.json();
       this.addressSuggestions = data || [];
       this.showAddressSuggestions = this.addressSuggestions.length > 0;
@@ -308,23 +406,31 @@ export class LocationInputComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   async saveLocation(): Promise<void> {
-    if (!this.hasLocationData()) {
+    if (!this.canSaveLocation() && !this.hasLocationData()) {
       return;
     }
 
-    // If we have address but no coordinates, try to geocode first
     if (this.address.trim() && (this.latitude === null || this.longitude === null)) {
       await this.geocodeAddress();
     }
 
-    // Emit location data - coordinates may be null if geocoding failed
+    if (this.latitude !== null && this.longitude !== null && !this.address.trim()) {
+      await this.reverseGeocode(this.latitude, this.longitude);
+      if (!this.address.trim()) {
+        this.address = this.formatCoordinates(this.latitude, this.longitude);
+      }
+    }
+
+    if (this.latitude === null || this.longitude === null) {
+      return;
+    }
+
     this.locationSelected.emit({
-      address: this.address || '',
-      latitude: this.latitude ?? 0,
-      longitude: this.longitude ?? 0
+      address: this.address || this.formatCoordinates(this.latitude, this.longitude),
+      latitude: this.latitude,
+      longitude: this.longitude
     });
 
-    // Cleanup
     this.closeMapPicker();
     this.addressSuggestions = [];
     this.showAddressSuggestions = false;
@@ -342,20 +448,28 @@ export class LocationInputComponent implements OnInit, AfterViewInit, OnDestroy 
   onSearchKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter') {
       event.preventDefault();
-      this.searchAddress();
+      void this.searchAddress().then(() => {
+        if (this.searchResults.length > 0) {
+          this.selectSearchResult(this.searchResults[0]);
+        }
+      });
     }
   }
 
   onSearchInput(): void {
-    // Debounce search
-    if (this.searchQuery.trim()) {
-      setTimeout(() => {
-        if (this.searchQuery.trim()) {
-          this.searchAddress();
-        }
-      }, 500);
-    } else {
-      this.searchResults = [];
+    if (this.searchQueryTimer) {
+      clearTimeout(this.searchQueryTimer);
     }
+
+    if (!this.searchQuery.trim()) {
+      this.searchResults = [];
+      return;
+    }
+
+    this.searchQueryTimer = setTimeout(() => {
+      if (this.searchQuery.trim()) {
+        void this.searchAddress();
+      }
+    }, 500);
   }
 }
