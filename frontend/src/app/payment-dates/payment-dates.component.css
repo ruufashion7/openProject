@@ -332,8 +332,8 @@
 .place-suggestion-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 8px;
   width: 100%;
   padding: 8px 12px;
   text-align: left;
@@ -342,6 +342,15 @@
   font-size: 13px;
   color: #334155;
   cursor: pointer;
+}
+
+.place-suggestion-check {
+  width: 16px;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2563eb;
+  line-height: 1;
 }
 
 .place-suggestion-name {
@@ -355,10 +364,19 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: #94a3b8;
+  margin-left: auto;
 }
 
 .place-suggestion-item:hover {
   background: #e5e7eb;
+}
+
+.place-suggestion-item.selected {
+  background: #eef2ff;
+}
+
+.place-suggestion-item.selected:hover {
+  background: #e0e7ff;
 }
 
 .selected-places-list {

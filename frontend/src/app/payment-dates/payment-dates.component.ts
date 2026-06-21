@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, ElementRef, HostListener, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -86,7 +86,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
   /** Autocomplete input value for place */
   placeSearchQuery = '';
   placeSuggestionsOpen = false;
-  private placeBlurTimer: ReturnType<typeof setTimeout> | null = null;
+  @ViewChild('placeAutocompleteWrap') placeAutocompleteWrap?: ElementRef<HTMLElement>;
 
   /** Number of place suggestions to show initially; more load on scroll */
   readonly PLACE_PAGE_SIZE = 25;
@@ -102,14 +102,13 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }
 
-  /** Full list of place suggestions (alphabetically sorted), excluding already selected. Used for scroll-to-load. */
+  /** Full list of place options (alphabetically sorted), filtered by search text. */
   get placeSuggestions(): string[] {
-    const unselected = this.placeOptions.filter(p => !this.filters.places.includes(p));
     const q = this.placeSearchQuery.trim().toLowerCase();
-    if (!q) return unselected;
-    return unselected
-      .filter(p => p.toLowerCase().includes(q))
-      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    if (!q) {
+      return this.placeOptions;
+    }
+    return this.placeOptions.filter(p => p.toLowerCase().includes(q));
   }
 
   /** Visible slice of place suggestions for the dropdown (grows on scroll). */
@@ -196,7 +195,6 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     // Clear timers
     Object.values(this.saveTimers).forEach(timer => clearTimeout(timer));
     if (this.searchTimer) clearTimeout(this.searchTimer);
-    if (this.placeBlurTimer) clearTimeout(this.placeBlurTimer);
     // Complete destroy subject to cleanup subscriptions
     this.destroy$.next();
     this.destroy$.complete();
@@ -597,26 +595,53 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
            this.filters.places.length > 0;
   }
 
-  addPlaceFromDropdown(place: string): void {
-    if (!place || this.filters.places.includes(place)) return;
-    this.filters.places = [...this.filters.places, place].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-    this.placeSearchQuery = '';
-    this.placeSuggestionsOpen = false;
+  isPlaceSelected(place: string): boolean {
+    return this.filters.places.includes(place);
+  }
+
+  togglePlaceFromDropdown(place: string): void {
+    if (!place) {
+      return;
+    }
+    if (this.filters.places.includes(place)) {
+      this.filters.places = this.filters.places.filter(p => p !== place);
+    } else {
+      this.filters.places = [...this.filters.places, place].sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: 'base' })
+      );
+    }
     this.saveFilters();
     this.updateFilteredCards();
   }
 
-  onPlaceInputFocus(): void {
-    if (this.placeBlurTimer) {
-      clearTimeout(this.placeBlurTimer);
-      this.placeBlurTimer = null;
+  togglePlaceDropdown(): void {
+    this.placeSuggestionsOpen = !this.placeSuggestionsOpen;
+    if (this.placeSuggestionsOpen) {
+      this.placeSuggestionsVisibleCount = this.PLACE_PAGE_SIZE;
     }
+  }
+
+  onPlaceInputFocus(): void {
     this.placeSuggestionsVisibleCount = this.PLACE_PAGE_SIZE;
     this.placeSuggestionsOpen = true;
   }
 
   onPlaceSearchChange(): void {
     this.placeSuggestionsVisibleCount = this.PLACE_PAGE_SIZE;
+    if (!this.placeSuggestionsOpen) {
+      this.placeSuggestionsOpen = true;
+    }
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.placeSuggestionsOpen) {
+      return;
+    }
+    const root = this.placeAutocompleteWrap?.nativeElement;
+    if (root && !root.contains(event.target as Node)) {
+      this.placeSuggestionsOpen = false;
+    }
   }
 
   onPlaceSuggestionsScroll(e: Event): void {
@@ -633,17 +658,14 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     }
   }
 
-  onPlaceInputBlur(): void {
-    this.placeBlurTimer = setTimeout(() => {
-      this.placeSuggestionsOpen = false;
-      this.placeBlurTimer = null;
-    }, 200);
-  }
-
   onPlaceKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      this.placeSuggestionsOpen = false;
+      return;
+    }
     if (event.key === 'Enter' && this.placeSuggestionsSlice.length > 0) {
       event.preventDefault();
-      this.addPlaceFromDropdown(this.placeSuggestionsSlice[0]);
+      this.togglePlaceFromDropdown(this.placeSuggestionsSlice[0]);
     }
   }
 

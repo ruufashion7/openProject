@@ -397,7 +397,7 @@
       </div>
     </div>
 
-    <div class="filter-group place-autocomplete-wrap">
+    <div class="filter-group place-autocomplete-wrap" #placeAutocompleteWrap>
       <div class="filter-group-label-row">
         <label class="filter-group-label">Place</label>
         <span class="filter-scope-count">{{ formatFilterCount(countPlaceScope) }}</span>
@@ -410,11 +410,10 @@
           [(ngModel)]="placeSearchQuery"
           (ngModelChange)="onPlaceSearchChange()"
           (focus)="onPlaceInputFocus()"
-          (blur)="onPlaceInputBlur()"
           (keydown)="onPlaceKeydown($event)"
           autocomplete="off"
         />
-        <span class="place-chevron" (mousedown)="onPlaceInputFocus(); $event.preventDefault()">▼</span>
+        <span class="place-chevron" (mousedown)="togglePlaceDropdown(); $event.preventDefault()">▼</span>
       </div>
       <div
         class="place-suggestions"
@@ -424,9 +423,11 @@
         <button
           type="button"
           class="place-suggestion-item"
+          [class.selected]="isPlaceSelected(p)"
           *ngFor="let p of placeSuggestionsSlice"
-          (mousedown)="addPlaceFromDropdown(p); $event.preventDefault()"
+          (mousedown)="togglePlaceFromDropdown(p); $event.preventDefault()"
         >
+          <span class="place-suggestion-check" aria-hidden="true">{{ isPlaceSelected(p) ? '✓' : '' }}</span>
           <span class="place-suggestion-name">{{ p }}</span>
           <span class="place-suggestion-count">{{ formatFilterCount(placeOptionCounts[p]) }}</span>
         </button>
