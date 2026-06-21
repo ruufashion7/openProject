@@ -22,7 +22,7 @@ Costs: Atlas M0, Render free web service, Vercel hobby — all have limits; fine
 3. When prompted, set:
    - **`MONGO_URI`** — full Atlas URI  
    - **`ADMIN_USERNAME`** / **`ADMIN_PASSWORD`** — first admin login  
-   - **`CORS_ALLOWED_ORIGINS`** — your Vercel URL (step 4). If Vercel is not ready yet, use `http://localhost:4200` and update later.  
+   - **`CORS_ALLOWED_ORIGINS`** — `https://burning-ice.vercel.app` (production frontend; set in `render.yaml`).  
    - **`SECURITY_ENCRYPTION_KEY`** / **`SECURITY_JWT_SECRET`** — auto-generated if you use the Blueprint as written; otherwise set manually in the dashboard. **`SECURITY_ENCRYPTION_KEY`** must be valid Base64 that decodes to **32 bytes** (same as `openssl rand -base64 32`). If the generated value ever fails startup, replace it with that command output.
 
 The Blueprint sets **`SPRING_PROFILES_ACTIVE=prod`** and **`OPENPROJECT_REDIS_ENABLED=false`**: Redis is off by default so health checks pass without Upstash. To enable Redis: create Upstash (TCP **`rediss://`** URL from Connect), set **`OPENPROJECT_REDIS_ENABLED=true`** and **`SPRING_DATA_REDIS_URL`**, then redeploy. Delete any stale **`SPRING_DATA_REDIS_URL`** / **`REDIS_URL`** if deploy logs show an unknown Upstash host.
@@ -61,19 +61,24 @@ git push origin main
 2. **Root Directory**: **`frontend`**.  
 3. **Build Command**: `npm run build`.  
 4. **Output Directory**: **`dist/frontend/browser`**.  
-5. Deploy → copy the site URL, e.g. `https://open-project.vercel.app`.
+5. Deploy → production URL: **`https://burning-ice.vercel.app`** (login: `/login`).
+
+6. In Vercel → **Settings → Domains**, set **`burning-ice.vercel.app`** as the production domain. Remove or delete the old project **`open-project-henna`** if it still exists as a separate deployment.
 
 ## 5. CORS (required)
 
-In Render → **Environment** → **`CORS_ALLOWED_ORIGINS`** = **exact** Vercel origin (no trailing slash unless you know you need it), e.g.:
+In Render → **Environment** → **`CORS_ALLOWED_ORIGINS`**:
 
-`https://your-app.vercel.app`
+`https://burning-ice.vercel.app`
 
-Save → **Manual Deploy** on Render.
+(no trailing slash). This is already in **`render.yaml`** — after push, **Manual Deploy** on Render if the env var was still pointing at an old URL.
+
+Do **not** set `CORS_ALLOWED_ORIGIN_PATTERNS` to `https://*.vercel.app` unless you need preview deploys; it would allow old hostnames to call the API.
 
 ## 6. Smoke test
 
-- Open the Vercel URL → log in with admin credentials from Render.  
+- Open [https://burning-ice.vercel.app/login](https://burning-ice.vercel.app/login) → log in with admin credentials from Render.  
+- Old URL `open-project-henna.vercel.app` should redirect to `burning-ice.vercel.app` (same Vercel project). If it is a **separate** Vercel project, delete that project in the Vercel dashboard.  
 - If API calls fail: fix **`CORS_ALLOWED_ORIGINS`** and **`frontend/vercel.json`** destination, redeploy.
 
 ## 7. Monitoring (optional — Prometheus + Grafana on Render)

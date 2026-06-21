@@ -4,6 +4,19 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build",
   "outputDirectory": "dist/frontend/browser",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "open-project-henna.vercel.app" }],
+      "destination": "https://burning-ice.vercel.app/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "destination": "/login",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",

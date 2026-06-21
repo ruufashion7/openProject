@@ -62,11 +62,13 @@ The app can be deployed for free so the world can use it:
 
 2. **MongoDB Atlas**: Create a free M0 cluster at [mongodb.com/atlas](https://www.mongodb.com/atlas), add a DB user and allow network access `0.0.0.0/0`, and copy the connection string.
 
-3. **Backend on Render**: At [render.com](https://render.com), New > Web Service, connect your repo. Set Runtime to **Docker**, Instance Type **Free**. Add env vars: `MONGO_URI`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SECURITY_ENCRYPTION_KEY` (e.g. `openssl rand -base64 32`), and `CORS_ALLOWED_ORIGINS` = your Vercel app URL (e.g. `https://your-app.vercel.app`). Set **Health Check Path** to `/actuator/health`. Deploy and note the backend URL.
+3. **Backend on Render**: At [render.com](https://render.com), New > Web Service, connect your repo. Set Runtime to **Docker**, Instance Type **Free**. Add env vars: `MONGO_URI`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SECURITY_ENCRYPTION_KEY` (e.g. `openssl rand -base64 32`), and `CORS_ALLOWED_ORIGINS` = `https://burning-ice.vercel.app`. Set **Health Check Path** to `/actuator/health`. Deploy and note the backend URL.
 
 4. **Frontend on Vercel**: At [vercel.com](https://vercel.com), import your repo. Set **Root Directory** to `frontend`, **Build Command** to `npm run build`, **Output Directory** to `dist/frontend/browser`. In `frontend/vercel.json`, set the rewrite `destination` to your Render backend URL (e.g. `https://openproject-backend.onrender.com`). Deploy.
 
-5. **CORS**: Ensure Render has `CORS_ALLOWED_ORIGINS` set to your Vercel URL (e.g. `https://your-project.vercel.app`).
+5. **CORS**: Ensure Render has `CORS_ALLOWED_ORIGINS` = `https://burning-ice.vercel.app` (set in `render.yaml`).
+
+**Live app:** [https://burning-ice.vercel.app/login](https://burning-ice.vercel.app/login)
 
 **Full checklist** (Blueprint + Vercel settings): [docs/FREE_DEPLOY.md](docs/FREE_DEPLOY.md). This repo includes **`render.yaml`** for Render’s Blueprint flow.
 
