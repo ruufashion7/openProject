@@ -162,7 +162,7 @@ export class SalesVisualizationComponent implements OnInit, OnDestroy {
       },
       title: {
         display: true,
-        text: 'Outstanding Amount by Ageing Buckets',
+        text: 'Outstanding by Receivable Ageing (latest upload)',
         font: {
           size: 16,
           weight: 'bold'
@@ -321,7 +321,7 @@ export class SalesVisualizationComponent implements OnInit, OnDestroy {
         backgroundColor: [
           'rgba(6, 118, 71, 0.8)',   // Green for 1-45 days
           'rgba(243, 229, 22, 0.8)', // Yellow for 46-85 days
-          'rgba(180, 35, 24, 0.8)'   // Red for 90+ days
+          'rgba(180, 35, 24, 0.8)'   // Red for 85+ days
         ],
         borderColor: [
           'rgb(6, 118, 71)',

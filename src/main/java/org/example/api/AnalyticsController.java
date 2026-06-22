@@ -3,6 +3,7 @@ package org.example.api;
 import org.example.auth.AuthSessionService;
 import org.example.auth.SessionInfo;
 import org.example.auth.SessionPermissions;
+import org.example.customer.CustomerIdentity;
 import org.example.customer.CustomerPhoneNumbers;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
@@ -769,10 +770,9 @@ public class AnalyticsController {
         Map<String, PaymentDateOverride> paymentDateOverrides = allOverridesList.stream()
                 .filter(o -> o.customerKey() != null && !o.customerKey().isBlank())
                 .collect(Collectors.toMap(PaymentDateOverride::customerKey, override -> override, (a, b) -> a));
-        Set<String> excludedKeys = paymentDateOverrides.values().stream()
+        List<PaymentDateOverride> excludedOverrides = allOverridesList.stream()
                 .filter(PaymentDateOverride::isExcluded)
-                .map(PaymentDateOverride::customerKey)
-                .collect(Collectors.toSet());
+                .toList();
 
         Map<String, String> lastOrderDates = buildLastOrderDateMap();
 
@@ -800,10 +800,6 @@ public class AnalyticsController {
                 continue;
             }
 
-            List<String> totalHeaders = amountHeaders.stream()
-                    .filter(header -> classifyAmountHeader(header) == AmountBucket.TOTAL)
-                    .toList();
-
             for (Map<String, String> row : sheet.rows()) {
                 Optional<String> customerValue = firstCustomerValue(row, customerHeaders);
                 if (customerValue.isEmpty()) {
@@ -815,8 +811,7 @@ public class AnalyticsController {
                     continue;
                 }
 
-                double rowTotal = sumAmounts(row, totalHeaders.isEmpty() ? amountHeaders : totalHeaders);
-                if (rowTotal == 0) {
+                if (!rowHasOutstandingAmount(row, amountHeaders)) {
                     continue;
                 }
 
@@ -825,8 +820,7 @@ public class AnalyticsController {
 
                 // Try to find existing customer_master record using fuzzy matching
                 PaymentDateOverride matchedOverride = findFuzzyMatch(displayName, key, paymentDateOverrides, 0.7);
-                String resolvedKey = matchedOverride != null ? matchedOverride.customerKey() : key;
-                if (excludedKeys.contains(resolvedKey) || excludedKeys.contains(key)) {
+                if (customerExclusionService.isExcludedForUploadRow(displayName, key, excludedOverrides, matchedOverride)) {
                     continue;
                 }
                 
@@ -848,7 +842,7 @@ public class AnalyticsController {
                 }
 
                 aggregates.computeIfAbsent(key, ignored -> new PaymentDateAggregate(displayName))
-                        .add(rowTotal);
+                        .addRowAmounts(row, amountHeaders);
             }
         }
         
@@ -892,7 +886,12 @@ public class AnalyticsController {
                 .collect(Collectors.toMap(PaymentDateOverride::customerKey, PaymentDateOverride::longitude, (a, b) -> a));
 
         List<PaymentDateCustomerCard> results = aggregates.values().stream()
-                .filter(aggregate -> !excludedKeys.contains(aggregate.customerKey))
+                .filter(aggregate -> !customerExclusionService.isExcludedForUploadRow(
+                        aggregate.displayName,
+                        aggregate.customerKey,
+                        excludedOverrides,
+                        paymentDateOverrides.get(aggregate.customerKey)
+                ))
                 .sorted((a, b) -> Double.compare(b.totalAmount, a.totalAmount))
                 .map(aggregate -> new PaymentDateCustomerCard(
                         aggregate.displayName,
@@ -901,12 +900,15 @@ public class AnalyticsController {
                         customerPhones.getOrDefault(aggregate.customerKey, null),
                         whatsAppStatuses.getOrDefault(aggregate.customerKey, "not sent"),
                         customerCategories.getOrDefault(aggregate.customerKey, null),
-                        lastOrderDates.getOrDefault(aggregate.customerKey, null),
+                        lookupLastOrderDate(aggregate.customerKey, aggregate.displayName, lastOrderDates),
                         needsFollowUpFlags.getOrDefault(aggregate.customerKey, false),
                         customerAddresses.getOrDefault(aggregate.customerKey, null),
                         customerLatitudes.getOrDefault(aggregate.customerKey, null),
                         customerLongitudes.getOrDefault(aggregate.customerKey, null),
-                        customerPlaces.getOrDefault(aggregate.customerKey, null)
+                        customerPlaces.getOrDefault(aggregate.customerKey, null),
+                        aggregate.withinAmount,
+                        aggregate.midAmount,
+                        aggregate.beyondAmount
                 ))
                 .toList();
 
@@ -1438,14 +1440,17 @@ public class AnalyticsController {
                     continue;
                 }
 
-                // Apply ageing bucket filter
-                if (ageingBucket != null && !ageingBucket.isBlank() && ageingDays != null) {
+                // Apply ageing bucket filter (invoice-level days from detailed sales)
+                if (ageingBucket != null && !ageingBucket.isBlank()) {
+                    if (ageingDays == null) {
+                        continue;
+                    }
                     String bucket = ageingBucket.toLowerCase(Locale.ROOT);
                     if (bucket.equals("1-45") && (ageingDays < 1 || ageingDays > 45)) {
                         continue;
                     } else if (bucket.equals("46-85") && (ageingDays < 46 || ageingDays > 85)) {
                         continue;
-                    } else if (bucket.equals("90+") && ageingDays <= 85) {
+                    } else if ((bucket.equals("85+") || bucket.equals("90+")) && ageingDays <= 85) {
                         continue;
                     }
                 }
@@ -1815,18 +1820,60 @@ public class AnalyticsController {
         UNKNOWN
     }
 
+    private boolean rowHasOutstandingAmount(Map<String, String> row, List<String> amountHeaders) {
+        for (String header : amountHeaders) {
+            if (parseAmount(row.get(header)) != 0.0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private final class PaymentDateAggregate {
         private final String displayName;
         private final String customerKey;
         private double totalAmount;
+        private double withinAmount;
+        private double midAmount;
+        private double beyondAmount;
 
         private PaymentDateAggregate(String displayName) {
             this.displayName = displayName;
             this.customerKey = normalizeCustomer(displayName);
         }
 
-        private void add(double amount) {
-            this.totalAmount += amount;
+        /** Same bucket rules as {@link #customerSummary} — receivable ageing columns. */
+        private void addRowAmounts(Map<String, String> row, List<String> amountHeaders) {
+            Double rowTotalColumn = null;
+            double rowWithin = 0.0;
+            double rowMid = 0.0;
+            double rowBeyond = 0.0;
+            double rowUnknown = 0.0;
+
+            for (String amountHeader : amountHeaders) {
+                double amount = parseAmount(row.get(amountHeader));
+                if (amount == 0.0) {
+                    continue;
+                }
+                AmountBucket bucket = classifyAmountHeader(amountHeader);
+                switch (bucket) {
+                    case TOTAL -> rowTotalColumn = rowTotalColumn == null ? amount : rowTotalColumn + amount;
+                    case WITHIN -> rowWithin += amount;
+                    case MID -> rowMid += amount;
+                    case BEYOND -> rowBeyond += amount;
+                    default -> rowUnknown += amount;
+                }
+            }
+
+            withinAmount += rowWithin;
+            midAmount += rowMid;
+            beyondAmount += rowBeyond;
+
+            if (rowTotalColumn != null) {
+                totalAmount += rowTotalColumn;
+            } else if (rowWithin + rowMid + rowBeyond + rowUnknown > 0.0) {
+                totalAmount += rowWithin + rowMid + rowBeyond + rowUnknown;
+            }
         }
     }
 
@@ -2190,8 +2237,12 @@ public class AnalyticsController {
         }
 
         List<PaymentDateOverride> allOverrides = paymentDateOverrideRepository.findAll();
+        List<PaymentDateOverride> excludedOverrides = allOverrides.stream()
+                .filter(PaymentDateOverride::isExcluded)
+                .toList();
         List<CustomerLocationResponse> locations = allOverrides.stream()
-                .filter(override -> !customerExclusionService.isExcluded(override.customerKey()))
+                .filter(override -> !customerExclusionService.isExcludedForUploadRow(
+                        override.customerName(), override.customerKey(), excludedOverrides, override))
                 .filter(override -> {
                     // Filter to customers with location data
                     return (override.address() != null && !override.address().isBlank()) 
@@ -2293,6 +2344,83 @@ public class AnalyticsController {
         return result;
     }
 
+    /** Fuzzy-match receivable customer to detailed-sales last-invoice date when keys differ. */
+    private String lookupLastOrderDate(String customerKey, String displayName, Map<String, String> lastOrderDates) {
+        String exact = lastOrderDates.get(customerKey);
+        if (exact != null) {
+            return exact;
+        }
+        String bestDate = null;
+        double bestSimilarity = 0.0;
+        for (Map.Entry<String, String> entry : lastOrderDates.entrySet()) {
+            double similarity = CustomerIdentity.similarity(displayName, entry.getKey());
+            if (similarity >= CustomerIdentity.FUZZY_MATCH_THRESHOLD && similarity > bestSimilarity) {
+                bestSimilarity = similarity;
+                bestDate = entry.getValue();
+            }
+        }
+        return bestDate;
+    }
+
+    /** Org-wide receivable ageing buckets from the latest receivable upload. */
+    private Map<String, Double> buildGlobalReceivableAgeingBuckets() {
+        Map<String, Double> buckets = new java.util.LinkedHashMap<>();
+        buckets.put("1-45 Days", 0.0);
+        buckets.put("46-85 Days", 0.0);
+        buckets.put("85+ Days", 0.0);
+
+        ReceivableAgeingReportUpload latest = receivableAgeingReportUploadRepository.findTopByOrderByUploadedAtDesc();
+        if (latest == null) {
+            return buckets;
+        }
+        UploadedExcelFile file = latest.file();
+        if (file == null || file.sheets() == null) {
+            return buckets;
+        }
+
+        double within = 0.0;
+        double mid = 0.0;
+        double beyond = 0.0;
+
+        for (UploadedExcelSheet sheet : file.sheets()) {
+            List<String> customerHeaders = sheet.headers().stream()
+                    .filter(ExcelUploadHeaderRules::isCustomerHeader)
+                    .toList();
+            if (customerHeaders.isEmpty()) {
+                continue;
+            }
+            List<String> amountHeaders = sheet.headers().stream()
+                    .filter(ExcelUploadHeaderRules::isAmountHeader)
+                    .toList();
+            if (amountHeaders.isEmpty()) {
+                continue;
+            }
+            for (Map<String, String> row : sheet.rows()) {
+                if (!rowHasOutstandingAmount(row, amountHeaders)) {
+                    continue;
+                }
+                for (String amountHeader : amountHeaders) {
+                    double amount = parseAmount(row.get(amountHeader));
+                    if (amount == 0.0) {
+                        continue;
+                    }
+                    AmountBucket bucket = classifyAmountHeader(amountHeader);
+                    switch (bucket) {
+                        case WITHIN -> within += amount;
+                        case MID -> mid += amount;
+                        case BEYOND -> beyond += amount;
+                        default -> { /* totals/unknown omitted from ageing chart */ }
+                    }
+                }
+            }
+        }
+
+        buckets.put("1-45 Days", within);
+        buckets.put("46-85 Days", mid);
+        buckets.put("85+ Days", beyond);
+        return buckets;
+    }
+
     private String extractToken(String authHeader) {
         if (authHeader == null || authHeader.isBlank()) {
             return null;
@@ -2309,46 +2437,7 @@ public class AnalyticsController {
      * Returns a value between 0.0 (no match) and 1.0 (exact match).
      */
     private double calculateCustomerSimilarity(String name1, String name2) {
-        if (name1 == null || name2 == null || name1.isBlank() || name2.isBlank()) {
-            return 0.0;
-        }
-
-        String normalized1 = normalizeCustomer(name1);
-        String normalized2 = normalizeCustomer(name2);
-
-        if (normalized1.equals(normalized2)) {
-            return 1.0;
-        }
-
-        List<String> tokens1 = tokenize(normalized1);
-        List<String> tokens2 = tokenize(normalized2);
-
-        if (tokens1.isEmpty() || tokens2.isEmpty()) {
-            return 0.0;
-        }
-
-        // Calculate Jaccard similarity (intersection over union)
-        Set<String> set1 = new HashSet<>(tokens1);
-        Set<String> set2 = new HashSet<>(tokens2);
-
-        Set<String> intersection = new HashSet<>(set1);
-        intersection.retainAll(set2);
-
-        Set<String> union = new HashSet<>(set1);
-        union.addAll(set2);
-
-        if (union.isEmpty()) {
-            return 0.0;
-        }
-
-        double jaccardSimilarity = (double) intersection.size() / union.size();
-
-        // Boost similarity if one name contains all tokens of the other (subset relationship)
-        if (set1.containsAll(set2) || set2.containsAll(set1)) {
-            jaccardSimilarity = Math.max(jaccardSimilarity, 0.8);
-        }
-
-        return jaccardSimilarity;
+        return CustomerIdentity.similarity(name1, name2);
     }
 
     /**
@@ -2414,7 +2503,6 @@ public class AnalyticsController {
         List<SalesDataPoint> salesDataPoints = new ArrayList<>();
         Map<String, Double> customerRevenue = new java.util.HashMap<>();
         Map<String, Integer> paymentStatusCounts = new java.util.HashMap<>();
-        Map<String, Double> ageingBucketAmounts = new java.util.HashMap<>();
         Map<String, Double> monthlyRevenue = new java.util.HashMap<>();
         
         double totalRevenue = 0.0;
@@ -2489,19 +2577,7 @@ public class AnalyticsController {
                 }
                 paymentStatusCounts.merge(status, 1, Integer::sum);
 
-                // Ageing buckets - only compute when there's an amount due
                 Integer ageingDays = (currentDue > 0.01) ? computeAgeingDays(invoiceDate) : null;
-                if (ageingDays != null) {
-                    String bucket;
-                    if (ageingDays >= 1 && ageingDays <= 45) {
-                        bucket = "1-45 Days";
-                    } else if (ageingDays >= 46 && ageingDays <= 85) {
-                        bucket = "46-85 Days";
-                    } else {
-                        bucket = "90+ Days";
-                    }
-                    ageingBucketAmounts.merge(bucket, currentDue, Double::sum);
-                }
 
                 // Monthly revenue
                 String monthKey = invoiceLocalDate.getYear() + "-" + 
@@ -2543,8 +2619,8 @@ public class AnalyticsController {
                 .map(e -> new PaymentStatusData(e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
 
-        // Ageing bucket amounts
-        List<AgeingBucketData> ageingBucketData = ageingBucketAmounts.entrySet().stream()
+        // Receivable ageing buckets (latest upload — not affected by invoice date filters above)
+        List<AgeingBucketData> ageingBucketData = buildGlobalReceivableAgeingBuckets().entrySet().stream()
                 .map(e -> new AgeingBucketData(e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
 

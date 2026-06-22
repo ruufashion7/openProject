@@ -38,7 +38,7 @@
     <div class="stat-card stat-primary">
       <div class="stat-icon">💰</div>
       <div class="stat-content">
-        <div class="stat-label">Total Amount</div>
+        <div class="stat-label">{{ getTotalAmountLabel() }}</div>
         <div class="stat-value">₹{{ totalAmount | number:'1.0-0' }}</div>
       </div>
     </div>
@@ -179,7 +179,7 @@
         <button (click)="setFilter('location', 'all')">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.orderDate !== 'all'">
-        Order Date: {{ filters.orderDate }}
+        Ageing: {{ filters.orderDate === '0-45' ? '1-45 days' : filters.orderDate === '46-85' ? '46-85 days' : filters.orderDate === '85+' ? '85+ days' : filters.orderDate }}
         <button (click)="setFilter('orderDate', 'all')">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.places.length > 0">
@@ -423,7 +423,7 @@
     </div>
 
     <div class="filter-group">
-      <label class="filter-group-label">Last Order Date</label>
+      <label class="filter-group-label">Ageing (outstanding amount)</label>
       <div class="filter-buttons">
         <button
           type="button"
@@ -440,9 +440,9 @@
           class="filter-btn filter-order-0-45"
           [class.active]="filters.orderDate === '0-45'"
           (click)="setFilter('orderDate', '0-45')"
-          [attr.aria-label]="'0 to 45 days, ' + formatFilterCount(filterCounts.orderDate['0-45']) + ' customers'"
+          [attr.aria-label]="'1 to 45 days, ' + formatFilterCount(filterCounts.orderDate['0-45']) + ' customers'"
         >
-          <span class="filter-btn-text">0-45 Days</span>
+          <span class="filter-btn-text">1-45 Days</span>
           <span class="filter-btn-count">{{ formatFilterCount(filterCounts.orderDate['0-45']) }}</span>
         </button>
         <button
@@ -596,8 +596,23 @@
 
       <div class="card-body">
         <div class="amount-section">
-          <div class="amount-label">Amount Due</div>
-          <div class="amount-value">₹{{ card.totalAmount | number:'1.0-0' }}</div>
+          <div class="amount-label">{{ getAmountDueLabel() }}</div>
+          <div class="amount-value">₹{{ getDisplayAmount(card) | number:'1.2-2' }}</div>
+        </div>
+
+        <div class="bucket-grid">
+          <div class="bucket">
+            <span class="bucket-label">1-45 Days</span>
+            <span class="bucket-value green">₹{{ (card.withinAmount ?? 0) | number:'1.2-2' }}</span>
+          </div>
+          <div class="bucket">
+            <span class="bucket-label">46-85 Days</span>
+            <span class="bucket-value yellow">₹{{ (card.midAmount ?? 0) | number:'1.2-2' }}</span>
+          </div>
+          <div class="bucket">
+            <span class="bucket-label">&gt;85 Days</span>
+            <span class="bucket-value red">₹{{ (card.beyondAmount ?? 0) | number:'1.2-2' }}</span>
+          </div>
         </div>
 
         <div class="payment-date-section" [class]="getPaymentDateBorderClass(card)">
@@ -709,8 +724,9 @@
         </div>
 
         <div class="last-order-date-section" *ngIf="card.lastOrderDate">
-          <label class="date-label">Last Order Date</label>
+          <label class="date-label">Last Invoice Date</label>
           <div class="last-order-date-value">{{ formatDate(card.lastOrderDate) }}</div>
+          <p class="field-hint">From detailed sales upload</p>
         </div>
       </div>
 

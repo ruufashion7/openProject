@@ -228,6 +228,10 @@ export interface PaymentDateCustomerCard {
   latitude?: number | null;
   longitude?: number | null;
   place?: string | null;
+  /** Receivable ageing bucket amounts — matches Customer Details summary. */
+  withinAmount?: number;
+  midAmount?: number;
+  beyondAmount?: number;
 }
 
 export interface ExcludedCustomerView {

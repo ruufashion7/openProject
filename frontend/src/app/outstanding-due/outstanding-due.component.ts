@@ -31,10 +31,8 @@ interface FilterState {
   customerCategory: 'all' | 'semi-wholesale' | 'A' | 'B' | 'C';
   followUp: 'all' | 'needed' | 'not-needed';
   location: 'all' | 'with' | 'without';
-  orderDate: 'all' | '0-45' | '46-85' | '85+' | 'custom';
+  orderDate: 'all' | '0-45' | '46-85' | '85+';
   places: string[];
-  orderDateFrom?: string;
-  orderDateTo?: string;
 }
 
 /** Per-option counts with other filters applied (cascading). */
@@ -313,7 +311,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     filtered.sort((a, b) => {
       let comparison = 0;
       if (this.sortBy === 'amount') {
-        comparison = a.totalAmount - b.totalAmount;
+        comparison = this.getDisplayAmount(a) - this.getDisplayAmount(b);
       } else if (this.sortBy === 'name') {
         comparison = (a.customer || '').localeCompare(b.customer || '');
       } else if (this.sortBy === 'date') {
@@ -436,27 +434,63 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
   }
 
   private cardMatchesOrderDateBucket(card: PaymentDateCustomerCard, mode: FilterState['orderDate']): boolean {
-    if (mode === 'all' || mode === 'custom') {
+    if (mode === 'all') {
       return true;
     }
-    if (!card.lastOrderDate) {
-      return false;
-    }
-    const orderDate = new Date(card.lastOrderDate);
-    orderDate.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diffDays = Math.floor((today.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24));
+    const within = card.withinAmount ?? 0;
+    const mid = card.midAmount ?? 0;
+    const beyond = card.beyondAmount ?? 0;
     if (mode === '0-45') {
-      return diffDays <= 45;
+      return within > 0;
     }
     if (mode === '46-85') {
-      return diffDays > 45 && diffDays <= 85;
+      return mid > 0;
     }
     if (mode === '85+') {
-      return diffDays > 85;
+      return beyond > 0;
     }
     return true;
+  }
+
+  /** Amount shown on card / totals — bucket amount when an ageing filter is active. */
+  getDisplayAmount(card: PaymentDateCustomerCard): number {
+    const mode = this.filters.orderDate;
+    if (mode === '0-45') {
+      return card.withinAmount ?? 0;
+    }
+    if (mode === '46-85') {
+      return card.midAmount ?? 0;
+    }
+    if (mode === '85+') {
+      return card.beyondAmount ?? 0;
+    }
+    return card.totalAmount;
+  }
+
+  getAmountDueLabel(): string {
+    switch (this.filters.orderDate) {
+      case '0-45':
+        return '1-45 Days Due';
+      case '46-85':
+        return '46-85 Days Due';
+      case '85+':
+        return '85+ Days Due';
+      default:
+        return 'Amount Due';
+    }
+  }
+
+  getTotalAmountLabel(): string {
+    switch (this.filters.orderDate) {
+      case '0-45':
+        return 'Total (1-45 Days)';
+      case '46-85':
+        return 'Total (46-85 Days)';
+      case '85+':
+        return 'Total (85+ Days)';
+      default:
+        return 'Total Amount';
+    }
   }
 
   private recomputeFilterOptionCounts(): void {
@@ -530,7 +564,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       return customerName !== 'total';
     });
     
-    this.totalAmount = this.filteredCards.reduce((sum, card) => sum + card.totalAmount, 0);
+    this.totalAmount = this.filteredCards.reduce((sum, card) => sum + this.getDisplayAmount(card), 0);
     this.totalCustomers = validCustomers.length;
   }
 
@@ -1085,8 +1119,11 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       'Customer',
       'Phone',
       'Amount',
+      '1-45 Days',
+      '46-85 Days',
+      '85+ Days',
       'Category',
-      'Last Order Date',
+      'Last Invoice Date',
       'Due Date',
       'WhatsApp Status',
       'Follow Up',
@@ -1097,7 +1134,10 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     const bodyRows = this.filteredCards.map(card => [
       card.customer,
       card.phoneNumber ? formatPhoneDisplay(card.phoneNumber) : '',
-      formatInrForExcel(card.totalAmount),
+      formatInrForExcel(this.getDisplayAmount(card)),
+      formatInrForExcel(card.withinAmount ?? 0),
+      formatInrForExcel(card.midAmount ?? 0),
+      formatInrForExcel(card.beyondAmount ?? 0),
       card.customerCategory || '',
       card.lastOrderDate || '',
       card.nextPaymentDate || '',
@@ -1109,6 +1149,9 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       { wch: 28 },
       { wch: 14 },
       { wch: 18 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
       { wch: 14 },
       { wch: 16 },
       { wch: 14 },
@@ -1141,11 +1184,14 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       return;
     }
     autoTable(doc, {
-      head: [['Customer', 'Phone', 'Amount', 'Category', 'Last Order Date', 'Due Date', 'Status']],
+      head: [['Customer', 'Phone', 'Amount', '1-45', '46-85', '85+', 'Category', 'Last Invoice', 'Due Date', 'Status']],
       body: this.filteredCards.map(card => [
         card.customer || '',
         card.phoneNumber ? formatPhoneDisplay(card.phoneNumber) : '',
-        formatInrForPdf(card.totalAmount),
+        formatInrForPdf(this.getDisplayAmount(card)),
+        formatInrForPdf(card.withinAmount ?? 0),
+        formatInrForPdf(card.midAmount ?? 0),
+        formatInrForPdf(card.beyondAmount ?? 0),
         card.customerCategory || '',
         card.lastOrderDate || '',
         card.nextPaymentDate || '',

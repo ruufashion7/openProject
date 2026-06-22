@@ -709,12 +709,21 @@ export class OutstandingComponent implements OnInit, OnDestroy {
   }
 
   private findExcludedMatch(list: ExcludedCustomerView[], displayName: string): ExcludedCustomerView | undefined {
-    const target = displayName.trim().toLowerCase();
+    const targetKey = this.normalizeCustomerKey(displayName);
     return list.find((item) => {
-      const name = (item.customerName || '').trim().toLowerCase();
-      const key = (item.customerKey || '').trim().toLowerCase();
-      return name === target || key === target;
+      const nameKey = this.normalizeCustomerKey(item.customerName || '');
+      const key = this.normalizeCustomerKey(item.customerKey || '');
+      return nameKey === targetKey || key === targetKey;
     });
+  }
+
+  /** Same normalization as backend CustomerIdentity.normalizeKey */
+  private normalizeCustomerKey(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
   }
 
   ignoreCurrentCustomer(): void {
@@ -1822,10 +1831,20 @@ export class OutstandingComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Prepare customer details at the top
+    // Prepare customer details and receivable ageing at the top
     const customerDetails = [
       ['Customer Name', this.selectedCustomerName],
       ['Phone Number', formatPhoneDisplay(this.customerSummary.phoneNumber) || 'Not available'],
+      ['']
+    ];
+    const receivableAgeing = [
+      ['Receivable Ageing (latest upload)'],
+      ['Total Outstanding', formatInrForExcel(this.customerSummary?.totalAmount ?? 0)],
+      ['1-45 Days', formatInrForExcel(this.customerSummary?.withinAmount ?? 0)],
+      ['46-85 Days', formatInrForExcel(this.customerSummary?.midAmount ?? 0)],
+      ['>85 Days', formatInrForExcel(this.customerSummary?.beyondAmount ?? 0)],
+      [''],
+      ['Invoice Ledger (detailed sales — ageing from invoice dates)'],
       ['']
     ];
 
@@ -1889,7 +1908,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     const watermarkRow = buildExcelWatermarkRow(totalCols);
     
     // Combine watermark, customer details, headers, summary row, and ledger table
-    const allData = [watermarkRow, ...customerDetails, headers, summaryRow, ...tableData];
+    const allData = [watermarkRow, ...customerDetails, ...receivableAgeing, headers, summaryRow, ...tableData];
     const ws = XLSX.utils.aoa_to_sheet(allData);
     
     // Set column widths for better readability
@@ -1960,6 +1979,22 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     yPos += 7;
     doc.text(`Phone Number: ${formatPhoneDisplay(this.customerSummary.phoneNumber) || 'Not available'}`, 14, yPos);
     yPos += 10;
+
+    doc.setFontSize(10);
+    doc.text('Receivable Ageing (latest upload)', 14, yPos);
+    yPos += 6;
+    doc.text(`Total Outstanding: ${formatInrForPdf(this.customerSummary?.totalAmount ?? 0)}`, 14, yPos);
+    yPos += 5;
+    doc.text(`1-45 Days: ${formatInrForPdf(this.customerSummary?.withinAmount ?? 0)}`, 14, yPos);
+    yPos += 5;
+    doc.text(`46-85 Days: ${formatInrForPdf(this.customerSummary?.midAmount ?? 0)}`, 14, yPos);
+    yPos += 5;
+    doc.text(`>85 Days: ${formatInrForPdf(this.customerSummary?.beyondAmount ?? 0)}`, 14, yPos);
+    yPos += 10;
+
+    doc.setFontSize(10);
+    doc.text('Invoice Ledger (detailed sales — ageing from invoice dates)', 14, yPos);
+    yPos += 8;
 
     // Prepare table data
     let headers: string[] = ['Invoice Date', 'Voucher No.', 'Ageing Days'];

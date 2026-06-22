@@ -91,6 +91,7 @@
       </div>
 
         <div class="amount-card" *ngIf="customerSummary?.found">
+          <h3 class="section-heading">Receivable ageing (latest upload)</h3>
           <div class="summary-grid">
             <div class="summary-tile">
               <p class="summary-label">Phone Number</p>
@@ -123,7 +124,7 @@
               <p class="summary-value" *ngIf="!customerSummary?.phoneNumber">Not available</p>
             </div>
             <div class="summary-tile">
-              <p class="summary-label">Total Amount</p>
+              <p class="summary-label">Total Outstanding</p>
               <p
                 class="summary-amount"
                 [class.green]="customerSummary?.within45Days"
@@ -614,6 +615,11 @@
               ></app-location-input>
             </div>
           </div>
+        </div>
+
+        <div class="ledger-section-header" *ngIf="customerSummary?.found">
+          <h3 class="section-heading">Invoice ledger (detailed sales)</h3>
+          <p class="section-subheading">Ageing days are calculated from individual invoice dates</p>
         </div>
 
         <div class="ledger-actions" *ngIf="customerSummary?.found">

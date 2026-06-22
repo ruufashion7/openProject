@@ -54,7 +54,11 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
     { token: '{{totalAmount}}', label: 'Total amount (₹)' },
     { token: '{{place}}', label: 'Place' },
     { token: '{{address}}', label: 'Address' },
-    { token: '{{lastOrderDate}}', label: 'Last order date' },
+    { token: '{{lastOrderDate}}', label: 'Last invoice date (sales)' },
+    { token: '{{lastInvoiceDate}}', label: 'Last invoice date (alias)' },
+    { token: '{{withinAmount}}', label: '1-45 days due (₹)' },
+    { token: '{{midAmount}}', label: '46-85 days due (₹)' },
+    { token: '{{beyondAmount}}', label: '85+ days due (₹)' },
     { token: '{{customerCategory}}', label: 'Category' },
     { token: '{{whatsAppStatus}}', label: 'WhatsApp status' },
     { token: '{{needsFollowUp}}', label: 'Needs follow-up' }
@@ -177,7 +181,18 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
     }
     const lod = card.lastOrderDate;
     if (lod != null && String(lod).trim() !== '') {
-      p['lastOrderDate'] = String(lod).trim();
+      const trimmed = String(lod).trim();
+      p['lastOrderDate'] = trimmed;
+      p['lastInvoiceDate'] = trimmed;
+    }
+    if (card.withinAmount != null && Number.isFinite(Number(card.withinAmount))) {
+      p['withinAmount'] = formatInrForExcel(Number(card.withinAmount));
+    }
+    if (card.midAmount != null && Number.isFinite(Number(card.midAmount))) {
+      p['midAmount'] = formatInrForExcel(Number(card.midAmount));
+    }
+    if (card.beyondAmount != null && Number.isFinite(Number(card.beyondAmount))) {
+      p['beyondAmount'] = formatInrForExcel(Number(card.beyondAmount));
     }
     const cat = card.customerCategory;
     if (cat != null && String(cat).trim() !== '') {

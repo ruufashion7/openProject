@@ -12,7 +12,11 @@ public record PaymentDateCustomerCard(
         String address, // Customer address
         Double latitude, // Customer location latitude
         Double longitude, // Customer location longitude
-        String place // Place/station e.g. "Mumbai local station"
+        String place, // Place/station e.g. "Mumbai local station"
+        /** Receivable ageing bucket amounts — same source as Customer Details summary. */
+        double withinAmount,
+        double midAmount,
+        double beyondAmount
 ) {
 }
 

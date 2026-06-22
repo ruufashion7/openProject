@@ -42,7 +42,7 @@ export class SalesDetailsComponent implements OnInit, OnDestroy {
   // Ageing Days Filters
   ageingDaysMin = '';
   ageingDaysMax = '';
-  ageingBucket: 'none' | '1-45' | '46-85' | '90+' = 'none';
+  ageingBucket: 'none' | '1-45' | '46-85' | '85+' = 'none';
   
   // Total Amount Filters
   totalAmountMin = '';

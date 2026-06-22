@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * User-controlled customer exclusion — hidden from Outstanding Due and outreach pickers.
@@ -28,6 +29,30 @@ public class CustomerExclusionService {
                 .orElse(false);
     }
 
+    /**
+     * Whether an upload row should be skipped — matches by key and fuzzy display name
+     * so ignores still apply when Excel spelling differs slightly from what was typed in UI.
+     */
+    public boolean isExcludedForUploadRow(
+            String displayName,
+            String normalizedKey,
+            List<PaymentDateOverride> excludedOverrides,
+            PaymentDateOverride fuzzyMatchedOverride
+    ) {
+        if (fuzzyMatchedOverride != null && fuzzyMatchedOverride.isExcluded()) {
+            return true;
+        }
+        if (normalizedKey == null || normalizedKey.isBlank()) {
+            return false;
+        }
+        for (PaymentDateOverride excluded : excludedOverrides) {
+            if (matchesExcludedRecord(displayName, normalizedKey, excluded)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public List<ExcludedCustomerView> listExcluded() {
         return repository.findAll().stream()
                 .filter(PaymentDateOverride::isExcluded)
@@ -46,19 +71,18 @@ public class CustomerExclusionService {
     }
 
     public ExcludedCustomerView excludeByDisplayName(String displayName, String performedBy) {
-        String key = CustomerIdentity.normalizeKey(displayName);
+        String trimmed = displayName.trim();
+        String key = CustomerIdentity.normalizeKey(trimmed);
         if (key.isBlank()) {
             throw new IllegalArgumentException("Customer name is required");
         }
-        PaymentDateOverride saved = repository.findFirstByCustomerKeyOrderByIdAsc(key)
-                .map(existing -> repository.save(PaymentDateOverrideCopy.withExcluded(existing, true, performedBy)))
-                .orElseGet(() -> repository.save(
-                        PaymentDateOverrideCopy.withExcluded(
-                                PaymentDateOverrideCopy.newShell(key, displayName.trim()),
-                                true,
-                                performedBy
-                        )
-                ));
+
+        PaymentDateOverride target = findExistingForDisplayName(trimmed)
+                .orElseGet(() -> PaymentDateOverrideCopy.newShell(key, trimmed));
+
+        PaymentDateOverride saved = repository.save(
+                PaymentDateOverrideCopy.withExcluded(target, true, performedBy)
+        );
         return toView(saved);
     }
 
@@ -73,6 +97,43 @@ public class CustomerExclusionService {
         }
         PaymentDateOverride saved = repository.save(PaymentDateOverrideCopy.withExcluded(existing, false, performedBy));
         return toView(saved);
+    }
+
+    private Optional<PaymentDateOverride> findExistingForDisplayName(String displayName) {
+        String key = CustomerIdentity.normalizeKey(displayName);
+        Optional<PaymentDateOverride> byKey = repository.findFirstByCustomerKeyOrderByIdAsc(key);
+        if (byKey.isPresent()) {
+            return byKey;
+        }
+
+        PaymentDateOverride best = null;
+        double bestSimilarity = 0.0;
+        for (PaymentDateOverride candidate : repository.findAll()) {
+            double similarity = CustomerIdentity.similarity(displayName, candidate.customerName());
+            if (similarity >= CustomerIdentity.FUZZY_MATCH_THRESHOLD && similarity > bestSimilarity) {
+                bestSimilarity = similarity;
+                best = candidate;
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    private static boolean matchesExcludedRecord(
+            String displayName,
+            String normalizedKey,
+            PaymentDateOverride excluded
+    ) {
+        if (normalizedKey.equals(excluded.customerKey())) {
+            return true;
+        }
+        String excludedNameKey = CustomerIdentity.normalizeKey(excluded.customerName());
+        if (!excludedNameKey.isBlank() && normalizedKey.equals(excludedNameKey)) {
+            return true;
+        }
+        if (CustomerIdentity.matchesFuzzy(displayName, excluded.customerName())) {
+            return true;
+        }
+        return CustomerIdentity.matchesFuzzy(displayName, excluded.customerKey());
     }
 
     private static ExcludedCustomerView toView(PaymentDateOverride o) {
