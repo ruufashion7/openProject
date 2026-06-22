@@ -159,4 +159,9 @@ public final class SessionPermissions {
     public static boolean canAccessWhatsappBroadcast(SessionInfo session) {
         return has(session, UserPermissions::isWhatsappBroadcast);
     }
+
+    /** Ignore / restore customers on Outstanding Due. */
+    public static boolean canExcludeCustomer(SessionInfo session) {
+        return has(session, UserPermissions::isCustomerExcludeEdit);
+    }
 }

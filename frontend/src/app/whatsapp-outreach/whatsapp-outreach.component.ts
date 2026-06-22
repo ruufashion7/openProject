@@ -43,13 +43,13 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
   readonly maxTemplate = MAX_TEMPLATE;
 
   /**
-   * Built-ins + Payment Dates fields. Use {{tokenName}} in the message; insert via chips below the textarea.
+   * Built-ins + Outstanding Due fields. Use {{tokenName}} in the message; insert via chips below the textarea.
    * Backend only replaces tokens matching [a-zA-Z][a-zA-Z0-9_]* inside {{ }}.
    */
   readonly placeholderChips: { token: string; label: string }[] = [
     { token: '{{customerName}}', label: 'Customer name' },
     { token: '{{phone}}', label: 'Phone (digits)' },
-    { token: '{{nextPaymentDate}}', label: 'Next payment date' },
+    { token: '{{nextPaymentDate}}', label: 'Next due date' },
     { token: '{{amountDue}}', label: 'Amount due (₹)' },
     { token: '{{totalAmount}}', label: 'Total amount (₹)' },
     { token: '{{place}}', label: 'Place' },
@@ -75,7 +75,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
   selectedCustomers = new Set<string>();
   customerSearch = '';
 
-  /** Filtered recipient rows (updated on input — same matching rules as Payment Dates search). */
+  /** Filtered recipient rows (updated on input — same matching rules as Outstanding Due search). */
   recipientPickListFiltered: PaymentDateCustomerCard[] = [];
   recipientSearchSuggestions: { name: string; phone: string }[] = [];
   showRecipientSuggestions = false;
@@ -274,7 +274,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
   loadCards(): void {
     if (!this.permission.canAccessOutstandingPage()) {
       this.cardsLoadError =
-        'Outstanding / Payment Dates access is required to load customers here. Ask an admin to enable that permission for your account.';
+        'Outstanding Due access is required to load customers here. Ask an admin to enable that permission for your account.';
       this.recipientPickListFiltered = [];
       this.recipientSearchSuggestions = [];
       this.showRecipientSuggestions = false;
@@ -282,7 +282,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
     }
     this.loadingCards = true;
     this.cardsLoadError = '';
-    this.api.getPaymentDates().subscribe({
+    this.api.getOutstandingDue().subscribe({
       next: (c) => {
         this.cards = (c || []).filter(
           (x) => (x.customer || '').toLowerCase().trim() !== 'total'
@@ -293,7 +293,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
       error: () => {
         this.loadingCards = false;
         this.cardsLoadError =
-          'Could not load customers. Check your connection and try again, or open Payment Dates from the menu.';
+          'Could not load customers. Check your connection and try again, or open Outstanding Due from the menu.';
         this.recipientPickListFiltered = [];
         this.recipientSearchSuggestions = [];
         this.showRecipientSuggestions = false;
@@ -351,7 +351,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
     return this.eligibleCardsWithPhone();
   }
 
-  /** Same name/phone rules as Payment Dates {@code filterCardsByState} search. */
+  /** Same name/phone rules as Outstanding Due {@code filterCardsByState} search. */
   private matchesRecipientSearchQuery(card: PaymentDateCustomerCard, rawQuery: string): boolean {
     const q = rawQuery.toLowerCase().trim();
     if (!q) {

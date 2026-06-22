@@ -5,7 +5,9 @@ import org.example.auth.SessionInfo;
 import org.example.auth.SessionPermissions;
 import org.example.customer.CustomerPhoneNumbers;
 import org.example.payment.PaymentDateOverride;
+import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
+import org.example.payment.CustomerExclusionService;
 import org.example.upload.DetailedSalesInvoicesUpload;
 import org.example.upload.DetailedSalesInvoicesUploadRepository;
 import org.example.upload.ExcelUploadHeaderRules;
@@ -67,17 +69,20 @@ public class AnalyticsController {
     private final DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository;
     private final ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository;
     private final PaymentDateOverrideRepository paymentDateOverrideRepository;
+    private final CustomerExclusionService customerExclusionService;
     private final Environment environment;
 
     public AnalyticsController(AuthSessionService authSessionService,
                                DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository,
                                ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository,
                                PaymentDateOverrideRepository paymentDateOverrideRepository,
+                               CustomerExclusionService customerExclusionService,
                                Environment environment) {
         this.authSessionService = authSessionService;
         this.detailedSalesInvoicesUploadRepository = detailedSalesInvoicesUploadRepository;
         this.receivableAgeingReportUploadRepository = receivableAgeingReportUploadRepository;
         this.paymentDateOverrideRepository = paymentDateOverrideRepository;
+        this.customerExclusionService = customerExclusionService;
         this.environment = environment;
     }
 
@@ -742,8 +747,8 @@ public class AnalyticsController {
         return ResponseEntity.ok(entries);
     }
 
-    @GetMapping("/payment-dates")
-    public ResponseEntity<List<PaymentDateCustomerCard>> paymentDates(
+    @GetMapping("/outstanding-due")
+    public ResponseEntity<List<PaymentDateCustomerCard>> listOutstandingDue(
             @RequestHeader(value = "Authorization", required = false) String authHeader
     ) {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
@@ -762,12 +767,20 @@ public class AnalyticsController {
         // Load all customer_master records for fuzzy matching
         List<PaymentDateOverride> allOverridesList = paymentDateOverrideRepository.findAll();
         Map<String, PaymentDateOverride> paymentDateOverrides = allOverridesList.stream()
+                .filter(o -> o.customerKey() != null && !o.customerKey().isBlank())
                 .collect(Collectors.toMap(PaymentDateOverride::customerKey, override -> override, (a, b) -> a));
+        Set<String> excludedKeys = paymentDateOverrides.values().stream()
+                .filter(PaymentDateOverride::isExcluded)
+                .map(PaymentDateOverride::customerKey)
+                .collect(Collectors.toSet());
 
         Map<String, String> lastOrderDates = buildLastOrderDateMap();
 
         Map<String, PaymentDateAggregate> aggregates = new java.util.LinkedHashMap<>();
         UploadedExcelFile file = latest.file();
+        if (file == null || file.sheets() == null) {
+            return ResponseEntity.ok(List.of());
+        }
         
         // Track which customers are found in the Excel file
         Set<String> customersInExcel = new HashSet<>();
@@ -812,50 +825,21 @@ public class AnalyticsController {
 
                 // Try to find existing customer_master record using fuzzy matching
                 PaymentDateOverride matchedOverride = findFuzzyMatch(displayName, key, paymentDateOverrides, 0.7);
+                String resolvedKey = matchedOverride != null ? matchedOverride.customerKey() : key;
+                if (excludedKeys.contains(resolvedKey) || excludedKeys.contains(key)) {
+                    continue;
+                }
                 
                 // If fuzzy match found and key has changed, update customer_master record
                 if (matchedOverride != null && !key.equals(matchedOverride.customerKey())) {
-                    // Update the map with new key
                     paymentDateOverrides.remove(matchedOverride.customerKey());
-                    PaymentDateOverride updated = new PaymentDateOverride(
-                            matchedOverride.id(),
-                            key,
-                            displayName,
-                            matchedOverride.nextPaymentDate(),
-                            matchedOverride.phoneNumber(),
-                            matchedOverride.whatsAppStatus(),
-                            matchedOverride.customerCategory(),
-                            true, // Mark as active since it's in the Excel file
-                            matchedOverride.needsFollowUp() != null ? matchedOverride.needsFollowUp() : false,
-                            matchedOverride.address(),
-                            matchedOverride.place(),
-                            matchedOverride.latitude(),
-                            matchedOverride.longitude(),
-                            matchedOverride.notes() != null ? matchedOverride.notes() : new ArrayList<>(),
-                            Instant.now()
-                    );
+                    PaymentDateOverride updated = PaymentDateOverrideCopy.rekey(
+                            matchedOverride, key, displayName, matchedOverride.phoneNumber());
                     paymentDateOverrideRepository.save(updated);
                     paymentDateOverrides.put(key, updated);
                 } else if (matchedOverride != null) {
-                    // Exact match found - mark as active if needed
                     if (!matchedOverride.isActive()) {
-                        PaymentDateOverride updated = new PaymentDateOverride(
-                                matchedOverride.id(),
-                                matchedOverride.customerKey(),
-                                matchedOverride.customerName(),
-                                matchedOverride.nextPaymentDate(),
-                                matchedOverride.phoneNumber(),
-                                matchedOverride.whatsAppStatus(),
-                                matchedOverride.customerCategory(),
-                                true, // Mark as active
-                                matchedOverride.needsFollowUp() != null ? matchedOverride.needsFollowUp() : false,
-                                matchedOverride.address(),
-                                matchedOverride.place(),
-                                matchedOverride.latitude(),
-                                matchedOverride.longitude(),
-                                matchedOverride.notes() != null ? matchedOverride.notes() : new ArrayList<>(),
-                                Instant.now()
-                        );
+                        PaymentDateOverride updated = PaymentDateOverrideCopy.withActive(matchedOverride, true);
                         paymentDateOverrideRepository.save(updated);
                         paymentDateOverrides.put(key, updated);
                     } else {
@@ -871,23 +855,7 @@ public class AnalyticsController {
         // Mark all customers not in Excel file as inactive
         for (PaymentDateOverride override : allOverridesList) {
             if (!customersInExcel.contains(override.customerKey()) && override.isActive()) {
-                PaymentDateOverride updated = new PaymentDateOverride(
-                        override.id(),
-                        override.customerKey(),
-                        override.customerName(),
-                        override.nextPaymentDate(),
-                        override.phoneNumber(),
-                        override.whatsAppStatus(),
-                        override.customerCategory(),
-                        false, // Mark as inactive
-                        override.needsFollowUp() != null ? override.needsFollowUp() : false,
-                        override.address(),
-                        override.place(),
-                        override.latitude(),
-                        override.longitude(),
-                        override.notes() != null ? override.notes() : new ArrayList<>(),
-                        Instant.now()
-                );
+                PaymentDateOverride updated = PaymentDateOverrideCopy.withActive(override, false);
                 paymentDateOverrideRepository.save(updated);
                 paymentDateOverrides.put(override.customerKey(), updated);
             }
@@ -924,6 +892,7 @@ public class AnalyticsController {
                 .collect(Collectors.toMap(PaymentDateOverride::customerKey, PaymentDateOverride::longitude, (a, b) -> a));
 
         List<PaymentDateCustomerCard> results = aggregates.values().stream()
+                .filter(aggregate -> !excludedKeys.contains(aggregate.customerKey))
                 .sorted((a, b) -> Double.compare(b.totalAmount, a.totalAmount))
                 .map(aggregate -> new PaymentDateCustomerCard(
                         aggregate.displayName,
@@ -944,7 +913,7 @@ public class AnalyticsController {
         return ResponseEntity.ok(results);
     }
 
-    @PostMapping("/payment-dates/next-date")
+    @PostMapping("/outstanding-due/next-date")
     public ResponseEntity<Map<String, Object>> updateNextPaymentDate(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody PaymentDateUpdateRequest request
@@ -957,7 +926,7 @@ public class AnalyticsController {
             }
             if (!SessionPermissions.canEditPaymentDate(session)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Forbidden", "message", "You do not have permission to edit payment dates."));
+                    .body(Map.of("error", "Forbidden", "message", "You do not have permission to edit due dates."));
             }
 
             if (request == null || request.customer() == null || request.customer().isBlank()) {
@@ -979,23 +948,7 @@ public class AnalyticsController {
                 if (existing == null) {
                     return ResponseEntity.ok(Map.of("success", true, "message", "Date cleared"));
                 }
-                paymentDateOverrideRepository.save(new PaymentDateOverride(
-                        existing.id(),
-                        customerKey,
-                        existing.customerName(),
-                        "",
-                        existing.phoneNumber(),
-                        existing.whatsAppStatus(),
-                        existing.customerCategory(),
-                        existing.isActive(),
-                        existing.needsFollowUp() != null ? existing.needsFollowUp() : false,
-                        existing.address(),
-                        existing.place(),
-                        existing.latitude(),
-                        existing.longitude(),
-                        existing.notes() != null ? existing.notes() : new ArrayList<>(),
-                        Instant.now()
-                ));
+                paymentDateOverrideRepository.save(PaymentDateOverrideCopy.copy(existing, null, null, "", null, null, null, null, null, null, null, null, null, null, null, null, null));
                 return ResponseEntity.ok(Map.of("success", true, "message", "Date cleared successfully"));
             }
             
@@ -1046,23 +999,30 @@ public class AnalyticsController {
                     ? existing.notes() 
                     : new ArrayList<>();
             
-            PaymentDateOverride updated = new PaymentDateOverride(
-                id, 
-                customerKey, 
-                request.customer().trim(), 
-                nextPaymentDate, 
-                finalPhoneNumber, 
-                finalWhatsAppStatus, 
-                existingCustomerCategory,
-                true, 
-                existingNeedsFollowUp != null ? existingNeedsFollowUp : false, 
-                existingAddress, 
-                existingPlace, 
-                existingLatitude, 
-                existingLongitude, 
-                existingNotes,
-                Instant.now()
-            );
+            PaymentDateOverride updated = existing == null
+                    ? PaymentDateOverrideCopy.copy(
+                            PaymentDateOverrideCopy.newShell(customerKey, request.customer().trim()),
+                            null, null, nextPaymentDate, finalPhoneNumber, finalWhatsAppStatus, existingCustomerCategory,
+                            true, existingNeedsFollowUp, existingAddress, existingPlace, existingLatitude, existingLongitude,
+                            existingNotes, null, null, null)
+                    : PaymentDateOverrideCopy.copy(
+                            existing,
+                            customerKey,
+                            request.customer().trim(),
+                            nextPaymentDate,
+                            finalPhoneNumber,
+                            finalWhatsAppStatus,
+                            existingCustomerCategory,
+                            true,
+                            existingNeedsFollowUp,
+                            existingAddress,
+                            existingPlace,
+                            existingLatitude,
+                            existingLongitude,
+                            existingNotes,
+                            null,
+                            null,
+                            null);
             
             paymentDateOverrideRepository.save(updated);
             return ResponseEntity.ok(Map.of("success", true, "message", "Payment date updated successfully"));
@@ -1074,8 +1034,8 @@ public class AnalyticsController {
         }
     }
 
-    @PostMapping("/payment-dates/clear")
-    public ResponseEntity<Void> clearAllNextPaymentDates(
+    @PostMapping("/outstanding-due/clear")
+    public ResponseEntity<Void> clearAllOutstandingDueDates(
             @RequestHeader(value = "Authorization", required = false) String authHeader
     ) {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
@@ -1089,7 +1049,7 @@ public class AnalyticsController {
         return ResponseEntity.ok().build();
     }
 
-    @PostMapping("/payment-dates/whatsapp-status")
+    @PostMapping("/outstanding-due/whatsapp-status")
     public ResponseEntity<Map<String, Object>> updateWhatsAppStatus(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody WhatsAppStatusUpdateRequest request
@@ -1158,22 +1118,27 @@ public class AnalyticsController {
                     status
             );
             
-            PaymentDateOverride updated = new PaymentDateOverride(
-                    overrideId,
+            PaymentDateOverride base = existingOverride != null
+                    ? existingOverride
+                    : PaymentDateOverrideCopy.newShell(customerKey, request.customer().trim());
+            PaymentDateOverride updated = PaymentDateOverrideCopy.copy(
+                    base,
                     customerKey,
                     request.customer().trim(),
                     existingNextPaymentDate != null ? existingNextPaymentDate : "",
                     existingPhoneNumber,
                     status,
                     existingCustomerCategory,
-                    true, // Mark as active since user is updating it
-                    existingNeedsFollowUp != null ? existingNeedsFollowUp : false,
+                    true,
+                    existingNeedsFollowUp,
                     existingAddress,
                     existingPlace,
                     existingLatitude,
                     existingLongitude,
                     existingNotes,
-                    Instant.now()
+                    null,
+                    null,
+                    null
             );
             
             paymentDateOverrideRepository.save(updated);
@@ -1874,7 +1839,7 @@ public class AnalyticsController {
     private record CustomerCategoryUpdateRequest(String customer, String category) {
     }
 
-    @PostMapping("/payment-dates/customer-category")
+    @PostMapping("/outstanding-due/customer-category")
     public ResponseEntity<Map<String, Object>> updateCustomerCategory(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody CustomerCategoryUpdateRequest request
@@ -1921,22 +1886,27 @@ public class AnalyticsController {
                     ? existingOverride.notes() 
                     : new ArrayList<>();
             
-            PaymentDateOverride updated = new PaymentDateOverride(
-                    overrideId,
+            PaymentDateOverride base = existingOverride != null
+                    ? existingOverride
+                    : PaymentDateOverrideCopy.newShell(customerKey, request.customer().trim());
+            PaymentDateOverride updated = PaymentDateOverrideCopy.copy(
+                    base,
                     customerKey,
                     request.customer().trim(),
                     existingNextPaymentDate != null ? existingNextPaymentDate : "",
                     existingPhoneNumber,
                     existingWhatsAppStatus,
                     category,
-                    true, // Mark as active since user is updating it
-                    existingNeedsFollowUp != null ? existingNeedsFollowUp : false,
+                    true,
+                    existingNeedsFollowUp,
                     existingAddress,
                     existingPlace,
                     existingLatitude,
                     existingLongitude,
                     existingNotes,
-                    Instant.now()
+                    null,
+                    null,
+                    null
             );
             
             paymentDateOverrideRepository.save(updated);
@@ -1952,7 +1922,7 @@ public class AnalyticsController {
     private record PlaceUpdateRequest(String customer, String place) {
     }
 
-    @PostMapping("/payment-dates/place")
+    @PostMapping("/outstanding-due/place")
     public ResponseEntity<Map<String, Object>> updatePlace(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody PlaceUpdateRequest request
@@ -1997,8 +1967,11 @@ public class AnalyticsController {
                     ? existingOverride.notes()
                     : new ArrayList<>();
 
-            PaymentDateOverride updated = new PaymentDateOverride(
-                    overrideId,
+            PaymentDateOverride base = existingOverride != null
+                    ? existingOverride
+                    : PaymentDateOverrideCopy.newShell(customerKey, request.customer().trim());
+            PaymentDateOverride updated = PaymentDateOverrideCopy.copy(
+                    base,
                     customerKey,
                     request.customer().trim(),
                     existingNextPaymentDate != null ? existingNextPaymentDate : "",
@@ -2006,13 +1979,15 @@ public class AnalyticsController {
                     existingWhatsAppStatus,
                     existingCustomerCategory,
                     true,
-                    existingNeedsFollowUp != null ? existingNeedsFollowUp : false,
+                    existingNeedsFollowUp,
                     existingAddress,
                     place,
                     existingLatitude,
                     existingLongitude,
                     existingNotes,
-                    Instant.now()
+                    null,
+                    null,
+                    null
             );
 
             paymentDateOverrideRepository.save(updated);
@@ -2025,7 +2000,7 @@ public class AnalyticsController {
         }
     }
 
-    @PostMapping("/payment-dates/follow-up")
+    @PostMapping("/outstanding-due/follow-up")
     public ResponseEntity<Map<String, Object>> updateFollowUpFlag(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody FollowUpUpdateRequest request
@@ -2070,22 +2045,27 @@ public class AnalyticsController {
                     ? existingOverride.notes() 
                     : new ArrayList<>();
             
-            PaymentDateOverride updated = new PaymentDateOverride(
-                    overrideId,
+            PaymentDateOverride base = existingOverride != null
+                    ? existingOverride
+                    : PaymentDateOverrideCopy.newShell(customerKey, request.customer().trim());
+            PaymentDateOverride updated = PaymentDateOverrideCopy.copy(
+                    base,
                     customerKey,
                     request.customer().trim(),
                     existingNextPaymentDate != null ? existingNextPaymentDate : "",
                     existingPhoneNumber,
                     existingWhatsAppStatus != null ? existingWhatsAppStatus : "not sent",
                     existingCustomerCategory,
-                    true, // Mark as active since user is updating it
+                    true,
                     needsFollowUp,
                     existingAddress,
                     existingPlace,
                     existingLatitude,
                     existingLongitude,
                     existingNotes,
-                    Instant.now()
+                    null,
+                    null,
+                    null
             );
             
             paymentDateOverrideRepository.save(updated);
@@ -2101,7 +2081,7 @@ public class AnalyticsController {
     private record FollowUpUpdateRequest(String customer, Boolean needsFollowUp) {
     }
 
-    @PostMapping("/payment-dates/location")
+    @PostMapping("/outstanding-due/location")
     public ResponseEntity<Void> updateCustomerLocation(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody LocationUpdateRequest request
@@ -2168,8 +2148,11 @@ public class AnalyticsController {
                 : new ArrayList<>();
         
         String existingPlace = existing != null ? existing.place() : null;
-        paymentDateOverrideRepository.save(new PaymentDateOverride(
-                id,
+        PaymentDateOverride base = existing != null
+                ? existing
+                : PaymentDateOverrideCopy.newShell(customerKey, request.customer().trim());
+        paymentDateOverrideRepository.save(PaymentDateOverrideCopy.copy(
+                base,
                 customerKey,
                 existingCustomerName,
                 existingNextPaymentDate != null ? existingNextPaymentDate : "",
@@ -2177,13 +2160,15 @@ public class AnalyticsController {
                 existingWhatsAppStatus != null ? existingWhatsAppStatus : "not sent",
                 existingCustomerCategory,
                 true,
-                existingNeedsFollowUp != null ? existingNeedsFollowUp : false,
+                existingNeedsFollowUp,
                 address,
                 existingPlace,
                 latitude,
                 longitude,
                 existingNotes,
-                Instant.now()
+                null,
+                null,
+                null
         ));
         
         return ResponseEntity.ok().build();
@@ -2206,6 +2191,7 @@ public class AnalyticsController {
 
         List<PaymentDateOverride> allOverrides = paymentDateOverrideRepository.findAll();
         List<CustomerLocationResponse> locations = allOverrides.stream()
+                .filter(override -> !customerExclusionService.isExcluded(override.customerKey()))
                 .filter(override -> {
                     // Filter to customers with location data
                     return (override.address() != null && !override.address().isBlank()) 

@@ -95,7 +95,7 @@ a {
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
 }
 
-/* Shared list/search field (Payment Dates, WhatsApp outreach, etc.) — keep in sync across features */
+/* Shared list/search field (Outstanding Due, WhatsApp outreach, etc.) — keep in sync across features */
 .search-container {
   position: relative;
   margin-bottom: 16px;

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, takeUntil } from 'rxjs';
-import { ApiService, PaymentDateCustomerCard } from '../services/api.service';
+import { ApiService, PaymentDateCustomerCard, ExcludedCustomerView } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
@@ -48,13 +48,13 @@ interface FilterDimensionCounts {
 }
 
 @Component({
-  selector: 'app-payment-dates',
+  selector: 'app-outstanding-due',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './payment-dates.component.html',
-  styleUrl: './payment-dates.component.css'
+  templateUrl: './outstanding-due.component.html',
+  styleUrl: './outstanding-due.component.css'
 })
-export class PaymentDatesComponent implements OnInit, OnDestroy {
+export class OutstandingDueComponent implements OnInit, OnDestroy {
   formatPhoneDisplay = formatPhoneDisplay;
 
   // Status
@@ -134,11 +134,17 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
   canChangeWhatsappDate = false;
   canChangeFollowUp = false;
   canEditCustomerCategory = false;
+  canExcludeCustomer = false;
+  
+  // Ignored customers
+  showIgnoredPanel = false;
+  excludedCustomers: ExcludedCustomerView[] = [];
+  ignoreCustomerInput = '';
   
   // Timers
   private saveTimers: Record<string, number> = {};
   private searchTimer: any = null;
-  private readonly filterStorageKey = 'paymentDatesV2.filters';
+  private readonly filterStorageKey = 'outstandingDueV2.filters';
 
   /** Cascading counts for filter pills (recomputed in {@link updateFilteredCards}). */
   filterCounts: FilterDimensionCounts = {
@@ -185,9 +191,11 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
         this.canChangeWhatsappDate = this.permissionService.canChangeWhatsappDate();
         this.canChangeFollowUp = this.permissionService.canChangeFollowUp();
         this.canEditCustomerCategory = this.permissionService.canEditCustomerCategory();
+        this.canExcludeCustomer = this.permissionService.canExcludeCustomer();
 
         this.restoreFilters();
         this.loadData();
+        this.loadExcludedCustomers();
       });
   }
 
@@ -214,7 +222,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
             this.updateFilteredCards();
             return;
           }
-          this.loadPaymentDates();
+          this.loadOutstandingDue();
         },
         error: (err: HttpErrorResponse) => {
           if (err.status === 401) {
@@ -229,8 +237,8 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
       });
   }
 
-  private loadPaymentDates(): void {
-    this.api.getPaymentDates()
+  private loadOutstandingDue(): void {
+    this.api.getOutstandingDue()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (cards) => {
@@ -243,6 +251,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
           this.updateFilteredCards();
           this.status = 'idle';
           this.message = this.cards.length ? '' : 'No payment data available.';
+          this.loadExcludedCustomers();
         },
         error: (err: HttpErrorResponse) => {
           if (err.status === 401) {
@@ -252,7 +261,15 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
             return;
           }
           this.status = 'failed';
-          this.message = 'Unable to load payment dates.';
+          if (err.status === 403) {
+            this.message = 'You do not have permission to view Outstanding Due.';
+          } else if (err.status === 404) {
+            this.message = 'Outstanding Due API not found. Restart the backend after pulling latest changes.';
+          } else if (err.status === 0) {
+            this.message = 'Cannot reach the server. Check that the backend is running on port 8080.';
+          } else {
+            this.message = 'Unable to load outstanding due data.';
+          }
         }
       });
   }
@@ -776,14 +793,14 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
   onPaymentDateFocusDeny(card: PaymentDateCustomerCard, e: FocusEvent): void {
     if (!this.canEditPaymentDate) {
       (e.target as HTMLInputElement)?.blur();
-      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
     }
   }
 
   onDateChange(card: PaymentDateCustomerCard, event: any): void {
     if (!card.customer) return;
     if (!this.canEditPaymentDate) {
-      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
       this.dateEdits[card.customer] = card.nextPaymentDate ?? '';
       this.cdr.markForCheck();
       return;
@@ -800,7 +817,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
 
   savePaymentDate(customer: string, date: string): void {
     if (!this.canEditPaymentDate) {
-      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
       return;
     }
     this.api.updateNextPaymentDate(customer, date)
@@ -820,7 +837,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
             return;
           }
           const customerDisplayName = customer.length > 30 ? customer.substring(0, 30) + '...' : customer;
-          this.notificationService.showError(`Failed to update payment date for ${customerDisplayName}`, 3000);
+          this.notificationService.showError(`Failed to update due date for ${customerDisplayName}`, 3000);
         }
       });
   }
@@ -1070,7 +1087,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
       'Amount',
       'Category',
       'Last Order Date',
-      'Payment Date',
+      'Due Date',
       'WhatsApp Status',
       'Follow Up',
     ] as const;
@@ -1105,17 +1122,17 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } });
 
     const wb = XLSX.utils.book_new();
-    const sheetName = 'Payment Dates';
+    const sheetName = 'Outstanding Due';
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
     setExcelPrintTitleTopRow(wb, sheetName);
-    XLSX.writeFile(wb, `payment-dates-${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `outstanding-due-${new Date().toISOString().split('T')[0]}.xlsx`);
   }
 
   downloadPDF(): void {
-    void this.downloadPaymentDatesPdf();
+    void this.downloadOutstandingDuePdf();
   }
 
-  private async downloadPaymentDatesPdf(): Promise<void> {
+  private async downloadOutstandingDuePdf(): Promise<void> {
     const doc = new jsPDF();
     try {
       await ensurePdfUnicodeFonts(doc);
@@ -1124,7 +1141,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
       return;
     }
     autoTable(doc, {
-      head: [['Customer', 'Phone', 'Amount', 'Category', 'Last Order Date', 'Payment Date', 'Status']],
+      head: [['Customer', 'Phone', 'Amount', 'Category', 'Last Order Date', 'Due Date', 'Status']],
       body: this.filteredCards.map(card => [
         card.customer || '',
         card.phoneNumber ? formatPhoneDisplay(card.phoneNumber) : '',
@@ -1141,7 +1158,7 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
         addWatermark(doc);
       },
     });
-    doc.save(`payment-dates-${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`outstanding-due-${new Date().toISOString().split('T')[0]}.pdf`);
   }
 
   private saveFilters(): void {
@@ -1167,6 +1184,69 @@ export class PaymentDatesComponent implements OnInit, OnDestroy {
     } catch (e) {
       // Silently fail - localStorage may be disabled or corrupted
     }
+  }
+
+  loadExcludedCustomers(): void {
+    this.api.getExcludedCustomers()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (list) => {
+          this.excludedCustomers = list ?? [];
+        },
+        error: () => {
+          this.excludedCustomers = [];
+        }
+      });
+  }
+
+  toggleIgnoredPanel(): void {
+    this.showIgnoredPanel = !this.showIgnoredPanel;
+    if (this.showIgnoredPanel) {
+      this.loadExcludedCustomers();
+    }
+  }
+
+  excludeCustomerByName(): void {
+    const name = this.ignoreCustomerInput.trim();
+    if (!name) {
+      return;
+    }
+    if (!this.canExcludeCustomer) {
+      this.permissionService.notifyRoleDenied('ignore customers on Outstanding Due', 'customerExcludeEdit');
+      return;
+    }
+    this.api.excludeCustomer(name)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.notificationService.showSuccess(`${name} is now ignored`);
+          this.ignoreCustomerInput = '';
+          this.loadExcludedCustomers();
+          this.loadData();
+        },
+        error: () => {
+          this.notificationService.showError('Could not ignore customer. Check the name and try again.');
+        }
+      });
+  }
+
+  restoreExcludedCustomer(customerKey: string, displayName?: string | null): void {
+    if (!this.canExcludeCustomer) {
+      this.permissionService.notifyRoleDenied('restore ignored customers', 'customerExcludeEdit');
+      return;
+    }
+    this.api.restoreExcludedCustomer(customerKey)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.notificationService.showSuccess(`${displayName || customerKey} restored`);
+          this.loadExcludedCustomers();
+          this.loadData();
+        },
+        error: () => {
+          this.notificationService.showError('Could not restore customer.');
+        }
+      });
   }
 
   logout(): void {

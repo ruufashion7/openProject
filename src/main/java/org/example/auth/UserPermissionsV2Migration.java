@@ -85,5 +85,11 @@ public class UserPermissionsV2Migration implements ApplicationRunner {
                 .set("permissions.uploadsListPage", true)
                 .set("permissions.uploadAuditPage", true);
         mongoTemplate.updateMulti(q4, u4, User.class);
+
+        Query q5 = new Query();
+        q5.addCriteria(Criteria.where("permissions").exists(true));
+        q5.addCriteria(Criteria.where("permissions.customerExcludeEdit").exists(false));
+        Update u5 = new Update().set("permissions.customerExcludeEdit", false);
+        mongoTemplate.updateMulti(q5, u5, User.class);
     }
 }

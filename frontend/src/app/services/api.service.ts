@@ -230,11 +230,18 @@ export interface PaymentDateCustomerCard {
   place?: string | null;
 }
 
+export interface ExcludedCustomerView {
+  customerKey: string;
+  customerName: string;
+  excludedAt?: string | null;
+  excludedBy?: string | null;
+}
+
 export interface WhatsappBroadcastRecipientInputDto {
   customerKey: string;
   displayName: string;
   phoneNumber: string;
-  /** Optional {{token}} values merged per recipient (Payment Dates fields, etc.). */
+  /** Optional {{token}} values merged per recipient (Outstanding Due fields, etc.). */
   placeholders?: Record<string, string> | null;
 }
 
@@ -511,8 +518,8 @@ export class ApiService {
     });
   }
 
-  getPaymentDates(): Observable<PaymentDateCustomerCard[]> {
-    return this.http.get<PaymentDateCustomerCard[]>(`${this.baseUrl}/analytics/payment-dates`, {
+  getOutstandingDue(): Observable<PaymentDateCustomerCard[]> {
+    return this.http.get<PaymentDateCustomerCard[]>(`${this.baseUrl}/analytics/outstanding-due`, {
       headers: this.auth.getAuthHeaders()
     });
   }
@@ -528,19 +535,19 @@ export class ApiService {
     if (whatsAppStatus !== undefined && whatsAppStatus !== null) {
       body.whatsAppStatus = whatsAppStatus;
     }
-    return this.http.post<void>(`${this.baseUrl}/analytics/payment-dates/next-date`, body, {
+    return this.http.post<void>(`${this.baseUrl}/analytics/outstanding-due/next-date`, body, {
       headers: this.auth.getAuthHeaders()
     });
   }
 
-  clearAllNextPaymentDates(): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/analytics/payment-dates/clear`, null, {
+  clearAllOutstandingDueDates(): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/analytics/outstanding-due/clear`, null, {
       headers: this.auth.getAuthHeaders()
     });
   }
 
   updateWhatsAppStatus(customer: string, status: string): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/analytics/payment-dates/whatsapp-status`, {
+    return this.http.post<void>(`${this.baseUrl}/analytics/outstanding-due/whatsapp-status`, {
       customer,
       status
     }, {
@@ -549,7 +556,7 @@ export class ApiService {
   }
 
   updateCustomerCategory(customer: string, category: string): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/analytics/payment-dates/customer-category`, {
+    return this.http.post<void>(`${this.baseUrl}/analytics/outstanding-due/customer-category`, {
       customer,
       category
     }, {
@@ -558,7 +565,7 @@ export class ApiService {
   }
 
   updatePlace(customer: string, place: string | null): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/analytics/payment-dates/place`, {
+    return this.http.post<void>(`${this.baseUrl}/analytics/outstanding-due/place`, {
       customer,
       place: place ?? null
     }, {
@@ -567,9 +574,31 @@ export class ApiService {
   }
 
   updateFollowUpFlag(customer: string, needsFollowUp: boolean): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/analytics/payment-dates/follow-up`, {
+    return this.http.post<void>(`${this.baseUrl}/analytics/outstanding-due/follow-up`, {
       customer,
       needsFollowUp
+    }, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  getExcludedCustomers(): Observable<ExcludedCustomerView[]> {
+    return this.http.get<ExcludedCustomerView[]>(`${this.baseUrl}/analytics/customers/excluded`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  excludeCustomer(customer: string): Observable<ExcludedCustomerView> {
+    return this.http.post<ExcludedCustomerView>(`${this.baseUrl}/analytics/customers/exclude`, {
+      customer
+    }, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  restoreExcludedCustomer(customerKey: string): Observable<ExcludedCustomerView> {
+    return this.http.post<ExcludedCustomerView>(`${this.baseUrl}/analytics/customers/restore`, {
+      customerKey
     }, {
       headers: this.auth.getAuthHeaders()
     });
@@ -714,7 +743,7 @@ export class ApiService {
     }
     const authHeaders = this.auth.getAuthHeaders();
     const headers = authHeaders.set('Content-Type', 'application/json');
-    return this.http.post<void>(`${this.baseUrl}/analytics/payment-dates/location`, body, {
+    return this.http.post<void>(`${this.baseUrl}/analytics/outstanding-due/location`, body, {
       headers: headers
     });
   }

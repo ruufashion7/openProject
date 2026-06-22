@@ -82,14 +82,14 @@
       <div class="wo-section-panel" *ngIf="recipientsSectionExpanded">
         <p class="wo-error" *ngIf="cardsLoadError">
           {{ cardsLoadError }}
-          <a *ngIf="permission.canAccessOutstandingPage()" routerLink="/payment-dates" class="wo-inline-link"> Open Payment Dates</a>
+          <a *ngIf="permission.canAccessOutstandingPage()" routerLink="/outstanding-due" class="wo-inline-link"> Open Outstanding Due</a>
         </p>
         <p class="wo-muted" *ngIf="loadingCards">Loading customers…</p>
 
         <div class="wo-banner wo-banner-soft" *ngIf="!loadingCards && !cardsLoadError && cards.length === 0">
           <p>
             No customer rows loaded yet. Open
-            <a routerLink="/payment-dates" class="wo-inline-link">Payment Dates</a>
+            <a routerLink="/outstanding-due" class="wo-inline-link">Outstanding Due</a>
             to load or refresh data.
           </p>
         </div>
@@ -97,7 +97,7 @@
         <div class="wo-banner wo-banner-soft" *ngIf="!loadingCards && !cardsLoadError && cards.length > 0 && !hasEligibleCustomers">
           <p>
             No customers have a phone number with at least 10 digits, so they cannot be messaged here. Check numbers on
-            <a routerLink="/payment-dates" class="wo-inline-link">Payment Dates</a>.
+            <a routerLink="/outstanding-due" class="wo-inline-link">Outstanding Due</a>.
           </p>
         </div>
 

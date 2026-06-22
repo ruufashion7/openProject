@@ -81,11 +81,11 @@ export class WelcomeComponent implements OnInit {
     this.router.navigateByUrl('/outstanding');
   }
 
-  goToPaymentDates(): void {
+  goToOutstandingDue(): void {
     if (!this.analyticsEnabled) {
       return;
     }
-    this.router.navigateByUrl('/payment-dates');
+    this.router.navigateByUrl('/outstanding-due');
   }
 
   goToWhatsappOutreach(): void {

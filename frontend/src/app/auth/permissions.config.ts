@@ -105,14 +105,14 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     id: 'customers-sales',
     label: 'Customers & Sales',
     icon: '📋',
-    summary: 'Customer pages plus edit actions on payment dates and customer details.',
+    summary: 'Customer pages plus edit actions on outstanding due and customer details.',
     items: [
       {
         key: 'outstandingPage',
-        label: 'Payment Dates',
-        description: 'Payment dates board with filters and exports',
+        label: 'Outstanding Due',
+        description: 'Outstanding due board with filters and exports',
         kind: 'page',
-        routes: ['/payment-dates']
+        routes: ['/outstanding-due']
       },
       {
         key: 'detailsPage',
@@ -145,8 +145,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       },
       {
         key: 'paymentDateEdit',
-        label: 'Edit Payment Dates',
-        description: 'Change payment due dates on Customer Details or Payment Dates',
+        label: 'Edit Due Dates',
+        description: 'Change due dates on Customer Details or Outstanding Due',
         kind: 'action',
         requiresAny: ['detailsPage', 'outstandingPage']
       },
@@ -184,6 +184,13 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
         description: 'Edit address, map pin, or place on customer cards',
         kind: 'action',
         requiresAny: ['detailsPage', 'outstandingPage']
+      },
+      {
+        key: 'customerExcludeEdit',
+        label: 'Ignore Customers',
+        description: 'Hide customers from Outstanding Due even when they appear in uploads',
+        kind: 'action',
+        requiresAny: ['outstandingPage']
       }
     ]
   },
@@ -226,7 +233,7 @@ export const ROUTE_PERMISSIONS: Record<string, keyof import('./auth.service').Us
   '/sales-details': 'invoicePage',
   '/sales-visualization': 'salesVisualization',
   '/outstanding': 'detailsPage',
-  '/payment-dates': 'outstandingPage',
+  '/outstanding-due': 'outstandingPage',
   '/whatsapp-outreach': 'whatsappBroadcast',
   '/customer-locations': 'customerLocations',
   '/access-control': 'admin',

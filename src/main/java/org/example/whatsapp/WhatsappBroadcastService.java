@@ -268,7 +268,7 @@ public class WhatsappBroadcastService {
 
     /**
      * Replaces {@code {{token}}} with values. Built-ins {@code customerName} and {@code phone} always apply first;
-     * per-recipient {@code placeholders} from the client can add or override (e.g. payment-dates fields).
+     * per-recipient {@code placeholders} from the client can add or override (e.g. outstanding-due fields).
      */
     private static String renderTemplate(
             String template, String displayName, String phoneDigits, Map<String, String> incomingPlaceholders) {

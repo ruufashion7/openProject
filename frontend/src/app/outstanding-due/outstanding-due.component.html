@@ -1,10 +1,10 @@
-<section class="payment-dates-page">
+<section class="outstanding-due-page">
   <!-- Header -->
   <div class="page-header-modern">
     <div class="header-content">
       <div>
-        <h1 class="page-title-modern">Payment Dates</h1>
-        <p class="page-subtitle-modern">Manage outstanding payments and customer follow-ups</p>
+        <h1 class="page-title-modern">Outstanding Due</h1>
+        <p class="page-subtitle-modern">Manage outstanding amounts, due dates, and customer follow-ups</p>
       </div>
       <div class="header-actions">
         <button class="btn-icon" (click)="toggleViewMode()" [title]="viewMode === 'grid' ? 'Switch to List View' : 'Switch to Grid View'">
@@ -12,6 +12,14 @@
         </button>
         <button class="btn-icon" (click)="showFilters = !showFilters" [class.active]="showFilters" title="Toggle Filters">
           <span>🔍</span>
+        </button>
+        <button
+          class="btn-icon"
+          (click)="toggleIgnoredPanel()"
+          [class.active]="showIgnoredPanel"
+          title="Ignored customers"
+        >
+          <span>🚫</span>
         </button>
         <button class="btn-primary-modern" (click)="downloadExcel()" title="Download Excel">
           <span>📥</span>
@@ -48,6 +56,69 @@
         <div class="stat-value">{{ filteredCards.length }} / {{ cards.length }}</div>
       </div>
     </div>
+  </div>
+
+  <!-- Ignored customers panel -->
+  <div class="ignored-customers-panel" *ngIf="status === 'idle' && showIgnoredPanel">
+    <div class="ignored-panel-header">
+      <div>
+        <h2 class="ignored-panel-title">Ignored customers</h2>
+        <p class="ignored-panel-subtitle">
+          Hidden from Outstanding Due even when they appear in uploads. Upload data is still stored.
+        </p>
+      </div>
+      <span class="ignored-count-badge">{{ excludedCustomers.length }}</span>
+    </div>
+
+    <div class="ignored-add-row" *ngIf="canExcludeCustomer">
+      <div class="search-container ignored-search">
+        <div class="search-input-wrapper">
+          <span class="search-icon">🚫</span>
+          <input
+            type="text"
+            class="search-input-modern"
+            [(ngModel)]="ignoreCustomerInput"
+            (keyup.enter)="excludeCustomerByName()"
+            placeholder="Ignore by customer name..."
+          />
+          <button
+            class="btn-clear-search"
+            *ngIf="ignoreCustomerInput"
+            (click)="ignoreCustomerInput = ''"
+            title="Clear"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      <button class="btn-primary-modern" (click)="excludeCustomerByName()" [disabled]="!ignoreCustomerInput.trim()">
+        Ignore
+      </button>
+    </div>
+    <p class="ignored-permission-hint" *ngIf="!canExcludeCustomer">
+      You can view ignored customers. Ask an admin to enable “Ignore Customers” in Access Control to change this list.
+    </p>
+
+    <div class="ignored-list" *ngIf="excludedCustomers.length; else noIgnored">
+      <div class="ignored-item" *ngFor="let item of excludedCustomers">
+        <div class="ignored-item-info">
+          <div class="ignored-item-name">{{ item.customerName || item.customerKey }}</div>
+          <div class="ignored-item-meta" *ngIf="item.excludedBy">
+            Ignored by {{ item.excludedBy }}
+          </div>
+        </div>
+        <button
+          *ngIf="canExcludeCustomer"
+          class="btn-restore-ignored"
+          (click)="restoreExcludedCustomer(item.customerKey, item.customerName)"
+        >
+          Restore
+        </button>
+      </div>
+    </div>
+    <ng-template #noIgnored>
+      <p class="ignored-empty">No ignored customers.</p>
+    </ng-template>
   </div>
 
   <!-- Search and Filters Bar -->
@@ -88,7 +159,7 @@
     <!-- Active Filters -->
     <div class="active-filters" *ngIf="hasActiveFilters()">
       <span class="filter-chip" *ngIf="filters.paymentDate !== 'all'">
-        Payment: {{ filters.paymentDate }}
+        Due: {{ filters.paymentDate }}
         <button (click)="setFilter('paymentDate', 'all')">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.whatsappStatus !== 'all'">
@@ -122,7 +193,7 @@
   <!-- Filters Panel -->
   <div class="filters-panel" *ngIf="showFilters && status === 'idle'">
     <div class="filter-group">
-      <label class="filter-group-label">Payment Date</label>
+      <label class="filter-group-label">Due Date</label>
       <div class="filter-buttons">
         <button
           type="button"
@@ -444,7 +515,7 @@
   <!-- Loading State -->
   <div class="loading-state" *ngIf="status === 'loading'">
     <div class="spinner"></div>
-    <p>Loading payment data...</p>
+    <p>Loading outstanding due data...</p>
   </div>
 
   <!-- Error State -->
@@ -530,7 +601,7 @@
         </div>
 
         <div class="payment-date-section" [class]="getPaymentDateBorderClass(card)">
-          <label class="date-label">Payment Date</label>
+          <label class="date-label">Due Date</label>
           <input
             type="text"
             class="date-input-modern"

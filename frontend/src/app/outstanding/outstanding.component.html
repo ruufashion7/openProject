@@ -159,7 +159,7 @@
                  [class.border-red]="getPaymentDateBorderClass() === 'border-red'"
                  [class.border-yellow]="getPaymentDateBorderClass() === 'border-yellow'"
                  [class.border-green]="getPaymentDateBorderClass() === 'border-green'">
-              <p class="info-card-label">Payment Date</p>
+              <p class="info-card-label">Due Date</p>
               <div class="payment-date">
                 <div class="payment-date-input">
                   <input
@@ -315,6 +315,36 @@
                 <span class="follow-up-icon" [class.active]="followUpFlagEdit">🚩</span>
                 <span class="follow-up-text">{{ followUpFlagEdit ? 'Yes' : 'No' }}</span>
               </button>
+            </div>
+            <div class="info-card ignore-customer-card"
+                 [class.border-red]="isCurrentCustomerExcluded">
+              <p class="info-card-label">Outstanding Due</p>
+              <p class="ignore-status-text" [class.ignored]="isCurrentCustomerExcluded">
+                {{ isCurrentCustomerExcluded
+                  ? 'Hidden from Outstanding Due (upload data is still kept)'
+                  : 'Shown on Outstanding Due board' }}
+              </p>
+              <button
+                *ngIf="canExcludeCustomer && !isCurrentCustomerExcluded"
+                type="button"
+                class="btn btn-ignore-customer"
+                (click)="ignoreCurrentCustomer()"
+                [attr.title]="permissionService.accessDeniedTooltip(canExcludeCustomer, 'customerExcludeEdit')"
+              >
+                Ignore customer
+              </button>
+              <button
+                *ngIf="canExcludeCustomer && isCurrentCustomerExcluded"
+                type="button"
+                class="btn btn-restore-customer"
+                (click)="restoreCurrentCustomer()"
+                [attr.title]="permissionService.accessDeniedTooltip(canExcludeCustomer, 'customerExcludeEdit')"
+              >
+                Restore to Outstanding Due
+              </button>
+              <p class="ignore-permission-hint" *ngIf="!canExcludeCustomer">
+                Ask an admin to enable “Ignore Customers” in Access Control to change this.
+              </p>
             </div>
           </div>
         </div>

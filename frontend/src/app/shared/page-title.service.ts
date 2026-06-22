@@ -8,7 +8,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/sales-details': 'Invoice Details',
   '/sales-visualization': 'Sales Analytics',
   '/outstanding': 'Customer Details',
-  '/payment-dates': 'Payment Dates',
+  '/outstanding-due': 'Outstanding Due',
   '/whatsapp-outreach': 'WhatsApp Outreach',
   '/customer-locations': 'Customer Locations',
   '/uploads': 'Latest Files',

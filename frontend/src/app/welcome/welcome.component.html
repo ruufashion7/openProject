@@ -42,15 +42,15 @@
         <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
       </div>
       <div class="card card-muted welcome-tile" *ngIf="canAccessOutstandingPage">
-        <h2>Outstanding</h2>
-        <p class="page-subtitle">Manage customer payment dates and status.</p>
+        <h2>Outstanding Due</h2>
+        <p class="page-subtitle">Track amount due, follow-ups, and customer status.</p>
         <button
           type="button"
           class="btn btn-soft"
           [disabled]="!analyticsEnabled"
-          (click)="goToPaymentDates()"
+          (click)="goToOutstandingDue()"
         >
-          Open Outstanding
+          Open Outstanding Due
         </button>
         <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
       </div>

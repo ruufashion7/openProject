@@ -20,6 +20,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.example.payment.PaymentDateOverrideCopy;
+
 /**
  * Merges duplicate {@code customer_master} rows that share the same {@code customerKey}
  * (e.g. one with {@code _id} as String and another as ObjectId with the same hex).
@@ -181,9 +183,16 @@ public class CustomerMasterDedupeService {
         }
 
         Instant updatedAt = keeperT.isAfter(loserT) ? keeperT : loserT;
+        boolean excluded = keeper.isExcluded() || loser.isExcluded();
+        Instant excludedAt = excluded
+                ? (keeper.isExcluded() ? keeper.excludedAt() : loser.excludedAt())
+                : null;
+        String excludedBy = excluded
+                ? (keeper.isExcluded() ? keeper.excludedBy() : loser.excludedBy())
+                : null;
 
-        return new PaymentDateOverride(
-                keeper.id(),
+        return PaymentDateOverrideCopy.copy(
+                keeper,
                 keeper.customerKey(),
                 firstNonBlank(keeper.customerName(), loser.customerName()),
                 nextPaymentDate != null ? nextPaymentDate : "",
@@ -197,7 +206,9 @@ public class CustomerMasterDedupeService {
                 lat,
                 lon,
                 mergedNotes,
-                updatedAt
+                excluded,
+                excludedAt,
+                excludedBy
         );
     }
 

@@ -52,9 +52,9 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
-    path: 'payment-dates',
+    path: 'outstanding-due',
     loadComponent: () =>
-      import('./payment-dates/payment-dates.component').then((m) => m.PaymentDatesComponent),
+      import('./outstanding-due/outstanding-due.component').then((m) => m.OutstandingDueComponent),
     canActivate: [authGuard]
   },
   {

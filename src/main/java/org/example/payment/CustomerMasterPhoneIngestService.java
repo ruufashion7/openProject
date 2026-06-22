@@ -201,22 +201,27 @@ public class CustomerMasterPhoneIngestService {
             return;
         }
 
-        PaymentDateOverride created = new PaymentDateOverride(
+        PaymentDateOverride created = PaymentDateOverrideCopy.copy(
+                PaymentDateOverrideCopy.newShell(
+                        customerKey,
+                        !isBlank(displayName) ? displayName : customerKey
+                ),
                 null,
-                customerKey,
-                !isBlank(displayName) ? displayName : customerKey,
-                "",
+                null,
+                null,
                 storage,
                 null,
                 null,
-                true,
-                false,
                 null,
                 null,
                 null,
                 null,
-                List.of(),
-                Instant.now()
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
         PaymentDateOverride saved = paymentDateOverrideRepository.save(created);
         cache.add(saved);
@@ -244,43 +249,47 @@ public class CustomerMasterPhoneIngestService {
     }
 
     private static PaymentDateOverride stripPhone(PaymentDateOverride p) {
-        return new PaymentDateOverride(
-                p.id(),
-                p.customerKey(),
-                p.customerName(),
-                p.nextPaymentDate() != null ? p.nextPaymentDate() : "",
+        return PaymentDateOverrideCopy.copy(
+                p,
                 null,
-                p.whatsAppStatus(),
-                p.customerCategory(),
-                p.isActive(),
-                p.needsFollowUp() != null ? p.needsFollowUp() : false,
-                p.address(),
-                p.place(),
-                p.latitude(),
-                p.longitude(),
-                p.notes() != null ? p.notes() : List.of(),
-                Instant.now()
+                null,
+                null,
+                "",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
     }
 
     private static PaymentDateOverride saveWithPhoneAndName(PaymentDateOverride ex, String storagePhone, String displayName) {
         String name = !isBlank(displayName) ? displayName.trim() : ex.customerName();
-        return new PaymentDateOverride(
-                ex.id(),
-                ex.customerKey(),
+        return PaymentDateOverrideCopy.copy(
+                ex,
+                null,
                 name,
-                ex.nextPaymentDate() != null ? ex.nextPaymentDate() : "",
+                null,
                 storagePhone,
-                ex.whatsAppStatus(),
-                ex.customerCategory(),
-                ex.isActive(),
-                ex.needsFollowUp() != null ? ex.needsFollowUp() : false,
-                ex.address(),
-                ex.place(),
-                ex.latitude(),
-                ex.longitude(),
-                ex.notes() != null ? ex.notes() : List.of(),
-                Instant.now()
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
     }
 
@@ -290,24 +299,7 @@ public class CustomerMasterPhoneIngestService {
             String displayName,
             String storagePhone
     ) {
-        String name = !isBlank(displayName) ? displayName.trim() : old.customerName();
-        return new PaymentDateOverride(
-                old.id(),
-                newKey,
-                name,
-                old.nextPaymentDate() != null ? old.nextPaymentDate() : "",
-                storagePhone,
-                old.whatsAppStatus(),
-                old.customerCategory(),
-                old.isActive(),
-                old.needsFollowUp() != null ? old.needsFollowUp() : false,
-                old.address(),
-                old.place(),
-                old.latitude(),
-                old.longitude(),
-                old.notes() != null ? old.notes() : List.of(),
-                Instant.now()
-        );
+        return PaymentDateOverrideCopy.rekey(old, newKey, displayName, storagePhone);
     }
 
     private static Optional<PaymentDateOverride> findFirstByCustomerKey(List<PaymentDateOverride> cache, String key) {

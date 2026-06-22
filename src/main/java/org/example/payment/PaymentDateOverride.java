@@ -22,33 +22,32 @@ public record PaymentDateOverride(
         Double latitude, // Latitude coordinate
         Double longitude, // Longitude coordinate
         List<CustomerNote> notes, // Customer notes stored in customer_master
+        /** User/admin intent: hidden from Outstanding Due when true. Not overwritten by upload sync. */
+        Boolean excluded,
+        Instant excludedAt,
+        String excludedBy,
         Instant updatedAt
 ) {
-    /**
-     * Compact constructor that handles null active and needsFollowUp fields for backward compatibility.
-     * This is used by Spring Data MongoDB during deserialization.
-     * The compact constructor allows us to validate and normalize the fields before assignment.
-     */
     public PaymentDateOverride {
-        // If active is null, default to true for backward compatibility with old records
         if (active == null) {
             active = Boolean.TRUE;
         }
-        // If needsFollowUp is null, default to false for backward compatibility with old records
         if (needsFollowUp == null) {
             needsFollowUp = Boolean.FALSE;
         }
-        // If notes is null, initialize as empty list for backward compatibility
         if (notes == null) {
             notes = List.of();
         }
+        if (excluded == null) {
+            excluded = Boolean.FALSE;
+        }
     }
 
-    /**
-     * Returns true if the customer is active, defaulting to true if null (for backward compatibility with old records).
-     */
     public boolean isActive() {
         return active != null ? active : true;
     }
-}
 
+    public boolean isExcluded() {
+        return Boolean.TRUE.equals(excluded);
+    }
+}

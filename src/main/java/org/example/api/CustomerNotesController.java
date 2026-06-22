@@ -8,6 +8,7 @@ import org.example.auth.UserService;
 import org.example.customer.CustomerPhoneNumbers;
 import org.example.payment.CustomerNote;
 import org.example.payment.PaymentDateOverride;
+import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
 import org.example.security.InputValidationService;
 import org.slf4j.Logger;
@@ -187,22 +188,24 @@ public class CustomerNotesController {
         logger.info("Adding note. Total notes before save: {}", notes.size());
         
         // Update PaymentDateOverride with new notes list
-        PaymentDateOverride updated = new PaymentDateOverride(
-                paymentDateOverride.id(),
-                paymentDateOverride.customerKey(),
+        PaymentDateOverride updated = PaymentDateOverrideCopy.copy(
+                paymentDateOverride,
+                null,
                 paymentDateOverride.customerName() != null ? paymentDateOverride.customerName() : customerName,
-                paymentDateOverride.nextPaymentDate(),
+                null,
                 paymentDateOverride.phoneNumber() != null ? paymentDateOverride.phoneNumber() : phoneNumber,
-                paymentDateOverride.whatsAppStatus(),
-                paymentDateOverride.customerCategory(),
-                paymentDateOverride.active(),
-                paymentDateOverride.needsFollowUp(),
-                paymentDateOverride.address(),
-                paymentDateOverride.place(),
-                paymentDateOverride.latitude(),
-                paymentDateOverride.longitude(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 notes,
-                now
+                null,
+                null,
+                null
         );
         
         PaymentDateOverride saved = paymentDateOverrideRepository.save(updated);
@@ -283,22 +286,24 @@ public class CustomerNotesController {
                 .collect(Collectors.toList());
         
         // Update PaymentDateOverride
-        PaymentDateOverride updated = new PaymentDateOverride(
-                paymentDateOverride.id(),
-                paymentDateOverride.customerKey(),
-                paymentDateOverride.customerName(),
-                paymentDateOverride.nextPaymentDate(),
-                paymentDateOverride.phoneNumber(),
-                paymentDateOverride.whatsAppStatus(),
-                paymentDateOverride.customerCategory(),
-                paymentDateOverride.active(),
-                paymentDateOverride.needsFollowUp(),
-                paymentDateOverride.address(),
-                paymentDateOverride.place(),
-                paymentDateOverride.latitude(),
-                paymentDateOverride.longitude(),
+        PaymentDateOverride updated = PaymentDateOverrideCopy.copy(
+                paymentDateOverride,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 updatedNotes,
-                Instant.now()
+                null,
+                null,
+                null
         );
         
         paymentDateOverrideRepository.save(updated);
@@ -360,22 +365,24 @@ public class CustomerNotesController {
                 .collect(Collectors.toList());
         
         // Update PaymentDateOverride
-        PaymentDateOverride updated = new PaymentDateOverride(
-                paymentDateOverride.id(),
-                paymentDateOverride.customerKey(),
-                paymentDateOverride.customerName(),
-                paymentDateOverride.nextPaymentDate(),
-                paymentDateOverride.phoneNumber(),
-                paymentDateOverride.whatsAppStatus(),
-                paymentDateOverride.customerCategory(),
-                paymentDateOverride.active(),
-                paymentDateOverride.needsFollowUp(),
-                paymentDateOverride.address(),
-                paymentDateOverride.place(),
-                paymentDateOverride.latitude(),
-                paymentDateOverride.longitude(),
+        PaymentDateOverride updated = PaymentDateOverrideCopy.copy(
+                paymentDateOverride,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 updatedNotes,
-                Instant.now()
+                null,
+                null,
+                null
         );
         
         paymentDateOverrideRepository.save(updated);
@@ -447,22 +454,24 @@ public class CustomerNotesController {
         logger.info("Creating new PaymentDateOverride: customerKey={}, customerName={}, phoneNumber={}",
                 customerKey, customerName, storedPhone);
 
-        PaymentDateOverride newOverride = new PaymentDateOverride(
-                null, // Let MongoDB generate ID
-                customerKey,
-                customerName,
-                null, // nextPaymentDate
+        PaymentDateOverride newOverride = PaymentDateOverrideCopy.copy(
+                PaymentDateOverrideCopy.newShell(customerKey, customerName),
+                null,
+                null,
+                null,
                 storedPhone,
-                null, // whatsAppStatus
-                null, // customerCategory
-                true, // active
-                false, // needsFollowUp
-                null, // address
-                null, // place
-                null, // latitude
-                null, // longitude
-                new ArrayList<CustomerNote>(), // notes (empty initially)
-                Instant.now()
+                null,
+                null,
+                true,
+                false,
+                null,
+                null,
+                null,
+                null,
+                new ArrayList<CustomerNote>(),
+                null,
+                null,
+                null
         );
         
         PaymentDateOverride saved = paymentDateOverrideRepository.save(newOverride);

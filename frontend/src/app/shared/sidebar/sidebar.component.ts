@@ -72,7 +72,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       id: 'customers',
       label: 'Customers & Sales',
       items: [
-        { label: 'Payment Dates', route: '/payment-dates', icon: '💰' },
+        { label: 'Outstanding Due', route: '/outstanding-due', icon: '💰' },
         { label: 'Customer Details', route: '/outstanding', icon: '📋' },
         { label: 'Invoice Details', route: '/sales-details', icon: '📊' },
         { label: 'Sales Analytics', route: '/sales-visualization', icon: '📈' }

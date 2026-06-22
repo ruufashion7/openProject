@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
-import { ApiService, CustomerLedgerEntry, CustomerSummaryResponse, CustomerNote } from '../services/api.service';
+import { ApiService, CustomerLedgerEntry, CustomerSummaryResponse, CustomerNote, ExcludedCustomerView } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
@@ -93,6 +93,9 @@ export class OutstandingComponent implements OnInit, OnDestroy {
   canViewCustomerNotes = false;
   canEditCustomerNotes = false;
   canEditCustomerLocation = false;
+  canExcludeCustomer = false;
+  isCurrentCustomerExcluded = false;
+  currentExcludedKey: string | null = null;
   
   // Subscription management
   private destroy$ = new Subject<void>();
@@ -163,6 +166,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     this.canViewCustomerNotes = this.permissionService.canViewCustomerNotes();
     this.canEditCustomerNotes = this.permissionService.canEditCustomerNotes();
     this.canEditCustomerLocation = this.permissionService.canEditCustomerLocation();
+    this.canExcludeCustomer = this.permissionService.canExcludeCustomer();
   }
 
   private initCustomerSelectionFromStorage(): void {
@@ -518,6 +522,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
         this.followUpFlagEdit = this.followUpFlag;
         this.syncLocationFieldsFromSummary(summary);
         this.applyCanonicalCustomerNameFromSummary(summary);
+        this.refreshExclusionStatus();
       },
       error: (err: HttpErrorResponse) => {
         if (err.status === 401) {
@@ -636,6 +641,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
         this.followUpFlagEdit = this.followUpFlag;
         this.syncLocationFieldsFromSummary(summary);
         this.applyCanonicalCustomerNameFromSummary(summary);
+        this.refreshExclusionStatus();
       },
       error: (err: HttpErrorResponse) => {
         if (err.status === 401) {
@@ -677,6 +683,84 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     this.router.navigateByUrl('/login');
   }
 
+  private resetExclusionStatus(): void {
+    this.isCurrentCustomerExcluded = false;
+    this.currentExcludedKey = null;
+  }
+
+  private refreshExclusionStatus(): void {
+    const name = this.getCustomerNameForMasterWrites();
+    if (!name) {
+      this.resetExclusionStatus();
+      return;
+    }
+    this.api.getExcludedCustomers()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (list) => {
+          const match = this.findExcludedMatch(list ?? [], name);
+          this.isCurrentCustomerExcluded = !!match;
+          this.currentExcludedKey = match?.customerKey ?? null;
+        },
+        error: () => {
+          this.resetExclusionStatus();
+        }
+      });
+  }
+
+  private findExcludedMatch(list: ExcludedCustomerView[], displayName: string): ExcludedCustomerView | undefined {
+    const target = displayName.trim().toLowerCase();
+    return list.find((item) => {
+      const name = (item.customerName || '').trim().toLowerCase();
+      const key = (item.customerKey || '').trim().toLowerCase();
+      return name === target || key === target;
+    });
+  }
+
+  ignoreCurrentCustomer(): void {
+    const name = this.getCustomerNameForMasterWrites();
+    if (!name) {
+      return;
+    }
+    if (!this.canExcludeCustomer) {
+      this.permissionService.notifyRoleDenied('ignore customers', 'customerExcludeEdit');
+      return;
+    }
+    this.api.excludeCustomer(name)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.notificationService.showSuccess(`${name} is now ignored on Outstanding Due`);
+          this.refreshExclusionStatus();
+        },
+        error: () => {
+          this.notificationService.showError('Could not ignore customer. Try again.');
+        }
+      });
+  }
+
+  restoreCurrentCustomer(): void {
+    if (!this.currentExcludedKey) {
+      return;
+    }
+    if (!this.canExcludeCustomer) {
+      this.permissionService.notifyRoleDenied('restore ignored customers', 'customerExcludeEdit');
+      return;
+    }
+    const name = this.getCustomerNameForMasterWrites();
+    this.api.restoreExcludedCustomer(this.currentExcludedKey)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.notificationService.showSuccess(`${name || this.currentExcludedKey} restored to Outstanding Due`);
+          this.refreshExclusionStatus();
+        },
+        error: () => {
+          this.notificationService.showError('Could not restore customer.');
+        }
+      });
+  }
+
   setLedgerFilter(filter: 'paid' | 'unpaid' | 'all'): void {
     // Only update the filter - preserve all customer state (selection, summary, ledger, payment date, WhatsApp status)
     // DO NOT modify: selectedCustomerName, customerSummary, customerLedger, paymentDate, paymentDateEdit, whatsappStatus, whatsappStatusEdit
@@ -710,6 +794,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     this.newNoteContent = '';
     this.editingLocation = false;
     this.syncLocationFieldsFromSummary();
+    this.resetExclusionStatus();
   }
 
   clearCustomerSelection(): void {
@@ -1059,7 +1144,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
       return;
     }
     if (!this.canEditPaymentDate) {
-      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
       return;
     }
     // Only handle text input (manual typing)
@@ -1087,7 +1172,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
 
   openDatePicker(event: FocusEvent, input: HTMLInputElement): void {
     if (!this.canEditPaymentDate) {
-      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
       return;
     }
     if (!input || !this.selectedCustomerName || input.type === 'date') {
@@ -1115,7 +1200,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
       return;
     }
     if (!this.canEditPaymentDate) {
-      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
       return;
     }
     
@@ -1215,7 +1300,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
 
   clearPaymentDate(): void {
     if (!this.canEditPaymentDate) {
-      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
       return;
     }
     this.paymentDateEdit = '';
@@ -1231,7 +1316,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
 
   private savePaymentDate(value: string): void {
     if (!this.canEditPaymentDate) {
-      this.permissionService.notifyRoleDenied('edit payment dates', 'paymentDateEdit');
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
       return;
     }
     const customer = this.getCustomerNameForMasterWrites();
@@ -1269,9 +1354,9 @@ export class OutstandingComponent implements OnInit, OnDestroy {
           this.logout();
           return;
         }
-        this.customerStatus = 'Unable to save payment date.';
+        this.customerStatus = 'Unable to save due date.';
         this.customerStatusIsError = true;
-        this.notificationService.showError('Failed to save payment date.', 3000);
+        this.notificationService.showError('Failed to save due date.', 3000);
       }
     });
   }

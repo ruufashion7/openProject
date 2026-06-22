@@ -56,6 +56,9 @@ class CustomerMasterPhoneIngestServiceTest {
                         p.latitude(),
                         p.longitude(),
                         p.notes(),
+                        p.excluded(),
+                        p.excludedAt(),
+                        p.excludedBy(),
                         p.updatedAt()
                 );
             }
@@ -94,6 +97,9 @@ class CustomerMasterPhoneIngestServiceTest {
                 null,
                 null,
                 List.of(),
+                false,
+                null,
+                null,
                 Instant.parse("2025-01-01T00:00:00Z")
         );
         when(repository.findAll()).thenReturn(new ArrayList<>(List.of(old)));

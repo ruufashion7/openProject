@@ -285,7 +285,7 @@ public class DashboardService {
             alerts.add("Files are uploaded but customer master is empty — re-upload or check phone ingest.");
         }
         if (uploadJob.busy()) {
-            alerts.add("Excel upload is running — wait before relying on Payment Dates or Outstanding pages.");
+            alerts.add("Excel upload is running — wait before relying on Outstanding Due or Customer Details pages.");
         } else if ("failed".equalsIgnoreCase(uploadJob.state())) {
             alerts.add("Last upload failed: " + uploadJob.message());
         }
