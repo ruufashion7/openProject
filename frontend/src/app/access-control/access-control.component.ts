@@ -367,6 +367,41 @@ export class AccessControlComponent implements OnInit {
     });
   }
 
+  purgeUser(user: User): void {
+    if (user.active) {
+      this.notifications.showError('Deactivate the user before permanently deleting.');
+      return;
+    }
+    if (user.id === this.authService.getUserId()) {
+      this.notifications.showError('You cannot permanently delete your own account.');
+      return;
+    }
+
+    if (!confirm(
+      `Permanently delete "${user.displayName}" (${user.username})? This cannot be undone. The username will stay reserved.`
+    )) {
+      return;
+    }
+    if (!confirm('Last chance: this user will be removed from the list and cannot log in again. Continue?')) {
+      return;
+    }
+
+    const headers = this.authService.getAuthHeaders();
+    this.http.post(`/api/users/${user.id}/purge`, null, { headers }).subscribe({
+      next: () => {
+        this.loadUsers();
+        this.notifications.showSuccess('User permanently deleted');
+      },
+      error: (error: HttpErrorResponse) => {
+        this.notifications.showError(messageFromHttpError(error, 'Failed to permanently delete user'));
+      }
+    });
+  }
+
+  canPurgeUser(user: User): boolean {
+    return !user.active && user.id !== this.authService.getUserId();
+  }
+
   deleteUser(user: User): void {
     if (user.isAdmin && this.hasAdmin() && this.currentAdmin?.id === user.id) {
       this.notifications.showError('Cannot deactivate the last admin user. Please assign admin to another user first.');

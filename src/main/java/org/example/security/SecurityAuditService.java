@@ -81,9 +81,17 @@ public class SecurityAuditService {
     /**
      * Log a user deletion/deactivation event.
      */
-    public void logUserDeactivated(String userId, String deactivatedBy) {
-        securityLogger.info("USER_DEACTIVATED | userId={} | deactivatedBy={} | timestamp={}", 
-            userId, deactivatedBy, Instant.now());
+    public void logUserDeactivated(String userId, String username, String deactivatedBy, String clientIp) {
+        securityLogger.info("USER_DEACTIVATED | userId={} | username={} | deactivatedBy={} | ip={} | timestamp={}",
+            userId, username, deactivatedBy, clientIp, Instant.now());
+    }
+
+    /**
+     * Tombstone permanent delete — username stays reserved.
+     */
+    public void logUserHardDeleted(String userId, String username, String deletedBy, String clientIp) {
+        securityLogger.info("USER_HARD_DELETED | userId={} | username={} | deletedBy={} | ip={} | timestamp={}",
+            userId, username, deletedBy, clientIp, Instant.now());
     }
     
     /**

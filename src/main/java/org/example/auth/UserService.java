@@ -48,7 +48,7 @@ public class UserService {
     }
 
     public List<User> getAllUsers() {
-        return userRepository.findAllByOrderByDisplayNameAsc();
+        return userRepository.findAllVisibleOrderByDisplayNameAsc();
     }
 
     public List<User> getActiveUsers() {
@@ -56,7 +56,7 @@ public class UserService {
     }
 
     public Optional<User> getUserById(String id) {
-        return userRepository.findById(id);
+        return userRepository.findById(id).filter(u -> !u.isPermanentlyDeleted());
     }
 
     public Optional<User> getUserByUsername(String username) {
@@ -64,8 +64,12 @@ public class UserService {
     }
 
     public User createUser(User user, String createdBy) {
-        if (userRepository.findFirstByUsernameOrderByIdAsc(user.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("Username already exists");
+        Optional<User> existing = userRepository.findFirstByUsernameOrderByIdAsc(user.getUsername());
+        if (existing.isPresent()) {
+            throw new IllegalArgumentException(
+                    existing.get().isPermanentlyDeleted()
+                            ? "Username is not available"
+                            : "Username already exists");
         }
         
         // Validate and hash password
@@ -167,8 +171,26 @@ public class UserService {
         return userRepository.findFirstByIsAdminTrueAndActiveTrueOrderByIdAsc();
     }
 
-    public void hardDeleteUser(String id) {
-        userRepository.deleteById(id);
+    /**
+     * Tombstones a deactivated user (hidden from UI, cannot log in). Username stays reserved — not reusable.
+     */
+    public User hardDeleteUser(String id, String deletedBy) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        if (user.isPermanentlyDeleted()) {
+            throw new IllegalStateException("User is already permanently deleted");
+        }
+        if (user.isActive()) {
+            throw new IllegalStateException("Deactivate the user before permanently deleting");
+        }
+        user.setPermanentlyDeleted(true);
+        user.setActive(false);
+        user.setAdmin(false);
+        user.setPassword("");
+        user.setPermissions(UserPermissionsHelper.getDefaultPermissions());
+        user.setUpdatedBy(deletedBy);
+        user.setUpdatedAt(Instant.now());
+        return userRepository.save(user);
     }
 
     /**

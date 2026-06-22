@@ -1,7 +1,10 @@
 package org.example.api;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.example.auth.*;
+import org.example.security.LoginCsrfProtectionService;
+import org.example.security.SecurityAuditService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -18,10 +21,17 @@ public class UserController {
 
     private final UserService userService;
     private final AuthSessionService authSessionService;
+    private final SecurityAuditService securityAuditService;
+    private final LoginCsrfProtectionService loginCsrfProtectionService;
 
-    public UserController(UserService userService, AuthSessionService authSessionService) {
+    public UserController(UserService userService,
+                          AuthSessionService authSessionService,
+                          SecurityAuditService securityAuditService,
+                          LoginCsrfProtectionService loginCsrfProtectionService) {
         this.userService = userService;
         this.authSessionService = authSessionService;
+        this.securityAuditService = securityAuditService;
+        this.loginCsrfProtectionService = loginCsrfProtectionService;
     }
 
     @GetMapping
@@ -139,7 +149,8 @@ public class UserController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteUser(
             @PathVariable String id,
-            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            HttpServletRequest httpRequest) {
         if (!isAdmin(authHeader)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -150,8 +161,54 @@ public class UserController {
         }
         
         try {
+            User user = userService.getUserById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+            String performedBy = getUserId(authHeader);
             userService.deleteUser(id);
-            authSessionService.deleteUserSessions(id);
+            authSessionService.invalidateAllSessionsForUser(id);
+            loginCsrfProtectionService.clearUser(id);
+            securityAuditService.logUserDeactivated(
+                    id, user.getUsername(), performedBy, getClientIpAddress(httpRequest));
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ErrorResponse(e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new ErrorResponse(e.getMessage()));
+        }
+    }
+
+    /**
+     * Permanently tombstones a deactivated user (username reserved). Admin only; security-audit logged.
+     */
+    @PostMapping("/{id}/purge")
+    public ResponseEntity<?> purgeUser(
+            @PathVariable String id,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            HttpServletRequest httpRequest) {
+        if (!isAdmin(authHeader)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        if (id == null || id.isBlank() || id.length() > 100) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        String performedBy = getUserId(authHeader);
+        if (performedBy.equals(id)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new ErrorResponse("You cannot permanently delete your own account."));
+        }
+
+        try {
+            User existing = userService.getUserById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+            String clientIp = getClientIpAddress(httpRequest);
+            securityAuditService.logUserHardDeleted(
+                    id, existing.getUsername(), performedBy, clientIp);
+            authSessionService.invalidateAllSessionsForUser(id);
+            loginCsrfProtectionService.clearUser(id);
+            userService.hardDeleteUser(id, performedBy);
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -197,6 +254,14 @@ public class UserController {
             return authHeader.substring(prefix.length()).trim();
         }
         return authHeader.trim();
+    }
+
+    private String getClientIpAddress(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }
 

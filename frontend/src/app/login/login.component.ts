@@ -19,8 +19,38 @@ export class LoginComponent {
   error = '';
   /** True while POST /api/login is in flight — disables button to prevent double submit */
   loading = false;
+  showPassword = false;
 
   constructor(private auth: AuthService, private router: Router) {}
+
+  /** Login fields must be typed — no copy, paste, cut, or drag-drop. */
+  blockClipboard(event: ClipboardEvent): void {
+    event.preventDefault();
+  }
+
+  blockClipboardShortcut(event: KeyboardEvent): void {
+    if (event.ctrlKey || event.metaKey) {
+      const key = event.key.toLowerCase();
+      if (key === 'v' || key === 'c' || key === 'x') {
+        event.preventDefault();
+      }
+    }
+    if (event.shiftKey && event.key === 'Insert') {
+      event.preventDefault();
+    }
+  }
+
+  blockContextMenu(event: Event): void {
+    event.preventDefault();
+  }
+
+  blockDrop(event: DragEvent): void {
+    event.preventDefault();
+  }
+
+  toggleShowPassword(): void {
+    this.showPassword = !this.showPassword;
+  }
 
   submit(): void {
     if (this.loading) {

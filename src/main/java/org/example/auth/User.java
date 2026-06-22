@@ -21,6 +21,8 @@ public class User {
     private String createdBy;
     private String updatedBy;
     private boolean active;
+    /** Tombstone after permanent delete — username stays reserved; hidden from admin UI. */
+    private boolean permanentlyDeleted;
     /**
      * Incremented when sessions must be invalidated (password change, admin revoke). Must match JWT claim {@code se}.
      */
@@ -128,6 +130,14 @@ public class User {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public boolean isPermanentlyDeleted() {
+        return permanentlyDeleted;
+    }
+
+    public void setPermanentlyDeleted(boolean permanentlyDeleted) {
+        this.permanentlyDeleted = permanentlyDeleted;
     }
 
     public int getSessionEpoch() {
