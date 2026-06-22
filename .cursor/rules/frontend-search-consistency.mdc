@@ -8,10 +8,10 @@ alwaysApply: true
 
 When adding or changing a **customer/list search** (filter by name, phone, or similar):
 
-1. **Reuse global classes** from `frontend/src/styles.css`: `.search-container` > `.search-input-wrapper`, `.search-icon`, `.search-input-modern`, `.btn-clear-search`, and optional `.search-suggestions` / `.suggestion-item` (same as Payment Dates).
-2. **Matching rules**: For name + phone filtering, mirror Payment Dates `filterCardsByState` / `updateSearchSuggestions` (lowercase name `includes`, digits-only phone with `phone.includes(normalizedQuery) || normalizedQuery.includes(phone)`).
+1. **Reuse global classes** from `frontend/src/styles.css`: `.search-container` > `.search-input-wrapper`, `.search-icon`, `.search-input-modern`, `.btn-clear-search`, and optional `.search-suggestions` / `.suggestion-item` (same as Outstanding Due).
+2. **Matching rules**: For name + phone filtering, mirror Outstanding Due `filterCardsByState` / `updateSearchSuggestions` (lowercase name `includes`, digits-only phone with `phone.includes(normalizedQuery) || normalizedQuery.includes(phone)`).
 3. **Placeholder**: Prefer `Search by customer name or phone...` unless the domain truly differs.
 4. **Behaviour**: Prefer an explicit filtered array refreshed on `(input)` / focus (not only a template getter) so the list updates reliably with `ngModel`.
 5. Do not add one-off search styles on feature pages; extend `styles.css` when sharing new pieces.
 
-References: `payment-dates.component.ts` (`filterCardsByState`, `updateSearchSuggestions`), `whatsapp-outreach` recipient search.
+References: `outstanding-due.component.ts` (`filterCardsByState`, `updateSearchSuggestions`), `whatsapp-outreach` recipient search.
