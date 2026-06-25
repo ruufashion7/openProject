@@ -600,37 +600,36 @@
           <div class="amount-value">₹{{ getDisplayAmount(card) | number:'1.2-2' }}</div>
         </div>
 
-        <div class="bucket-grid">
-          <div class="bucket">
-            <span class="bucket-label">1-45 Days</span>
-            <span class="bucket-value green">₹{{ (card.withinAmount ?? 0) | number:'1.2-2' }}</span>
-          </div>
-          <div class="bucket">
-            <span class="bucket-label">46-85 Days</span>
-            <span class="bucket-value yellow">₹{{ (card.midAmount ?? 0) | number:'1.2-2' }}</span>
-          </div>
-          <div class="bucket">
-            <span class="bucket-label">&gt;85 Days</span>
-            <span class="bucket-value red">₹{{ (card.beyondAmount ?? 0) | number:'1.2-2' }}</span>
-          </div>
-        </div>
-
         <div class="payment-date-section" [class]="getPaymentDateBorderClass(card)">
           <label class="date-label">Due Date</label>
-          <input
-            type="text"
-            class="date-input-modern"
-            [class.date-input-no-perm]="!canEditPaymentDate"
-            [attr.title]="permissionService.accessDeniedTooltip(canEditPaymentDate, 'paymentDateEdit')"
-            [attr.aria-disabled]="!canEditPaymentDate ? 'true' : null"
-            [value]="dateEdits[card.customer || '']"
-            (input)="onDateChange(card, $event)"
-            (focus)="onPaymentDateFocusDeny(card, $event)"
-            (click)="$event.stopPropagation()"
-            [readonly]="!canEditPaymentDate"
-            placeholder="DD-MM"
-            maxlength="5"
-          />
+          <div class="payment-date-input">
+            <input
+              type="text"
+              #dateInput
+              class="date-input-modern"
+              [class.date-input-no-perm]="!canEditPaymentDate"
+              [attr.title]="permissionService.accessDeniedTooltip(canEditPaymentDate, 'paymentDateEdit')"
+              [attr.aria-disabled]="!canEditPaymentDate ? 'true' : null"
+              [value]="dateEdits[card.customer || '']"
+              (keydown)="onDateKeydown($event)"
+              (input)="onPaymentDateInput(card, $event, dateInput)"
+              (focus)="openDatePicker(card, $event, dateInput)"
+              (change)="onDateChange(card, $event, dateInput)"
+              (blur)="onDateInputBlur($event, dateInput)"
+              (click)="$event.stopPropagation()"
+              [readonly]="!canEditPaymentDate"
+              placeholder="DD-MM"
+            />
+            <button
+              type="button"
+              class="btn btn-clear-x"
+              *ngIf="dateEdits[card.customer || ''] && canEditPaymentDate"
+              (click)="clearPaymentDate(card); $event.stopPropagation()"
+              aria-label="Clear date"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         <div class="whatsapp-section" [class]="getWhatsAppStatusBorderClass(card)">

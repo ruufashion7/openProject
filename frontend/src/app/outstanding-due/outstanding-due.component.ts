@@ -24,6 +24,15 @@ import {
   formatPhoneForWhatsApp,
   phoneDigitsMatch
 } from '../shared/phone.util';
+import {
+  getPaymentDateBorderClass as paymentDateBorderClass,
+  getPaymentDateTone as paymentDateTone,
+  isValidPaymentDateFormat,
+  matchesPaymentDateFilter,
+  normalizeToDayMonth,
+  PAYMENT_DATE_SAVE_DEBOUNCE_MS,
+  toIsoDate
+} from '../shared/payment-date.util';
 
 interface FilterState {
   paymentDate: 'all' | 'past' | 'today' | 'future' | 'none';
@@ -141,6 +150,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
   
   // Timers
   private saveTimers: Record<string, number> = {};
+  private processingDateChange: Record<string, boolean> = {};
   private searchTimer: any = null;
   private readonly filterStorageKey = 'outstandingDueV2.filters';
 
@@ -398,32 +408,8 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
   }
 
   private cardMatchesPaymentDate(card: PaymentDateCustomerCard, mode: FilterState['paymentDate']): boolean {
-    if (mode === 'all') {
-      return true;
-    }
-    const date = card.nextPaymentDate;
-    if (!date || date.trim() === '') {
-      return mode === 'none';
-    }
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const [day, month] = date.split('-').map(Number);
-    const paymentDate = new Date(today.getFullYear(), month - 1, day);
-    paymentDate.setHours(0, 0, 0, 0);
-    if (paymentDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-      paymentDate.setFullYear(today.getFullYear() + 1);
-    }
-    const diffDays = Math.floor((paymentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (mode === 'past') {
-      return diffDays < 0;
-    }
-    if (mode === 'today') {
-      return diffDays === 0;
-    }
-    if (mode === 'future') {
-      return diffDays > 0;
-    }
-    return false;
+    const date = this.dateEdits[card.customer || ''] ?? card.nextPaymentDate;
+    return matchesPaymentDateFilter(date, mode);
   }
 
   private cardMatchesWhatsappStatus(card: PaymentDateCustomerCard, mode: FilterState['whatsappStatus']): boolean {
@@ -732,36 +718,146 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     this.updateFilteredCards();
   }
 
-  getPaymentDateTone(card: PaymentDateCustomerCard): 'past' | 'today' | 'future' | 'none' {
+  getPaymentDateBorderClass(card: PaymentDateCustomerCard): string {
     const date = this.dateEdits[card.customer || ''] || card.nextPaymentDate || '';
-    if (!date || date.trim() === '') return 'none';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to midnight to avoid timezone issues
-    const [day, month] = date.split('-').map(Number);
-    const paymentDate = new Date(today.getFullYear(), month - 1, day);
-    paymentDate.setHours(0, 0, 0, 0); // Normalize to midnight
-    if (paymentDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-      paymentDate.setFullYear(today.getFullYear() + 1);
-    }
-    const diffDays = Math.floor((paymentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return 'past';
-    if (diffDays === 0) return 'today';
-    return 'future';
+    return paymentDateBorderClass(paymentDateTone(date));
   }
 
-  getPaymentDateBorderClass(card: PaymentDateCustomerCard): string {
-    const tone = this.getPaymentDateTone(card);
-    switch (tone) {
-      case 'past':
-        return 'border-red';
-      case 'today':
-        return 'border-yellow';
-      case 'future':
-        return 'border-green';
-      case 'none':
-      default:
-        return 'border-grey';
+  onDateKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      (event.target as HTMLInputElement)?.blur();
     }
+  }
+
+  onPaymentDateInput(card: PaymentDateCustomerCard, event: Event, input: HTMLInputElement): void {
+    if (!card.customer || this.processingDateChange[card.customer]) {
+      return;
+    }
+    if (!this.canEditPaymentDate) {
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
+      return;
+    }
+    if (input.type === 'date') {
+      return;
+    }
+
+    const value = (event.target as HTMLInputElement).value;
+    this.dateEdits[card.customer] = value;
+
+    const normalized = normalizeToDayMonth(value);
+    if (normalized) {
+      this.dateEdits[card.customer] = normalized;
+      const foundCard = this.cards.find(c => c.customer === card.customer);
+      if (foundCard) {
+        foundCard.nextPaymentDate = normalized || null;
+      }
+      this.schedulePaymentDateSave(card.customer, normalized);
+      this.updateFilteredCards();
+    }
+  }
+
+  openDatePicker(card: PaymentDateCustomerCard, event: FocusEvent, input: HTMLInputElement): void {
+    if (!this.canEditPaymentDate) {
+      (event.target as HTMLInputElement)?.blur();
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
+      return;
+    }
+    if (!card.customer || !input || input.type === 'date') {
+      return;
+    }
+
+    const current = this.dateEdits[card.customer] ?? '';
+    const iso = toIsoDate(current);
+    input.type = 'date';
+    if (iso) {
+      input.value = iso;
+    }
+  }
+
+  onDateChange(card: PaymentDateCustomerCard, event: Event, input: HTMLInputElement): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!card.customer || this.processingDateChange[card.customer]) {
+      return;
+    }
+    if (!this.canEditPaymentDate) {
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
+      return;
+    }
+    if (input.type !== 'date') {
+      return;
+    }
+
+    const value = input.value;
+    if (!value) {
+      input.type = 'text';
+      return;
+    }
+
+    const normalized = normalizeToDayMonth(value);
+    if (!normalized) {
+      input.type = 'text';
+      return;
+    }
+
+    this.processingDateChange[card.customer] = true;
+    input.type = 'text';
+    input.value = normalized;
+    this.dateEdits[card.customer] = normalized;
+
+    const foundCard = this.cards.find(c => c.customer === card.customer);
+    if (foundCard) {
+      foundCard.nextPaymentDate = normalized;
+    }
+
+    this.savePaymentDate(card.customer, normalized);
+    this.updateFilteredCards();
+    this.cdr.detectChanges();
+
+    window.setTimeout(() => {
+      delete this.processingDateChange[card.customer!];
+    }, 100);
+  }
+
+  onDateInputBlur(event: Event, input: HTMLInputElement): void {
+    if (this.isProcessingAnyDateChange()) {
+      return;
+    }
+    if (input.type === 'date') {
+      input.type = 'text';
+    }
+  }
+
+  clearPaymentDate(card: PaymentDateCustomerCard): void {
+    if (!card.customer) {
+      return;
+    }
+    if (!this.canEditPaymentDate) {
+      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
+      return;
+    }
+    this.dateEdits[card.customer] = '';
+    const foundCard = this.cards.find(c => c.customer === card.customer);
+    if (foundCard) {
+      foundCard.nextPaymentDate = null;
+    }
+    this.savePaymentDate(card.customer, '');
+    this.updateFilteredCards();
+  }
+
+  private isProcessingAnyDateChange(): boolean {
+    return Object.values(this.processingDateChange).some(Boolean);
+  }
+
+  private schedulePaymentDateSave(customer: string, value: string): void {
+    if (this.saveTimers[customer]) {
+      clearTimeout(this.saveTimers[customer]);
+    }
+    this.saveTimers[customer] = window.setTimeout(() => {
+      this.savePaymentDate(customer, value);
+    }, PAYMENT_DATE_SAVE_DEBOUNCE_MS);
   }
 
   getWhatsAppStatus(card: PaymentDateCustomerCard): 'not sent' | 'sent' | 'delivered' {
@@ -824,46 +920,35 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     }
   }
 
-  onPaymentDateFocusDeny(card: PaymentDateCustomerCard, e: FocusEvent): void {
-    if (!this.canEditPaymentDate) {
-      (e.target as HTMLInputElement)?.blur();
-      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
-    }
-  }
-
-  onDateChange(card: PaymentDateCustomerCard, event: any): void {
-    if (!card.customer) return;
-    if (!this.canEditPaymentDate) {
-      this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
-      this.dateEdits[card.customer] = card.nextPaymentDate ?? '';
-      this.cdr.markForCheck();
-      return;
-    }
-    const date = event.target?.value || '';
-    this.dateEdits[card.customer] = date;
-    if (this.saveTimers[card.customer]) {
-      clearTimeout(this.saveTimers[card.customer]);
-    }
-    this.saveTimers[card.customer] = window.setTimeout(() => {
-      this.savePaymentDate(card.customer!, date);
-    }, 1000);
-  }
 
   savePaymentDate(customer: string, date: string): void {
     if (!this.canEditPaymentDate) {
       this.permissionService.notifyRoleDenied('edit due dates', 'paymentDateEdit');
       return;
     }
-    this.api.updateNextPaymentDate(customer, date)
+    const cleaned = date.trim();
+    if (!isValidPaymentDateFormat(cleaned)) {
+      this.notificationService.showError('Invalid date format. Use DD-MM.', 4000);
+      const card = this.cards.find(c => c.customer === customer);
+      this.dateEdits[customer] = card?.nextPaymentDate ?? '';
+      this.cdr.markForCheck();
+      return;
+    }
+    this.api.updateNextPaymentDate(customer, cleaned)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
           const card = this.cards.find(c => c.customer === customer);
           if (card) {
-            card.nextPaymentDate = date;
+            card.nextPaymentDate = cleaned || null;
           }
+          this.dateEdits[customer] = cleaned;
+          this.updateFilteredCards();
           const customerDisplayName = customer.length > 30 ? customer.substring(0, 30) + '...' : customer;
-          this.notificationService.showSuccess(`Payment date updated for ${customerDisplayName}`, 3000);
+          this.notificationService.showSuccess(
+            cleaned ? `Payment date saved for ${customerDisplayName}` : `Payment date cleared for ${customerDisplayName}`,
+            3000
+          );
         },
         error: (err: HttpErrorResponse) => {
           if (err.status === 401) {

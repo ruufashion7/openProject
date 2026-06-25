@@ -22,6 +22,14 @@ import {
   setExcelPrintTitleTopRow,
 } from '../shared/export-watermark';
 import { formatInrForExcel, formatInrForPdf } from '../shared/format-inr-export';
+import {
+  getPaymentDateBorderClass as paymentDateBorderClass,
+  getPaymentDateTone as paymentDateTone,
+  isValidPaymentDateFormat,
+  normalizeToDayMonth,
+  PAYMENT_DATE_SAVE_DEBOUNCE_MS,
+  toIsoDate
+} from '../shared/payment-date.util';
 import { ensurePdfUnicodeFonts, PDF_UNICODE_FONT } from '../shared/pdf-unicode-font';
 import { PageStateComponent } from '../shared/page-state/page-state.component';
 import { formatCoordinatesDms } from '../shared/coordinates.util';
@@ -1080,52 +1088,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
   }
 
   getPaymentDateBorderClass(): string {
-    const tone = this.getPaymentDateTone();
-    switch (tone) {
-      case 'red':
-        return 'border-red';
-      case 'yellow':
-        return 'border-yellow';
-      case 'green':
-        return 'border-green';
-      case 'neutral':
-      default:
-        return 'border-grey';
-    }
-  }
-
-  getPaymentDateTone(): 'neutral' | 'yellow' | 'green' | 'red' {
-    if (!this.paymentDate) {
-      return 'neutral';
-    }
-    const value = this.paymentDate.trim();
-    if (!value) {
-      return 'neutral';
-    }
-    const match = value.match(/^(\d{2})-(\d{2})$/);
-    if (!match) {
-      return 'neutral';
-    }
-    const day = Number(match[1]);
-    const month = Number(match[2]);
-    if (!day || !month || day > 31 || month > 12) {
-      return 'neutral';
-    }
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const target = new Date(now.getFullYear(), month - 1, day);
-    if (Number.isNaN(target.getTime())) {
-      return 'neutral';
-    }
-    const todayTime = today.getTime();
-    const targetTime = target.getTime();
-    if (targetTime === todayTime) {
-      return 'yellow';
-    }
-    if (targetTime > todayTime) {
-      return 'green';
-    }
-    return 'red';
+    return paymentDateBorderClass(paymentDateTone(this.paymentDate));
   }
 
   getAgeingDaysColorClass(ageingDays: number | null | undefined): string {
@@ -1164,7 +1127,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     const value = (event.target as HTMLInputElement).value;
     this.paymentDateEdit = value;
     
-    const normalized = this.normalizeToDayMonth(value);
+    const normalized = normalizeToDayMonth(value);
     
     // Update for immediate color change
     if (normalized) {
@@ -1190,7 +1153,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     
     // Convert current DD-MM format to ISO for date input
     const current = this.paymentDateEdit ?? '';
-    const iso = this.toIsoDate(current);
+    const iso = toIsoDate(current);
     
     // Switch to date input type
     input.type = 'date';
@@ -1225,7 +1188,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     }
     
     // Convert ISO date (YYYY-MM-DD) to DD-MM format
-    const normalized = this.normalizeToDayMonth(value);
+    const normalized = normalizeToDayMonth(value);
     if (!normalized) {
       input.type = 'text';
       return;
@@ -1273,38 +1236,13 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     }
   }
 
-  private toIsoDate(value: string): string | null {
-    const trimmed = value.trim();
-    if (!/^\d{2}-\d{2}$/.test(trimmed)) {
-      return null;
-    }
-    const [day, month] = trimmed.split('-');
-    const year = new Date().getFullYear().toString();
-    return `${year}-${month}-${day}`;
-  }
-
-  private normalizeToDayMonth(value: string): string | null {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return '';
-    }
-    if (/^\d{2}-\d{2}$/.test(trimmed)) {
-      return trimmed;
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      const parts = trimmed.split('-');
-      return `${parts[2]}-${parts[1]}`;
-    }
-    return null;
-  }
-
   private schedulePaymentDateSave(value: string): void {
     if (this.paymentDateSaveTimer) {
       window.clearTimeout(this.paymentDateSaveTimer);
     }
     this.paymentDateSaveTimer = window.setTimeout(() => {
       this.savePaymentDate(value);
-    }, 400);
+    }, PAYMENT_DATE_SAVE_DEBOUNCE_MS);
   }
 
   clearPaymentDate(): void {
@@ -1337,7 +1275,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
       return;
     }
     const cleaned = value.trim();
-    if (cleaned && !/^\d{2}-\d{2}$/.test(cleaned)) {
+    if (!isValidPaymentDateFormat(cleaned)) {
       this.customerStatus = 'Invalid date format. Use dd-MM.';
       this.customerStatusIsError = true;
       this.notificationService.showError('Invalid date format. Use DD-MM.', 4000);
