@@ -25,6 +25,7 @@ export class LocationInputComponent implements OnInit, OnChanges, AfterViewInit,
   @Input() initialLongitude: number | null = null;
   @Output() locationSelected = new EventEmitter<LocationData>();
   @Output() cancelled = new EventEmitter<void>();
+  @Output() saveFailed = new EventEmitter<string>();
 
   @ViewChild('mapContainer', { static: false }) mapContainer!: ElementRef;
 
@@ -422,6 +423,11 @@ export class LocationInputComponent implements OnInit, OnChanges, AfterViewInit,
     }
 
     if (this.latitude === null || this.longitude === null) {
+      this.saveFailed.emit(
+        this.address.trim()
+          ? 'Could not find coordinates for this address. Pick a suggestion, use the map, or try a different address.'
+          : 'Please enter an address or pick a location on the map.'
+      );
       return;
     }
 

@@ -611,6 +611,7 @@
                 [initialLatitude]="locationLatitude"
                 [initialLongitude]="locationLongitude"
                 (locationSelected)="saveLocation($event)"
+                (saveFailed)="notificationService.showError($event, 4000)"
                 (cancelled)="cancelLocationEdit()"
               ></app-location-input>
             </div>

@@ -2198,7 +2198,7 @@ public class AnalyticsController {
         PaymentDateOverride base = existing != null
                 ? existing
                 : PaymentDateOverrideCopy.newShell(customerKey, request.customer().trim());
-        paymentDateOverrideRepository.save(PaymentDateOverrideCopy.copy(
+        paymentDateOverrideRepository.save(PaymentDateOverrideCopy.withLocationUpdate(
                 base,
                 customerKey,
                 existingCustomerName,
@@ -2212,10 +2212,7 @@ public class AnalyticsController {
                 existingPlace,
                 latitude,
                 longitude,
-                existingNotes,
-                null,
-                null,
-                null
+                existingNotes
         ));
         
         return ResponseEntity.ok().build();

@@ -107,6 +107,49 @@ public final class PaymentDateOverrideCopy {
         );
     }
 
+    /**
+     * Persists location fields from a location update. Unlike {@link #copy}, null address/latitude/longitude
+     * explicitly clears those fields (needed for delete and partial clears).
+     */
+    @SuppressWarnings("java:S107")
+    public static PaymentDateOverride withLocationUpdate(
+            PaymentDateOverride src,
+            String customerKey,
+            String customerName,
+            String nextPaymentDate,
+            String phoneNumber,
+            String whatsAppStatus,
+            String customerCategory,
+            boolean active,
+            Boolean needsFollowUp,
+            String address,
+            String place,
+            Double latitude,
+            Double longitude,
+            List<CustomerNote> notes
+    ) {
+        return new PaymentDateOverride(
+                src.id(),
+                customerKey,
+                customerName,
+                nextPaymentDate != null ? nextPaymentDate : "",
+                phoneNumber,
+                whatsAppStatus,
+                customerCategory,
+                active,
+                needsFollowUp != null ? needsFollowUp : false,
+                address,
+                place,
+                latitude,
+                longitude,
+                notes != null ? notes : List.of(),
+                src.excluded(),
+                src.excludedAt(),
+                src.excludedBy(),
+                Instant.now()
+        );
+    }
+
     public static PaymentDateOverride rekey(
             PaymentDateOverride src,
             String newKey,

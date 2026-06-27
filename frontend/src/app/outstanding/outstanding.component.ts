@@ -121,7 +121,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     private router: Router,
     private cdr: ChangeDetectorRef,
     public permissionService: PermissionService,
-    private notificationService: NotificationService
+    public notificationService: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -1556,21 +1556,35 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     }
     const customer = this.getCustomerNameForMasterWrites();
     if (!customer) {
+      this.notificationService.showError(
+        'Customer details are still loading. Wait a moment and try again.',
+        4000
+      );
       return;
     }
     this.customerStatus = '';
     this.customerStatusIsError = false;
+    const latitude = locationData.latitude === 0 ? null : locationData.latitude;
+    const longitude = locationData.longitude === 0 ? null : locationData.longitude;
+    const address = locationData.address?.trim() || null;
     this.api.updateCustomerLocation(customer, {
-      address: locationData.address || null,
-      latitude: locationData.latitude === 0 ? null : locationData.latitude,
-      longitude: locationData.longitude === 0 ? null : locationData.longitude
+      address,
+      latitude,
+      longitude
     }).subscribe({
       next: () => {
-        this.locationAddress = locationData.address;
-        this.locationLatitude = locationData.latitude;
-        this.locationLongitude = locationData.longitude;
+        this.locationAddress = address || '';
+        this.locationLatitude = latitude;
+        this.locationLongitude = longitude;
         this.editingLocation = false;
-        // Refresh customer summary to get latest data
+        if (this.customerSummary) {
+          this.customerSummary = {
+            ...this.customerSummary,
+            address: address ?? undefined,
+            latitude: latitude ?? undefined,
+            longitude: longitude ?? undefined
+          };
+        }
         this.refreshCustomerSummary();
         this.notificationService.showSuccess('Location saved successfully', 3000);
       },
@@ -1630,6 +1644,10 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     }
     const customer = this.getCustomerNameForMasterWrites();
     if (!customer) {
+      this.notificationService.showError(
+        'Customer details are still loading. Wait a moment and try again.',
+        4000
+      );
       return;
     }
     
@@ -1649,7 +1667,14 @@ export class OutstandingComponent implements OnInit, OnDestroy {
         this.locationLatitude = null;
         this.locationLongitude = null;
         this.destroyLocationMap();
-        // Refresh customer summary to get latest data
+        if (this.customerSummary) {
+          this.customerSummary = {
+            ...this.customerSummary,
+            address: undefined,
+            latitude: undefined,
+            longitude: undefined
+          };
+        }
         this.refreshCustomerSummary();
         this.notificationService.showSuccess('Location deleted successfully', 3000);
       },
