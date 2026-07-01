@@ -150,6 +150,34 @@ public class UploadController {
                 ));
     }
 
+    @PostMapping("/upload/admin/force-release")
+    public ResponseEntity<?> forceReleaseUploadLock(
+            @RequestHeader(value = "Authorization", required = false) String authHeader
+    ) {
+        SessionInfo session = authSessionService.validate(extractToken(authHeader));
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!session.isAdmin()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        UploadJobService.ForceReleaseResult result = uploadJobService.forceReleaseStuckUpload();
+        if (result instanceof UploadJobService.ForceReleaseResult.NothingToRelease) {
+            return ResponseEntity.ok(new UploadCancelResponse(
+                    "ok",
+                    "No upload lock is active; you can upload now."
+            ));
+        }
+        if (result instanceof UploadJobService.ForceReleaseResult.Released released) {
+            return ResponseEntity.ok(new UploadCancelResponse(
+                    "released",
+                    "Released stuck upload lock (job " + released.jobId() + "). You can upload again."
+            ));
+        }
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+
     @GetMapping("/upload/state")
     public ResponseEntity<UploadAsyncStateResponse> uploadAsyncState(
             @RequestHeader(value = "Authorization", required = false) String authHeader
@@ -384,12 +412,12 @@ public class UploadController {
         Instant now = Instant.now();
         for (DetailedSalesInvoicesUpload upload : detailedUploads) {
             uploadAuditEntryRepository.save(
-                    new UploadAuditEntry(null, "DELETED", "detailed", upload.file().originalFilename(), now)
+                    new UploadAuditEntry(null, "DELETED", "detailed", upload.file().originalFilename(), now, "")
             );
         }
         for (ReceivableAgeingReportUpload upload : receivableUploads) {
             uploadAuditEntryRepository.save(
-                    new UploadAuditEntry(null, "DELETED", "receivable", upload.file().originalFilename(), now)
+                    new UploadAuditEntry(null, "DELETED", "receivable", upload.file().originalFilename(), now, "")
             );
         }
         uploadStorageService.enforceUploadAuditRetention();

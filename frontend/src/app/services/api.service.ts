@@ -162,10 +162,11 @@ export interface UploadEntry {
 
 export interface UploadAuditEntry {
   id: string;
-  action: 'ADDED' | 'DELETED';
+  action: 'ADDED' | 'DELETED' | 'STOPPED' | 'CANCELLED' | 'FAILED';
   type: 'detailed' | 'receivable';
   originalFilename: string;
   uploadedAt: string;
+  message?: string;
 }
 
 export interface UploadPurgeResponse {
@@ -417,6 +418,13 @@ export class ApiService {
       null,
       { headers: this.auth.getAuthHeaders() }
     );
+  }
+
+  /** Admin-only: release a stuck cluster-wide upload lock. */
+  forceReleaseUploadLock(): Observable<UploadCancelResponse> {
+    return this.http.post<UploadCancelResponse>(`${this.baseUrl}/upload/admin/force-release`, null, {
+      headers: this.auth.getAuthHeaders()
+    });
   }
 
   listUploads(): Observable<UploadEntry[]> {

@@ -7,6 +7,35 @@
   </div>
 
   <div class="card">
+    <div class="active-upload" *ngIf="serverBusy">
+      <h3 class="active-upload-title">Upload in progress</h3>
+      <p class="active-upload-msg">
+        {{ pollUi?.message || serverCurrentJob?.message || 'Another upload is running. New uploads are blocked until it finishes.' }}
+      </p>
+      <p class="hint muted small">
+        Phase: {{ activePhaseLabel }} · Started by {{ activeStartedBy }}
+      </p>
+      <div class="upload-actions compact">
+        <button
+          class="btn btn-danger-ghost"
+          type="button"
+          (click)="cancelUpload()"
+          [disabled]="!canStopUpload"
+        >
+          Stop upload
+        </button>
+        <button
+          class="btn btn-ghost"
+          type="button"
+          (click)="forceReleaseLock()"
+          [disabled]="releasingLock"
+          *ngIf="showForceRelease"
+        >
+          {{ releasingLock ? 'Releasing…' : 'Release stuck lock (admin)' }}
+        </button>
+      </div>
+    </div>
+
     <div class="last-outcome" *ngIf="lastServerOutcome">
       <h3 class="last-outcome-title">Last finished upload</h3>
       <p class="last-outcome-meta">
@@ -30,12 +59,12 @@
     <div class="inputs">
       <label>
         DetailedSalesInvoices
-        <input type="file" (change)="onFileChange($event, 'file1')" />
+        <input type="file" (change)="onFileChange($event, 'file1')" [disabled]="uploadBlocked" />
         <span class="filename">{{ file1?.name || 'No file selected' }}</span>
       </label>
       <label>
         ReceivableAgeingReport
-        <input type="file" (change)="onFileChange($event, 'file2')" />
+        <input type="file" (change)="onFileChange($event, 'file2')" [disabled]="uploadBlocked" />
         <span class="filename">{{ file2?.name || 'No file selected' }}</span>
       </label>
     </div>
@@ -45,34 +74,22 @@
         class="btn btn-primary"
         type="button"
         (click)="submit()"
-        [disabled]="status === 'loading' || !canUpload"
+        [disabled]="uploadBlocked || !canUpload"
       >
         {{ primaryButtonLabel }}
       </button>
-      <button
-        class="btn btn-danger-ghost"
-        type="button"
-        (click)="cancelUpload()"
-        [disabled]="!canStopUpload"
-        *ngIf="status === 'loading'"
-      >
-        Stop upload
-      </button>
     </div>
-    <p class="hint muted small" *ngIf="status === 'loading' && pollUi">
-      Phase: {{ pollUi.phase || '—' }} · Started by {{ pollUi.startedByDisplayName || '—' }}
-    </p>
 
-    <div class="status-block" *ngIf="status !== 'idle'">
+    <div class="status-block" *ngIf="showSessionStatus">
       <p
         class="status-text"
-        [class.success]="status === 'success'"
-        [class.failed]="status === 'failed'"
-        [class.cancelled]="status === 'cancelled'"
+        [class.success]="sessionStatus === 'success'"
+        [class.failed]="sessionStatus === 'failed'"
+        [class.cancelled]="sessionStatus === 'cancelled'"
       >
         {{ message }}
       </p>
-      <ul *ngIf="uploadedFiles.length && status === 'success'">
+      <ul *ngIf="uploadedFiles.length && sessionStatus === 'success'">
         <li *ngFor="let file of uploadedFiles">
           {{ file.filename }} (id: {{ file.id }})
         </li>

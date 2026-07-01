@@ -73,6 +73,38 @@ public class UploadAsyncPersistenceService {
         mongoTemplate.updateFirst(q, u, UploadSystemStateDocument.class);
     }
 
+    /**
+     * Extends the cluster lock while a worker is still alive (called from watchdog on the worker instance).
+     */
+    public boolean renewDistributedLock(String jobId, Duration lease, Instant now) {
+        Instant until = now.plus(lease);
+        Query q = new Query(Criteria.where("_id").is(UploadSystemStateDocument.SINGLETON_ID).and("lockJobId").is(jobId));
+        Update u = new Update().set("lockExpiresAt", until);
+        return mongoTemplate.updateFirst(q, u, UploadSystemStateDocument.class).getModifiedCount() > 0;
+    }
+
+    /** Lightweight heartbeat — no read-modify-write of the full progress document. */
+    public void touchWorkerHeartbeat(String jobId, Instant now) {
+        Query q = new Query(Criteria.where("_id").is(jobId));
+        Update u = new Update().set("workerHeartbeatAt", now);
+        mongoTemplate.updateFirst(q, u, UploadJobProgressDocument.class);
+    }
+
+    public boolean isWorkerHeartbeatStale(String jobId, Instant now, Duration staleAfter) {
+        return progressRepository.findById(jobId)
+                .map(UploadJobProgressDocument::getWorkerHeartbeatAt)
+                .map(hb -> hb.isBefore(now.minus(staleAfter)))
+                .orElse(true);
+    }
+
+    /** Lock job id only when the lease is still valid. */
+    public Optional<String> getActiveLockJobId(Instant now) {
+        return systemStateRepository.findById(UploadSystemStateDocument.SINGLETON_ID)
+                .filter(s -> s.getLockJobId() != null && !s.getLockJobId().isBlank())
+                .filter(s -> s.getLockExpiresAt() != null && s.getLockExpiresAt().isAfter(now))
+                .map(UploadSystemStateDocument::getLockJobId);
+    }
+
     public Optional<String> getCurrentLockJobId() {
         return systemStateRepository.findById(UploadSystemStateDocument.SINGLETON_ID)
                 .map(UploadSystemStateDocument::getLockJobId)
@@ -88,20 +120,22 @@ public class UploadAsyncPersistenceService {
 
     /**
      * If the distributed lock is past expiry, clear it and mark the job failed (any instance may run this).
+     *
+     * @return job id if a lock was cleared
      */
-    public boolean clearExpiredDistributedLock(Instant now, Consumer<UploadLastOutcomeResponse> onOutcome) {
+    public Optional<String> clearExpiredDistributedLock(Instant now, Consumer<UploadLastOutcomeResponse> onOutcome) {
         UploadSystemStateDocument s = systemStateRepository.findById(UploadSystemStateDocument.SINGLETON_ID).orElse(null);
         if (s == null || s.getLockJobId() == null || s.getLockExpiresAt() == null) {
-            return false;
+            return Optional.empty();
         }
         if (s.getLockExpiresAt().isAfter(now)) {
-            return false;
+            return Optional.empty();
         }
         String jid = s.getLockJobId();
         Query q = new Query(Criteria.where("_id").is(UploadSystemStateDocument.SINGLETON_ID).and("lockJobId").is(jid));
         Update u = new Update().unset("lockJobId").set("lockExpiresAt", now);
         if (mongoTemplate.updateFirst(q, u, UploadSystemStateDocument.class).getModifiedCount() == 0) {
-            return false;
+            return Optional.empty();
         }
         progressRepository.findById(jid).ifPresent(p -> {
             if ("processing".equals(p.getState())) {
@@ -124,7 +158,7 @@ public class UploadAsyncPersistenceService {
         persistLastOutcomeFields(outcome);
         onOutcome.accept(outcome);
         logger.warn("Cleared expired distributed upload lock for jobId={}", jid);
-        return true;
+        return Optional.of(jid);
     }
 
     public void persistLastOutcome(UploadLastOutcomeResponse outcome) {

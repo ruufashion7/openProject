@@ -2,7 +2,7 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">Upload Audit Trail</h1>
-      <p class="page-subtitle">History of all uploads across both files.</p>
+      <p class="page-subtitle">History of uploads — successful, stopped, cancelled, and failed attempts.</p>
     </div>
   </div>
 
@@ -20,22 +20,31 @@
           <th>Action</th>
           <th>Type</th>
           <th>File</th>
-          <th>Uploaded At</th>
+          <th>Details</th>
+          <th>When</th>
         </tr>
       </thead>
       <tbody>
         <tr *ngFor="let entry of entries">
           <td>
-            <span class="badge" [class.warning]="entry.action === 'DELETED'">
+            <span
+              class="badge"
+              [class.success]="entry.action === 'ADDED'"
+              [class.warning]="entry.action === 'DELETED'"
+              [class.stopped]="entry.action === 'STOPPED'"
+              [class.cancelled]="entry.action === 'CANCELLED'"
+              [class.failed]="entry.action === 'FAILED'"
+            >
               {{ entry.action }}
             </span>
           </td>
           <td>
-            <span class="badge" [class.success]="entry.type === 'detailed'">
+            <span class="badge type" [class.detailed]="entry.type === 'detailed'">
               {{ entry.type }}
             </span>
           </td>
           <td>{{ entry.originalFilename }}</td>
+          <td class="detail-cell">{{ entry.message || '—' }}</td>
           <td>{{ entry.uploadedAt | date: 'medium' }}</td>
         </tr>
       </tbody>
@@ -44,4 +53,3 @@
     <app-page-state *ngIf="status === 'idle' && !entries.length" kind="empty" message="No audit entries yet."></app-page-state>
   </div>
 </section>
-

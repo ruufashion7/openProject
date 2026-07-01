@@ -13,7 +13,14 @@ public record UploadAuditEntry(
         String action,
         String type,
         String originalFilename,
-        Instant uploadedAt
+        Instant uploadedAt,
+        String message
 ) {
+    /** Backward-compatible for existing MongoDB rows without {@code message}. */
+    public UploadAuditEntry {
+        if (message == null) {
+            message = "";
+        }
+    }
 }
 

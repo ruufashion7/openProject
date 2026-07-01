@@ -24,6 +24,31 @@ input[type="file"] {
   color: #6b7280;
 }
 
+.active-upload {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.active-upload-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
+.active-upload-msg {
+  margin: 0 0 6px;
+  color: #1e40af;
+  font-size: 14px;
+}
+
+.upload-actions.compact {
+  margin-top: 10px;
+}
+
 .last-outcome {
   margin-bottom: 20px;
   padding: 14px 16px;

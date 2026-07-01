@@ -35,6 +35,10 @@ public class UploadJobService {
     private static final String PHASE_PARSING = "parsing";
     private static final String PHASE_SAVING = "saving";
 
+    private static final String AUDIT_STOPPED = "STOPPED";
+    private static final String AUDIT_CANCELLED = "CANCELLED";
+    private static final String AUDIT_FAILED = "FAILED";
+
     private final UploadStorageService uploadStorageService;
     private final SecurityAuditService securityAuditService;
     private final ThreadPoolTaskExecutor uploadExecutor;
@@ -52,6 +56,15 @@ public class UploadJobService {
 
     @Value("${upload.distributed-lock-lease-hours:4}")
     private int distributedLockLeaseHours;
+
+    @Value("${upload.distributed-lock-lease-minutes:15}")
+    private int distributedLockLeaseMinutes;
+
+    @Value("${upload.worker-heartbeat-stale-minutes:3}")
+    private int workerHeartbeatStaleMinutes;
+
+    @Value("${upload.cancel-mongo-refresh-seconds:2}")
+    private int cancelMongoRefreshSeconds;
 
     /** Last terminal outcome — mirrored to MongoDB (survives restarts and is shared across instances). */
     private volatile UploadLastOutcomeResponse lastOutcome;
@@ -74,10 +87,16 @@ public class UploadJobService {
      */
     public void onWatchdogTick() {
         Instant now = Instant.now();
-        persistence.clearExpiredDistributedLock(now, o -> lastOutcome = o);
+        persistence.clearExpiredDistributedLock(now, o -> lastOutcome = o).ifPresent(jid ->
+                recordOutcomeAuditFromProgress(
+                        jid,
+                        AUDIT_FAILED,
+                        "Upload lock lease expired before completion; please try again."
+                )
+        );
 
         UploadJob job = findProcessingJob();
-        Optional<String> mongoLock = persistence.getCurrentLockJobId();
+        Optional<String> mongoLock = persistence.getActiveLockJobId(now);
 
         if (job == null || mongoLock.isEmpty() || !job.id.equals(mongoLock.get())) {
             if (uploadInProgress.get() && job == null) {
@@ -92,7 +111,24 @@ public class UploadJobService {
                         mongoLock.get()
                 );
             }
+            // Worker died (restart/crash) but Mongo lock remains — release when heartbeat is stale or cancel requested.
+            if (job == null && mongoLock.isPresent() && !uploadInProgress.get()) {
+                releaseOrphanLockIfStale(mongoLock.get(), now);
+            }
             return;
+        }
+
+        // Worker alive on this instance — renew lock + heartbeat so the cluster knows we are running.
+        Duration lease = lockLeaseDuration();
+        persistence.renewDistributedLock(job.id, lease, now);
+        persistence.touchWorkerHeartbeat(job.id, now);
+
+        if (job.cancelRequested) {
+            Future<?> cancelFuture = currentUploadFuture.get();
+            if (cancelFuture != null && !cancelFuture.isDone()) {
+                boolean cancelled = cancelFuture.cancel(true);
+                logger.info("Watchdog: cancel requested; interrupt worker cancel={} jobId={}", cancelled, job.id);
+            }
         }
 
         if (!uploadInProgress.get()) {
@@ -136,6 +172,57 @@ public class UploadJobService {
         }
     }
 
+    private void releaseOrphanLockIfStale(String orphanId, Instant now) {
+        Duration staleAfter = Duration.ofMinutes(workerHeartbeatStaleMinutes);
+        boolean cancelRequested = persistence.findJobProgress(orphanId)
+                .map(UploadJobProgressDocument::isApiCancelRequested)
+                .orElse(false);
+        boolean heartbeatStale = persistence.isWorkerHeartbeatStale(orphanId, now, staleAfter);
+        if (!cancelRequested && !heartbeatStale) {
+            return;
+        }
+        String reason = cancelRequested
+                ? "Upload was stopped but the server was not running the worker; lock released. Please upload again."
+                : "Upload worker stopped responding; the server released the lock. Please upload again.";
+        String state = cancelRequested ? "cancelled" : "failed";
+        logger.warn("Watchdog: releasing orphan lock jobId={} cancelRequested={} heartbeatStale={}", orphanId, cancelRequested, heartbeatStale);
+        releaseOrphanLock(orphanId, state, reason);
+    }
+
+    private Duration lockLeaseDuration() {
+        if (distributedLockLeaseMinutes > 0) {
+            return Duration.ofMinutes(distributedLockLeaseMinutes);
+        }
+        return Duration.ofHours(Math.max(1, distributedLockLeaseHours));
+    }
+
+    private void releaseOrphanLock(String jobId, String terminalState, String message) {
+        String auditAction = "cancelled".equals(terminalState) ? AUDIT_CANCELLED : AUDIT_FAILED;
+        Instant now = Instant.now();
+        persistence.findJobProgress(jobId).ifPresent(p -> {
+            if ("processing".equals(p.getState())) {
+                p.setState(terminalState);
+                p.setMessage(message);
+                p.setPhase(null);
+                p.setCancellable(false);
+                persistence.saveJobProgress(p);
+            }
+        });
+        UploadLastOutcomeResponse outcome = new UploadLastOutcomeResponse(
+                jobId,
+                terminalState,
+                message,
+                List.of(),
+                now,
+                "",
+                ""
+        );
+        lastOutcome = outcome;
+        persistence.persistLastOutcome(outcome);
+        persistence.releaseDistributedLock(jobId);
+        recordOutcomeAuditFromProgress(jobId, auditAction, message);
+    }
+
     private void forceAbandonJob(UploadJob job) {
         synchronized (job) {
             if (job.abandoned) {
@@ -149,6 +236,7 @@ public class UploadJobService {
                     + "If the problem persists, contact support.";
             job.completedAt = Instant.now();
             setLastOutcome(job);
+            recordOutcomeAudit(job, AUDIT_FAILED, job.message);
         }
         uploadInProgress.set(false);
         currentUploadFuture.set(null);
@@ -160,7 +248,7 @@ public class UploadJobService {
         boolean busy = persistence.isDistributedLockActive(now);
         UploadCurrentJobResponse current = null;
         if (busy) {
-            Optional<String> jid = persistence.getCurrentLockJobId();
+            Optional<String> jid = persistence.getActiveLockJobId(now);
             if (jid.isPresent()) {
                 UploadJob local = jobs.get(jid.get());
                 if (local != null) {
@@ -191,10 +279,13 @@ public class UploadJobService {
     ) {
         pruneCompletedJobs();
         String jobId = UUID.randomUUID().toString();
-        if (!persistence.tryAcquireDistributedLock(jobId, Duration.ofHours(distributedLockLeaseHours))) {
+        if (!persistence.tryAcquireDistributedLock(jobId, lockLeaseDuration())) {
             deleteQuietly(tempFile1);
             deleteQuietly(tempFile2);
-            String blocker = persistence.getCurrentLockJobId().orElse(null);
+            String blocker = persistence.getActiveLockJobId(Instant.now()).orElse(null);
+            if (blocker == null) {
+                blocker = persistence.getCurrentLockJobId().orElse(null);
+            }
             if (blocker == null) {
                 blocker = findProcessingJobId();
             }
@@ -207,12 +298,13 @@ public class UploadJobService {
             return StartJobOutcome.blocked(findProcessingJobId());
         }
 
-        UploadJob job = new UploadJob(jobId, userId, displayName, Instant.now());
+        UploadJob job = new UploadJob(jobId, userId, displayName, Instant.now(), originalFilename1, originalFilename2);
         jobs.put(jobId, job);
         job.state = "processing";
         job.phase = PHASE_PARSING;
         job.message = "Reading and parsing Excel files…";
         persistJobSnapshot(job);
+        persistence.touchWorkerHeartbeat(jobId, Instant.now());
 
         try {
             Future<?> future = uploadExecutor.submit(
@@ -274,6 +366,11 @@ public class UploadJobService {
             local.cancelRequested = true;
             local.message = "Stopping…";
             persistJobSnapshot(local);
+            Future<?> future = currentUploadFuture.get();
+            if (future != null && !future.isDone()) {
+                boolean interrupted = future.cancel(true);
+                logger.info("Upload cancel: interrupt worker cancel={} jobId={}", interrupted, jobId);
+            }
         } else {
             docOpt.ifPresent(d -> {
                 d.setMessage("Stopping…");
@@ -282,6 +379,48 @@ public class UploadJobService {
         }
         logger.info("Upload cancel requested. jobId={} requestedBy={}", jobId, requestedByUserId);
         return CancelRequestResult.accepted();
+    }
+
+    /**
+     * Admin recovery when the cluster-wide lock is stuck (worker gone, cancel ignored, etc.).
+     */
+    public ForceReleaseResult forceReleaseStuckUpload() {
+        Instant now = Instant.now();
+        Optional<String> lockJobId = persistence.getActiveLockJobId(now);
+        if (lockJobId.isEmpty()) {
+            lockJobId = persistence.getCurrentLockJobId();
+        }
+        if (lockJobId.isEmpty()) {
+            return ForceReleaseResult.nothingToRelease();
+        }
+        String jobId = lockJobId.get();
+        UploadJob local = jobs.get(jobId);
+        if (local != null) {
+            synchronized (local) {
+                local.abandoned = true;
+                local.cancelRequested = true;
+                local.state = "cancelled";
+                local.phase = null;
+                local.message = "Upload was force-released by an administrator. Please try again.";
+                local.completedAt = now;
+                setLastOutcome(local);
+                recordOutcomeAudit(local, AUDIT_CANCELLED, local.message);
+            }
+            Future<?> future = currentUploadFuture.get();
+            if (future != null && !future.isDone()) {
+                future.cancel(true);
+            }
+            uploadInProgress.set(false);
+            currentUploadFuture.set(null);
+            jobs.remove(jobId);
+        } else {
+            releaseOrphanLock(jobId, "cancelled",
+                    "Upload was force-released by an administrator. Please try again.");
+            return ForceReleaseResult.released(jobId);
+        }
+        persistence.releaseDistributedLock(jobId);
+        logger.warn("Admin force-released stuck upload lock. jobId={}", jobId);
+        return ForceReleaseResult.released(jobId);
     }
 
     private void runJob(
@@ -293,11 +432,9 @@ public class UploadJobService {
             long size1,
             long size2
     ) {
+        final AtomicReference<Instant> lastMongoCancelCheck = new AtomicReference<>(Instant.EPOCH);
         UploadCancelChecker checker = () -> {
             if (job.abandoned) {
-                throw new UploadCancellationException();
-            }
-            if (persistence.isApiCancelRequested(job.id)) {
                 throw new UploadCancellationException();
             }
             if (job.cancelRequested || job.watchdogTimedOut) {
@@ -306,6 +443,15 @@ public class UploadJobService {
             if (Thread.currentThread().isInterrupted()) {
                 job.watchdogTimedOut = true;
                 throw new UploadCancellationException();
+            }
+            Instant now = Instant.now();
+            Instant lastCheck = lastMongoCancelCheck.get();
+            if (Duration.between(lastCheck, now).getSeconds() >= cancelMongoRefreshSeconds) {
+                lastMongoCancelCheck.set(now);
+                if (persistence.isApiCancelRequested(job.id)) {
+                    job.cancelRequested = true;
+                    throw new UploadCancellationException();
+                }
             }
         };
         try {
@@ -346,6 +492,7 @@ public class UploadJobService {
                 job.message = "Upload exceeded the maximum allowed time and was stopped.";
                 job.completedAt = Instant.now();
                 setLastOutcome(job);
+                recordOutcomeAudit(job, AUDIT_FAILED, job.message);
                 securityAuditService.logFileUpload(job.userId, originalFilename1, size1, false);
                 securityAuditService.logFileUpload(job.userId, originalFilename2, size2, false);
                 logger.warn("Upload timed out (soft). jobId={}", job.id);
@@ -355,6 +502,7 @@ public class UploadJobService {
                 job.message = "Upload was stopped before new data was saved. Previous uploaded data is unchanged.";
                 job.completedAt = Instant.now();
                 setLastOutcome(job);
+                recordOutcomeAudit(job, AUDIT_STOPPED, job.message);
                 securityAuditService.logFileUpload(job.userId, originalFilename1, size1, false);
                 securityAuditService.logFileUpload(job.userId, originalFilename2, size2, false);
                 logger.info("Upload cancelled. jobId={}", job.id);
@@ -369,6 +517,7 @@ public class UploadJobService {
             job.message = ex.getMessage();
             job.completedAt = Instant.now();
             setLastOutcome(job);
+            recordOutcomeAudit(job, AUDIT_FAILED, job.message);
             securityAuditService.logFileUpload(job.userId, originalFilename1, size1, false);
             securityAuditService.logFileUpload(job.userId, originalFilename2, size2, false);
         } catch (org.bson.BsonMaximumSizeExceededException ex) {
@@ -398,6 +547,7 @@ public class UploadJobService {
             job.message = errorMessage;
             job.completedAt = Instant.now();
             setLastOutcome(job);
+            recordOutcomeAudit(job, AUDIT_FAILED, job.message);
             securityAuditService.logFileUpload(job.userId, originalFilename1, size1, false);
             securityAuditService.logFileUpload(job.userId, originalFilename2, size2, false);
         } catch (IOException ex) {
@@ -410,6 +560,7 @@ public class UploadJobService {
             job.message = "Upload failed. Please check the file format and try again.";
             job.completedAt = Instant.now();
             setLastOutcome(job);
+            recordOutcomeAudit(job, AUDIT_FAILED, job.message);
             securityAuditService.logFileUpload(job.userId, originalFilename1, size1, false);
             securityAuditService.logFileUpload(job.userId, originalFilename2, size2, false);
         } catch (Exception ex) {
@@ -422,17 +573,20 @@ public class UploadJobService {
             job.message = "Upload failed. Please try again or contact support if the problem persists.";
             job.completedAt = Instant.now();
             setLastOutcome(job);
+            recordOutcomeAudit(job, AUDIT_FAILED, job.message);
             securityAuditService.logFileUpload(job.userId, originalFilename1, size1, false);
             securityAuditService.logFileUpload(job.userId, originalFilename2, size2, false);
         } finally {
             deleteQuietly(tempFile1);
             deleteQuietly(tempFile2);
             currentUploadFuture.set(null);
+            if (job.abandoned) {
+                jobs.remove(job.id);
+                return;
+            }
             persistJobSnapshot(job);
             persistence.releaseDistributedLock(job.id);
-            if (!job.abandoned) {
-                uploadInProgress.set(false);
-            }
+            uploadInProgress.set(false);
         }
     }
 
@@ -461,6 +615,7 @@ public class UploadJobService {
                 + "Please reduce the number of rows or split the data into smaller files.";
         job.completedAt = Instant.now();
         setLastOutcome(job);
+        recordOutcomeAudit(job, AUDIT_FAILED, job.message);
         securityAuditService.logFileUpload(job.userId, name1, size1, false);
         securityAuditService.logFileUpload(job.userId, name2, size2, false);
     }
@@ -530,12 +685,18 @@ public class UploadJobService {
         d.setStartedAt(job.createdAt);
         d.setStartedByUserId(job.userId);
         d.setStartedByDisplayName(job.displayName);
+        d.setOriginalFilename1(job.originalFilename1);
+        d.setOriginalFilename2(job.originalFilename2);
+        if (job.outcomeAudited) {
+            d.setOutcomeAudited(true);
+        }
         if (job.files != null) {
             d.setFiles(job.files);
         }
         if (job.cancelRequested) {
             d.setApiCancelRequested(true);
         }
+        d.setWorkerHeartbeatAt(Instant.now());
         persistence.saveJobProgress(d);
     }
 
@@ -579,6 +740,40 @@ public class UploadJobService {
         );
     }
 
+    private void recordOutcomeAudit(UploadJob job, String action, String detailMessage) {
+        if (job.outcomeAudited) {
+            return;
+        }
+        job.outcomeAudited = true;
+        Instant at = job.completedAt != null ? job.completedAt : Instant.now();
+        uploadStorageService.recordUploadAttemptOutcome(
+                action,
+                job.originalFilename1,
+                job.originalFilename2,
+                detailMessage,
+                job.displayName,
+                at
+        );
+    }
+
+    private void recordOutcomeAuditFromProgress(String jobId, String action, String detailMessage) {
+        persistence.findJobProgress(jobId).ifPresent(p -> {
+            if (p.isOutcomeAudited()) {
+                return;
+            }
+            p.setOutcomeAudited(true);
+            persistence.saveJobProgress(p);
+            uploadStorageService.recordUploadAttemptOutcome(
+                    action,
+                    p.getOriginalFilename1(),
+                    p.getOriginalFilename2(),
+                    detailMessage,
+                    p.getStartedByDisplayName(),
+                    Instant.now()
+            );
+        });
+    }
+
     private static void deleteQuietly(Path path) {
         if (path == null) {
             return;
@@ -597,6 +792,18 @@ public class UploadJobService {
 
         public static StartJobOutcome blocked(String currentJobIdOrNull) {
             return new StartJobOutcome(Optional.empty(), Optional.ofNullable(currentJobIdOrNull));
+        }
+    }
+
+    public sealed interface ForceReleaseResult {
+        record Released(String jobId) implements ForceReleaseResult {}
+        record NothingToRelease() implements ForceReleaseResult {}
+
+        static ForceReleaseResult released(String jobId) {
+            return new Released(jobId);
+        }
+        static ForceReleaseResult nothingToRelease() {
+            return new NothingToRelease();
         }
     }
 
@@ -625,24 +832,33 @@ public class UploadJobService {
         final String userId;
         final String displayName;
         final Instant createdAt;
+        final String originalFilename1;
+        final String originalFilename2;
         volatile Instant completedAt;
         volatile String state;
         volatile String phase;
         volatile String message;
         volatile List<UploadFileInfo> files;
         volatile boolean cancelRequested;
-        /** Watchdog: soft interrupt sent (Future.cancel). */
         volatile boolean watchdogSoftCancelSent;
-        /** True when the watchdog stops the job for exceeding max duration. */
         volatile boolean watchdogTimedOut;
-        /** Hard abandon: watchdog released lock; worker must not overwrite lastOutcome with success. */
         volatile boolean abandoned;
+        volatile boolean outcomeAudited;
 
-        UploadJob(String id, String userId, String displayName, Instant createdAt) {
+        UploadJob(
+                String id,
+                String userId,
+                String displayName,
+                Instant createdAt,
+                String originalFilename1,
+                String originalFilename2
+        ) {
             this.id = id;
             this.userId = userId;
             this.displayName = displayName == null ? "" : displayName;
             this.createdAt = createdAt;
+            this.originalFilename1 = originalFilename1 == null ? "" : originalFilename1;
+            this.originalFilename2 = originalFilename2 == null ? "" : originalFilename2;
         }
     }
 }

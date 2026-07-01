@@ -25,6 +25,13 @@ public class UploadJobProgressDocument {
     private List<UploadFileInfo> files = new ArrayList<>();
     /** Set via API from any instance while job is in parsing phase. */
     private boolean apiCancelRequested;
+    /** Updated by the worker instance while the job is alive; used to detect crashed workers. */
+    private Instant workerHeartbeatAt;
+    /** Original multipart filenames — used for audit when the attempt does not complete. */
+    private String originalFilename1;
+    private String originalFilename2;
+    /** Prevents duplicate STOPPED/FAILED/CANCELLED audit rows for the same job. */
+    private boolean outcomeAudited;
 
     public String getJobId() {
         return jobId;
@@ -104,5 +111,37 @@ public class UploadJobProgressDocument {
 
     public void setApiCancelRequested(boolean apiCancelRequested) {
         this.apiCancelRequested = apiCancelRequested;
+    }
+
+    public Instant getWorkerHeartbeatAt() {
+        return workerHeartbeatAt;
+    }
+
+    public void setWorkerHeartbeatAt(Instant workerHeartbeatAt) {
+        this.workerHeartbeatAt = workerHeartbeatAt;
+    }
+
+    public String getOriginalFilename1() {
+        return originalFilename1;
+    }
+
+    public void setOriginalFilename1(String originalFilename1) {
+        this.originalFilename1 = originalFilename1;
+    }
+
+    public String getOriginalFilename2() {
+        return originalFilename2;
+    }
+
+    public void setOriginalFilename2(String originalFilename2) {
+        this.originalFilename2 = originalFilename2;
+    }
+
+    public boolean isOutcomeAudited() {
+        return outcomeAudited;
+    }
+
+    public void setOutcomeAudited(boolean outcomeAudited) {
+        this.outcomeAudited = outcomeAudited;
     }
 }

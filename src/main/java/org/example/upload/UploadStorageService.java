@@ -117,34 +117,50 @@ public class UploadStorageService {
             onSavingPhaseStarted.run();
         }
 
-        logger.info("Clearing previous upload data before new upload.");
-        recordDeletionAudit();
-        detailedSalesInvoicesUploadRepository.deleteAll();
-        receivableAgeingReportUploadRepository.deleteAll();
+        cancelChecker.checkCancelled();
+
+        DetailedSalesInvoicesUpload previousDetailed = detailedSalesInvoicesUploadRepository.findTopByOrderByUploadedAtDesc();
+        ReceivableAgeingReportUpload previousReceivable = receivableAgeingReportUploadRepository.findTopByOrderByUploadedAtDesc();
 
         List<UploadFileInfo> fileInfos = new ArrayList<>();
 
-        // Store detailed file
+        // Save new data first so a failure does not wipe existing uploads.
         logger.info("Saving DetailedSalesInvoices upload: {}", detailedFile.originalFilename());
         DetailedSalesInvoicesUpload detailedDoc = detailedSalesInvoicesUploadRepository.save(
                 new DetailedSalesInvoicesUpload(null, uploadedAt, detailedFile)
         );
         fileInfos.add(new UploadFileInfo(detailedDoc.id(), detailedFile.originalFilename()));
 
-        // Store receivable file
+        cancelChecker.checkCancelled();
+
         logger.info("Saving ReceivableAgeingReport upload: {}", receivableFile.originalFilename());
         ReceivableAgeingReportUpload receivableDoc = receivableAgeingReportUploadRepository.save(
                 new ReceivableAgeingReportUpload(null, uploadedAt, receivableFile)
         );
         fileInfos.add(new UploadFileInfo(receivableDoc.id(), receivableFile.originalFilename()));
 
+        cancelChecker.checkCancelled();
+
+        logger.info("Replacing previous upload data after successful save.");
+        recordDeletionAudit(previousDetailed, previousReceivable);
+        if (previousDetailed != null && !previousDetailed.id().equals(detailedDoc.id())) {
+            detailedSalesInvoicesUploadRepository.deleteById(previousDetailed.id());
+        }
+        if (previousReceivable != null && !previousReceivable.id().equals(receivableDoc.id())) {
+            receivableAgeingReportUploadRepository.deleteById(previousReceivable.id());
+        }
+
+        cancelChecker.checkCancelled();
+
         uploadAuditEntryRepository.save(
-                new UploadAuditEntry(null, "ADDED", "detailed", detailedFile.originalFilename(), uploadedAt)
+                new UploadAuditEntry(null, "ADDED", "detailed", detailedFile.originalFilename(), uploadedAt, "")
         );
         uploadAuditEntryRepository.save(
-                new UploadAuditEntry(null, "ADDED", "receivable", receivableFile.originalFilename(), uploadedAt)
+                new UploadAuditEntry(null, "ADDED", "receivable", receivableFile.originalFilename(), uploadedAt, "")
         );
         enforceUploadAuditRetention();
+
+        cancelChecker.checkCancelled();
 
         try {
             customerMasterPhoneIngestService.syncPhonesFromUploadFiles(detailedFile, receivableFile);
@@ -182,20 +198,60 @@ public class UploadStorageService {
         }
     }
 
-    private void recordDeletionAudit() {
+    private void recordDeletionAudit(
+            DetailedSalesInvoicesUpload previousDetailed,
+            ReceivableAgeingReportUpload previousReceivable
+    ) {
         Instant now = Instant.now();
-        List<DetailedSalesInvoicesUpload> detailedUploads = detailedSalesInvoicesUploadRepository.findAll();
-        for (DetailedSalesInvoicesUpload upload : detailedUploads) {
+        if (previousDetailed != null) {
             uploadAuditEntryRepository.save(
-                    new UploadAuditEntry(null, "DELETED", "detailed", upload.file().originalFilename(), now)
+                    new UploadAuditEntry(null, "DELETED", "detailed", previousDetailed.file().originalFilename(), now, "")
             );
         }
-        List<ReceivableAgeingReportUpload> receivableUploads = receivableAgeingReportUploadRepository.findAll();
-        for (ReceivableAgeingReportUpload upload : receivableUploads) {
+        if (previousReceivable != null) {
             uploadAuditEntryRepository.save(
-                    new UploadAuditEntry(null, "DELETED", "receivable", upload.file().originalFilename(), now)
+                    new UploadAuditEntry(null, "DELETED", "receivable", previousReceivable.file().originalFilename(), now, "")
             );
         }
+    }
+
+    /**
+     * Records a non-successful upload attempt (stopped, cancelled, or failed) for both file slots in the audit trail.
+     */
+    public void recordUploadAttemptOutcome(
+            String action,
+            String detailedFilename,
+            String receivableFilename,
+            String detailMessage,
+            String startedByDisplayName,
+            Instant at
+    ) {
+        String message = buildAuditDetailMessage(detailMessage, startedByDisplayName);
+        String detailedName = safeAuditFilename(detailedFilename);
+        String receivableName = safeAuditFilename(receivableFilename);
+        uploadAuditEntryRepository.save(
+                new UploadAuditEntry(null, action, "detailed", detailedName, at, message)
+        );
+        uploadAuditEntryRepository.save(
+                new UploadAuditEntry(null, action, "receivable", receivableName, at, message)
+        );
+        enforceUploadAuditRetention();
+    }
+
+    private static String buildAuditDetailMessage(String detailMessage, String startedByDisplayName) {
+        String by = startedByDisplayName == null ? "" : startedByDisplayName.trim();
+        String detail = detailMessage == null ? "" : detailMessage.trim();
+        if (by.isEmpty()) {
+            return detail;
+        }
+        if (detail.isEmpty()) {
+            return "Started by " + by;
+        }
+        return "Started by " + by + " — " + detail;
+    }
+
+    private static String safeAuditFilename(String name) {
+        return name == null || name.isBlank() ? "unknown" : name;
     }
 
     private UploadedExcelFile parseExcel(InputStream inputStream, String originalFilename, UploadCancelChecker checker)
