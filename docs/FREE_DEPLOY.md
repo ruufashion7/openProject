@@ -50,10 +50,12 @@ Vercel rewrites `/api/*` to your Render host. Edit **`frontend/vercel.json`**:
 Commit and push:
 
 ```bash
-git add frontend/vercel.json
+git add frontend/vercel.json frontend/src/environments/environment.prod.ts
 git commit -m "Point Vercel rewrites to Render backend"
 git push origin main
 ```
+
+**Avoid 502 on first login:** `environment.prod.ts` sets `apiBaseUrl` to your Render host so the browser calls the API directly (Vercel rewrites time out during Render cold start). Keep `CORS_ALLOWED_ORIGINS` in sync with your Vercel URL.
 
 ## 4. Vercel (frontend)
 

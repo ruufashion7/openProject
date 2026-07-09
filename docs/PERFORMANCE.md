@@ -11,7 +11,7 @@ Free Render web services **spin down** after idle time. The **first request** af
 3. Select the first **`/api/...`** or **`/actuator/health`** request.
 4. Check **Timing** → **Waiting for server response** (TTFB). If it is **very large** (e.g. 30s+) on the first hit but **small** on immediate repeats, the bottleneck is **cold start**, not application logic.
 
-**Mitigations:** Paid Render instance (always on), or accept first-hit delay on free tier.
+**Mitigations:** Set `apiBaseUrl` in `frontend/src/environments/environment.prod.ts` to your Render URL (browser calls the API directly; avoids Vercel rewrite 502). The login page pings `/actuator/health` on load to wake the JVM early. Optional: `.github/workflows/keep-warm.yml` pings Render every 10 minutes, or use a paid Render instance (always on).
 
 ## 2. Align regions (latency)
 

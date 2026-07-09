@@ -84,6 +84,7 @@
         </span>
       </label>
 
+      <p class="status-text muted" *ngIf="warmingUp && !loading && !error">Connecting to server…</p>
       <p class="status-text failed" *ngIf="error">{{ error }}</p>
       <p class="status-text muted" *ngIf="loading && !error">Signing in…</p>
 

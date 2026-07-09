@@ -1,10 +1,12 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 import { AuthService } from '../auth/auth.service';
+import { BackendWarmupService } from '../shared/backend-warmup.service';
+import { environment } from '../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -13,15 +15,32 @@ import { AuthService } from '../auth/auth.service';
   templateUrl: './login.component.html',
   styleUrl: './login.component.css'
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   username = '';
   password = '';
   error = '';
   /** True while POST /api/login is in flight — disables button to prevent double submit */
   loading = false;
+  /** True while waking Render on first prod visit (cold start). */
+  warmingUp = false;
   showPassword = false;
 
-  constructor(private auth: AuthService, private router: Router) {}
+  constructor(
+    private auth: AuthService,
+    private router: Router,
+    private backendWarmup: BackendWarmupService
+  ) {}
+
+  ngOnInit(): void {
+    if (!environment.production || !environment.apiBaseUrl?.trim()) {
+      return;
+    }
+    this.warmingUp = true;
+    this.backendWarmup
+      .warmUp()
+      .pipe(finalize(() => (this.warmingUp = false)))
+      .subscribe();
+  }
 
   /** Login fields must be typed — no copy, paste, cut, or drag-drop. */
   blockClipboard(event: ClipboardEvent): void {
@@ -101,7 +120,7 @@ export class LoginComponent {
             this.error = 'Network error. Check your connection and try again.';
           } else if (err.status === 502 || err.status === 503 || err.status === 504) {
             this.error =
-              'Sign-in service is temporarily unavailable (gateway timeout). Please try again in a moment.';
+              'Sign-in service is waking up (free hosting cold start). Wait a moment and try again.';
           } else if (err.status >= 500) {
             this.error = 'Server error. Please try again later.';
           } else {

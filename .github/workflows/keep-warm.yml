@@ -1,0 +1,15 @@
+# Render free tier spins down after ~15 min idle. Ping every 10 min to reduce cold starts.
+name: Keep Render warm
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health
+        run: |
+          curl -sf --max-time 120 "https://openproject-backend.onrender.com/actuator/health" >/dev/null || true
