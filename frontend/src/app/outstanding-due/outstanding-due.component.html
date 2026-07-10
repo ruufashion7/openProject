@@ -537,9 +537,7 @@
     <div
       class="customer-card"
       *ngFor="let card of filteredCards"
-      [class.whatsapp-not-sent]="getWhatsAppStatus(card) === 'not sent'"
-      [class.whatsapp-sent]="getWhatsAppStatus(card) === 'sent'"
-      [class.whatsapp-delivered]="getWhatsAppStatus(card) === 'delivered'"
+      [ngClass]="getCustomerCategoryBorderClass(card)"
       [title]="card.customer || ''"
     >
       <div class="card-header">

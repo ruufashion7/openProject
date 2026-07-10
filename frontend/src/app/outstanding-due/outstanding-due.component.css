@@ -785,28 +785,36 @@
   transition: all 0.3s;
 }
 
-.customer-card.whatsapp-not-sent {
-  border-color: #9ca3af;
+.customer-card.border-blue {
+  border-color: #3b82f6;
 }
 
-.customer-card.whatsapp-not-sent::before {
-  background: linear-gradient(90deg, #9ca3af 0%, #6b7280 100%);
+.customer-card.border-blue::before {
+  background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
 }
 
-.customer-card.whatsapp-sent {
-  border-color: #f59e0b;
-}
-
-.customer-card.whatsapp-sent::before {
-  background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
-}
-
-.customer-card.whatsapp-delivered {
+.customer-card.border-green {
   border-color: #10b981;
 }
 
-.customer-card.whatsapp-delivered::before {
+.customer-card.border-green::before {
   background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}
+
+.customer-card.border-yellow {
+  border-color: #fbbf24;
+}
+
+.customer-card.border-yellow::before {
+  background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+.customer-card.border-red {
+  border-color: #ef4444;
+}
+
+.customer-card.border-red::before {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
 }
 
 .customer-card:hover {
