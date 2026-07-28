@@ -169,4 +169,9 @@ public final class SessionPermissions {
     public static boolean canRetainCustomer(SessionInfo session) {
         return has(session, UserPermissions::isCustomerRetainEdit);
     }
+
+    /** Natural-language data agent page and APIs. */
+    public static boolean canAccessAiAgent(SessionInfo session) {
+        return has(session, UserPermissions::isAiAgentPage);
+    }
 }

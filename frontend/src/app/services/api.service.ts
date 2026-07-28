@@ -476,18 +476,20 @@ export class ApiService {
     });
   }
 
-  getCustomerSuggestions(query: string, limit = 20): Observable<string[]> {
+  /** Customer name suggestions — single call, up to 500 matches (scroll locally in the UI). */
+  getCustomerSuggestions(query: string, limit = 500): Observable<string[]> {
     // SECURITY: Validate and sanitize input
     if (!SecurityService.validateQuery(query, 3, 100)) {
       throw new Error('Invalid query parameter');
     }
     const sanitizedQuery = SecurityService.sanitizeQuery(query, 100);
-    const validatedLimit = SecurityService.validateLimit(limit, 20, 100);
-    
+    const validatedLimit = SecurityService.validateLimit(limit, 500, 500);
+
     // SECURITY: Use POST instead of GET to avoid sensitive data in URL
     return this.http.post<string[]>(`${this.baseUrl}/analytics/customers`, {
       query: sanitizedQuery,
-      limit: validatedLimit
+      limit: validatedLimit,
+      offset: 0
     }, {
       headers: this.auth.getAuthHeaders()
     });
@@ -953,8 +955,96 @@ export class ApiService {
       { headers: this.auth.getAuthHeaders() }
     );
   }
+
+  // --- AI Data Agent ---
+
+  getAiAgentStatus(): Observable<AiAgentStatus> {
+    return this.http.get<AiAgentStatus>(`${this.baseUrl}/ai-agent/status`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  listAiAgentConversations(): Observable<AiAgentConversation[]> {
+    return this.http.get<AiAgentConversation[]>(`${this.baseUrl}/ai-agent/conversations`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  getAiAgentMessages(conversationId: string): Observable<AiAgentMessage[]> {
+    return this.http.get<AiAgentMessage[]>(
+      `${this.baseUrl}/ai-agent/conversations/${encodeURIComponent(conversationId)}/messages`,
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  deleteAiAgentConversation(conversationId: string): Observable<void> {
+    return this.http.delete<void>(
+      `${this.baseUrl}/ai-agent/conversations/${encodeURIComponent(conversationId)}`,
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  chatAiAgent(conversationId: string | null, message: string): Observable<AiAgentChatResponse> {
+    return this.http.post<AiAgentChatResponse>(
+      `${this.baseUrl}/ai-agent/chat`,
+      { conversationId, message },
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  downloadAiAgentExport(downloadId: string): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/ai-agent/downloads/${encodeURIComponent(downloadId)}`, {
+      headers: this.auth.getAuthHeaders(),
+      responseType: 'blob'
+    });
+  }
 }
 
+export interface AiAgentStatus {
+  enabled: boolean;
+  llmConfigured: boolean;
+  model: string | null;
+  mode: string;
+  ready?: boolean;
+  setupHint?: string;
+  capabilities: string[];
+  suggestions: string[];
+}
+
+export interface AiAgentConversation {
+  id: string;
+  userId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiAgentAttachment {
+  type?: string;
+  title?: string;
+  columns?: string[];
+  rows?: string[][];
+  downloadId?: string;
+  filename?: string;
+}
+
+export interface AiAgentMessage {
+  id: string;
+  conversationId: string;
+  userId: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  attachments?: AiAgentAttachment[] | null;
+  toolsUsed?: string[] | null;
+  createdAt: string;
+}
+
+export interface AiAgentChatResponse {
+  conversationId: string;
+  title: string;
+  mode: string;
+  message: AiAgentMessage;
+}
 
 export interface MonthlyTrendData {
   month: string;

@@ -97,5 +97,11 @@ public class UserPermissionsV2Migration implements ApplicationRunner {
         q6.addCriteria(Criteria.where("permissions.customerRetainEdit").exists(false));
         Update u6 = new Update().set("permissions.customerRetainEdit", false);
         mongoTemplate.updateMulti(q6, u6, User.class);
+
+        Query q7 = new Query();
+        q7.addCriteria(Criteria.where("permissions").exists(true));
+        q7.addCriteria(Criteria.where("permissions.aiAgentPage").exists(false));
+        Update u7 = new Update().set("permissions.aiAgentPage", false);
+        mongoTemplate.updateMulti(q7, u7, User.class);
     }
 }

@@ -198,6 +198,13 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
         description: 'Keep customers on Outstanding Due even with ₹0 outstanding (e.g. cash / no-due)',
         kind: 'action',
         requiresAny: ['outstandingPage']
+      },
+      {
+        key: 'aiAgentPage',
+        label: 'AI Data Agent',
+        description: 'LLM data agent for dues, customer lists, notes, and PDF (not a general chatbot)',
+        kind: 'page',
+        routes: ['/ai-agent']
       }
     ]
   },
@@ -241,6 +248,7 @@ export const ROUTE_PERMISSIONS: Record<string, keyof import('./auth.service').Us
   '/sales-visualization': 'salesVisualization',
   '/outstanding': 'detailsPage',
   '/outstanding-due': 'outstandingPage',
+  '/ai-agent': 'aiAgentPage',
   '/whatsapp-outreach': 'whatsappBroadcast',
   '/customer-locations': 'customerLocations',
   '/access-control': 'admin',

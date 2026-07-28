@@ -55,6 +55,9 @@ export class OutstandingComponent implements OnInit, OnDestroy {
   customerQuery = '';
   customerSuggestions: string[] = [];
   phoneSuggestions: string[] = [];
+  /** Single API call returns up to this many suggestions; UI scrolls locally. */
+  readonly customerSuggestLimit = 500;
+  private customerSuggestQuery = '';
   customerStatus = '';
   customerStatusIsError = false;
   customerSummary?: CustomerSummaryResponse;
@@ -267,6 +270,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     }
     if (value.trim().length < 3) {
       this.customerSuggestions = [];
+      this.customerSuggestQuery = '';
       this.phoneSuggestions = [];
       this.showSuggestions = false;
       this.customerStatus = 'Type at least 3 characters to search.';
@@ -277,38 +281,46 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     this.customerStatus = 'Searching...';
     this.customerStatusIsError = false;
     const query = value.trim();
-    
+    this.customerSuggestQuery = query;
+    this.customerSuggestions = [];
+
     // Search for both customer names and phone numbers
     let customerSuggestionsReceived = false;
     let phoneSuggestionsReceived = false;
-    
+
     const checkAndUpdateStatus = () => {
       if (customerSuggestionsReceived && phoneSuggestionsReceived) {
         // Remove duplicate phone numbers that already appear in customer suggestions
         const customerSet = new Set(this.customerSuggestions.map(c => c.toLowerCase().trim()));
         this.phoneSuggestions = this.phoneSuggestions.filter(phone => {
           const phoneTrimmed = phone.trim();
-          // If phone number matches a customer name exactly, exclude it from phone suggestions
           return !customerSet.has(phoneTrimmed.toLowerCase());
         });
-        
+
         const totalSuggestions = this.customerSuggestions.length + this.phoneSuggestions.length;
         this.showSuggestions = totalSuggestions > 0;
         this.customerStatus = totalSuggestions ? '' : 'No results found.';
         this.customerStatusIsError = totalSuggestions === 0;
       }
     };
-    
-    // Search customer names
+
+    // One API call — up to 500 names; dropdown scrolls locally
     this.customerTimer = window.setTimeout(() => {
-      this.api.getCustomerSuggestions(query, 20).subscribe({
+      this.api.getCustomerSuggestions(query, this.customerSuggestLimit).subscribe({
         next: (suggestions) => {
-          this.customerSuggestions = suggestions;
+          if (this.customerSuggestQuery !== query) {
+            return;
+          }
+          this.customerSuggestions = suggestions ?? [];
           customerSuggestionsReceived = true;
           checkAndUpdateStatus();
         },
         error: (err: HttpErrorResponse) => {
+          if (this.customerSuggestQuery !== query) {
+            return;
+          }
           this.customerSuggestions = [];
+          this.customerSuggestQuery = '';
           customerSuggestionsReceived = true;
           if (err.status === 401) {
             this.customerStatus = 'Session expired. Please login again.';
@@ -320,7 +332,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
         }
       });
     }, 300);
-    
+
     // Search phone numbers
     this.phoneTimer = window.setTimeout(() => {
       this.api.getPhoneSuggestions(query, 20).subscribe({

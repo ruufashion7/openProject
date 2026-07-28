@@ -134,6 +134,13 @@
   background: #f8fafc;
 }
 
+.suggestions-loading-more {
+  padding: 8px 12px;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
 .preset-buttons {
   display: flex;
   gap: 8px;

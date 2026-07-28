@@ -13,14 +13,21 @@ public record SuggestionRequest(
         @NotBlank(message = "Query is required")
         @Size(min = 1, max = 100, message = "Query must be between 1 and 100 characters")
         String query,
-        
-        @Min(1) @Max(100)
-        Integer limit
+
+        /** Max suggestions to return in one response (customer search uses up to 500). */
+        @Min(1) @Max(500)
+        Integer limit,
+
+        /** Optional skip; normally 0 — clients fetch up to {@code limit} in a single call. */
+        @Min(0) @Max(500)
+        Integer offset
 ) {
     public SuggestionRequest {
         if (limit == null) {
-            limit = 20;
+            limit = 500;
+        }
+        if (offset == null) {
+            offset = 0;
         }
     }
 }
-

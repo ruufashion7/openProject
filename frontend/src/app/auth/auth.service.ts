@@ -27,6 +27,7 @@ export interface UserPermissions {
   whatsappBroadcast: boolean;
   uploadsListPage: boolean;
   uploadAuditPage: boolean;
+  aiAgentPage: boolean;
 }
 
 interface SessionData {

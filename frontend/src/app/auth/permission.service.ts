@@ -112,6 +112,10 @@ export class PermissionService {
     return this.hasPermission('salesVisualization');
   }
 
+  canAccessAiAgent(): boolean {
+    return this.hasPermission('aiAgentPage');
+  }
+
   // Check if user can access a route
   canAccessRoute(route: string): boolean {
     if (route === '/uploads') {

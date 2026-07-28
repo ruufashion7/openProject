@@ -61,6 +61,12 @@
         <button type="button" class="btn btn-soft" (click)="goToWhatsappOutreach()">Open WhatsApp outreach</button>
       </div>
 
+      <div class="card card-muted welcome-tile" *ngIf="canAccessAiAgent">
+        <h2>AI Data Agent</h2>
+        <p class="page-subtitle">Ask dues, customer lists, notes — export answers as PDF.</p>
+        <button type="button" class="btn btn-soft" (click)="goToAiAgent()">Open AI Data Agent</button>
+      </div>
+
     </div>
   </div>
 </section>

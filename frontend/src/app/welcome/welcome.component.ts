@@ -26,6 +26,7 @@ export class WelcomeComponent implements OnInit {
   canAccessDetailsPage = false;
   canAccessOutstandingPage = false;
   canWhatsappBroadcast = false;
+  canAccessAiAgent = false;
 
   constructor(
     private auth: AuthService,
@@ -41,6 +42,7 @@ export class WelcomeComponent implements OnInit {
     this.canAccessDetailsPage = this.permissionService.canAccessDetailsPage();
     this.canAccessOutstandingPage = this.permissionService.canAccessOutstandingPage();
     this.canWhatsappBroadcast = this.permissionService.canAccessWhatsappBroadcast();
+    this.canAccessAiAgent = this.permissionService.canAccessAiAgent();
 
     this.api.getUploadStatus().subscribe({
       next: (status) => {
@@ -90,6 +92,10 @@ export class WelcomeComponent implements OnInit {
 
   goToWhatsappOutreach(): void {
     this.router.navigateByUrl('/whatsapp-outreach');
+  }
+
+  goToAiAgent(): void {
+    this.router.navigateByUrl('/ai-agent');
   }
 
   goToSalesDetails(): void {

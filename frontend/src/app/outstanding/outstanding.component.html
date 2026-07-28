@@ -48,7 +48,11 @@
             {{ customerStatus }}
           </p>
 
-          <div class="suggestions-container" *ngIf="(customerSuggestions.length > 0 || phoneSuggestions.length > 0)" [class.show]="showSuggestions">
+          <div
+            class="suggestions-container"
+            *ngIf="(customerSuggestions.length > 0 || phoneSuggestions.length > 0)"
+            [class.show]="showSuggestions"
+          >
             <ul class="suggestions">
               <li 
                 *ngFor="let customer of customerSuggestions; let i = index"

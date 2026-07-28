@@ -31,6 +31,8 @@ public class UserPermissions {
     private boolean customerExcludeEdit;
     /** Retain customers on Outstanding Due even with ₹0 outstanding. */
     private boolean customerRetainEdit;
+    /** Natural-language data agent (customer dues, lists, PDF export). */
+    private boolean aiAgentPage;
 
     public UserPermissions() {
         // Default all permissions to false
@@ -42,7 +44,7 @@ public class UserPermissions {
                           boolean rateListPage, boolean rateListUpload, boolean salesVisualization, boolean customerLocations,
                           boolean customerCategoryEdit, boolean customerNotesEdit, boolean customerLocationEdit,
                           boolean whatsappBroadcast, boolean uploadsListPage, boolean uploadAuditPage,
-                          boolean customerExcludeEdit, boolean customerRetainEdit) {
+                          boolean customerExcludeEdit, boolean customerRetainEdit, boolean aiAgentPage) {
         this.fileUpload = fileUpload;
         this.hardDelete = hardDelete;
         this.invoicePage = invoicePage;
@@ -64,6 +66,7 @@ public class UserPermissions {
         this.uploadAuditPage = uploadAuditPage;
         this.customerExcludeEdit = customerExcludeEdit;
         this.customerRetainEdit = customerRetainEdit;
+        this.aiAgentPage = aiAgentPage;
     }
 
     public boolean isFileUpload() {
@@ -232,5 +235,13 @@ public class UserPermissions {
 
     public void setCustomerRetainEdit(boolean customerRetainEdit) {
         this.customerRetainEdit = customerRetainEdit;
+    }
+
+    public boolean isAiAgentPage() {
+        return aiAgentPage;
+    }
+
+    public void setAiAgentPage(boolean aiAgentPage) {
+        this.aiAgentPage = aiAgentPage;
     }
 }

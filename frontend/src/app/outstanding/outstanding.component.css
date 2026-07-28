@@ -141,6 +141,14 @@
   pointer-events: all;
 }
 
+.suggestions-loading-more {
+  padding: 10px 14px;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.85rem;
+  list-style: none;
+}
+
 .suggestions-container::-webkit-scrollbar {
   width: 8px;
 }

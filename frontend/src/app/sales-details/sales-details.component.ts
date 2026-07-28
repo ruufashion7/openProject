@@ -64,7 +64,9 @@ export class SalesDetailsComponent implements OnInit, OnDestroy {
   customerSuggestions: string[] = [];
   phoneSuggestions: string[] = [];
   voucherSuggestions: string[] = [];
-  
+  readonly customerSuggestLimit = 500;
+  private customerSuggestQuery = '';
+
   // Timers for debouncing
   private customerTimer?: number;
   private phoneTimer?: number;
@@ -207,16 +209,26 @@ export class SalesDetailsComponent implements OnInit, OnDestroy {
     }
     if (value.trim().length < 3) {
       this.customerSuggestions = [];
+      this.customerSuggestQuery = '';
       return;
     }
+    const query = value.trim();
+    this.customerSuggestQuery = query;
+    this.customerSuggestions = [];
     this.customerTimer = window.setTimeout(() => {
-      this.api.getCustomerSuggestions(value.trim(), 20)
+      this.api.getCustomerSuggestions(query, this.customerSuggestLimit)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (suggestions) => {
-            this.customerSuggestions = suggestions;
+            if (this.customerSuggestQuery !== query) {
+              return;
+            }
+            this.customerSuggestions = suggestions ?? [];
           },
           error: () => {
+            if (this.customerSuggestQuery !== query) {
+              return;
+            }
             this.customerSuggestions = [];
           }
         });

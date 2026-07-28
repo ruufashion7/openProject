@@ -366,7 +366,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
     return this.eligibleCardsWithPhone();
   }
 
-  /** Same name/phone rules as Outstanding Due {@code filterCardsByState} search. */
+  /** Same name/phone/place rules as Outstanding Due {@code filterCardsByState} search. */
   private matchesRecipientSearchQuery(card: PaymentDateCustomerCard, rawQuery: string): boolean {
     const q = rawQuery.toLowerCase().trim();
     if (!q) {
@@ -374,9 +374,11 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
     }
     const normalizedQuery = q.replace(/\D/g, '');
     const name = (card.customer || '').toLowerCase();
+    const place = (card.place || '').toLowerCase();
     const nameMatch = name.includes(q);
+    const placeMatch = !!place && place.includes(q);
     const phoneMatch = normalizedQuery ? phoneDigitsMatch(card.phoneNumber, normalizedQuery) : false;
-    return nameMatch || phoneMatch;
+    return nameMatch || placeMatch || phoneMatch;
   }
 
   refreshRecipientPickList(): void {

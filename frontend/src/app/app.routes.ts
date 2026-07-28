@@ -82,6 +82,11 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
+    path: 'ai-agent',
+    loadComponent: () => import('./ai-agent/ai-agent.component').then((m) => m.AiAgentComponent),
+    canActivate: [authGuard]
+  },
+  {
     path: 'access-control',
     loadComponent: () =>
       import('./access-control/access-control.component').then((m) => m.AccessControlComponent),

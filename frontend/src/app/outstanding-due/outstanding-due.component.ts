@@ -153,6 +153,8 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
   ignoreCustomerInput = '';
   ignoreNameSuggestions: string[] = [];
   showIgnoreNameSuggestions = false;
+  readonly nameSuggestLimit = 500;
+  private ignoreNameSuggestQuery = '';
 
   // Retained customers
   showRetainedPanel = false;
@@ -160,7 +162,8 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
   retainCustomerInput = '';
   retainNameSuggestions: string[] = [];
   showRetainNameSuggestions = false;
-  
+  private retainNameSuggestQuery = '';
+
   // Timers
   private saveTimers: Record<string, number> = {};
   private processingDateChange: Record<string, boolean> = {};
@@ -382,9 +385,11 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       const normalizedQuery = query.replace(/\D/g, '');
       filtered = filtered.filter(card => {
         const name = (card.customer || '').toLowerCase();
+        const place = (card.place || this.getPlace(card) || '').toLowerCase();
         const nameMatch = name.includes(query);
+        const placeMatch = !!place && place.includes(query);
         const phoneMatch = normalizedQuery ? phoneDigitsMatch(card.phoneNumber, normalizedQuery) : false;
-        return nameMatch || phoneMatch;
+        return nameMatch || placeMatch || phoneMatch;
       });
     }
 
@@ -611,11 +616,23 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     this.searchSuggestions = this.cards
       .filter(card => {
         const name = (card.customer || '').toLowerCase();
+        const place = (card.place || this.getPlace(card) || '').toLowerCase();
         const nameMatch = name.includes(query);
+        const placeMatch = !!place && place.includes(query);
         const phoneMatch = normalizedQuery ? phoneDigitsMatch(card.phoneNumber, normalizedQuery) : false;
-        return nameMatch || phoneMatch;
+        return nameMatch || placeMatch || phoneMatch;
       })
-      .slice(0, 8)
+      .sort((a, b) => {
+        const aName = (a.customer || '').toLowerCase();
+        const bName = (b.customer || '').toLowerCase();
+        const aPos = aName.indexOf(query);
+        const bPos = bName.indexOf(query);
+        if (aPos !== bPos) {
+          return (aPos < 0 ? 999 : aPos) - (bPos < 0 ? 999 : bPos);
+        }
+        return aName.localeCompare(bName);
+      })
+      .slice(0, 30)
       .map(card => ({
         name: card.customer || '',
         phone: formatPhoneDisplay(card.phoneNumber)
@@ -1520,33 +1537,52 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     if (query.length < 3) {
       if (kind === 'ignore') {
         this.ignoreNameSuggestions = [];
+        this.ignoreNameSuggestQuery = '';
         this.showIgnoreNameSuggestions = false;
       } else {
         this.retainNameSuggestions = [];
+        this.retainNameSuggestQuery = '';
         this.showRetainNameSuggestions = false;
       }
       return;
     }
 
+    if (kind === 'ignore') {
+      this.ignoreNameSuggestQuery = query;
+      this.ignoreNameSuggestions = [];
+    } else {
+      this.retainNameSuggestQuery = query;
+      this.retainNameSuggestions = [];
+    }
+
     const timer = window.setTimeout(() => {
-      this.api.getCustomerSuggestions(query, 20)
+      this.api.getCustomerSuggestions(query, this.nameSuggestLimit)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (suggestions) => {
+            const page = suggestions ?? [];
             if (kind === 'ignore') {
-              this.ignoreNameSuggestions = suggestions ?? [];
-              this.showIgnoreNameSuggestions = this.ignoreNameSuggestions.length > 0;
+              if (this.ignoreNameSuggestQuery !== query) {
+                return;
+              }
+              this.ignoreNameSuggestions = page;
+              this.showIgnoreNameSuggestions = page.length > 0;
             } else {
-              this.retainNameSuggestions = suggestions ?? [];
-              this.showRetainNameSuggestions = this.retainNameSuggestions.length > 0;
+              if (this.retainNameSuggestQuery !== query) {
+                return;
+              }
+              this.retainNameSuggestions = page;
+              this.showRetainNameSuggestions = page.length > 0;
             }
           },
           error: () => {
             if (kind === 'ignore') {
               this.ignoreNameSuggestions = [];
+              this.ignoreNameSuggestQuery = '';
               this.showIgnoreNameSuggestions = false;
             } else {
               this.retainNameSuggestions = [];
+              this.retainNameSuggestQuery = '';
               this.showRetainNameSuggestions = false;
             }
           }

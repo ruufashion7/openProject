@@ -1,0 +1,109 @@
+<div class="agent-shell">
+  <aside class="agent-history">
+    <div class="history-header">
+      <h2>History</h2>
+      <button type="button" class="btn-new" (click)="startNewChat()">New</button>
+    </div>
+    <div class="history-list" *ngIf="conversations.length; else noHistory">
+      <button
+        type="button"
+        class="history-item"
+        *ngFor="let c of conversations"
+        [class.active]="c.id === activeConversationId"
+        (click)="openConversation(c)"
+      >
+        <span class="history-title">{{ c.title }}</span>
+        <button type="button" class="history-delete" (click)="deleteConversation(c, $event)" title="Delete">×</button>
+      </button>
+    </div>
+    <ng-template #noHistory>
+      <p class="muted history-empty">No saved chats yet.</p>
+    </ng-template>
+  </aside>
+
+  <section class="agent-main">
+    <header class="agent-header">
+      <div>
+        <h1>AI Data Agent</h1>
+        <p class="subtitle">
+          Business data only — customer dues, lists, notes, PDF. Not a general chatbot.
+        </p>
+      </div>
+      <div class="mode-pill" *ngIf="status" [class.warn]="!status.ready">
+        <span class="dot" [class.llm]="status.ready"></span>
+        <ng-container *ngIf="status.ready; else notReady">LLM · {{ status.model }}</ng-container>
+        <ng-template #notReady>Set ai.agent.api-key to enable</ng-template>
+      </div>
+    </header>
+
+    <p class="setup-banner" *ngIf="status && !status.ready">
+      {{ status.setupHint || 'Set ai.agent.api-key (free: Groq console.groq.com/keys) and restart backend.' }}
+    </p>
+
+    <div class="suggestions" *ngIf="status?.suggestions?.length">
+      <button type="button" class="suggestion" *ngFor="let s of status!.suggestions" (click)="useSuggestion(s)">
+        {{ s }}
+      </button>
+    </div>
+
+    <div class="thread" *ngIf="!loadingHistory; else loadingTpl">
+      <div class="empty-state" *ngIf="messages.length === 0">
+        <p>Try: “Due amount for &lt;customer&gt;”, “List customers with outstanding”, or “Export that as PDF”.</p>
+      </div>
+
+      <div class="bubble" *ngFor="let m of messages" [class.user]="m.role === 'user'" [class.assistant]="m.role === 'assistant'">
+        <div class="bubble-role">{{ m.role === 'user' ? 'You' : 'Agent' }}</div>
+        <div class="bubble-content">{{ m.content }}</div>
+
+        <div class="attachment" *ngFor="let att of m.attachments || []">
+          <div class="table-wrap" *ngIf="att.columns?.length">
+            <div class="table-title">{{ att.title || 'Result' }}</div>
+            <table>
+              <thead>
+                <tr>
+                  <th *ngFor="let col of att.columns">{{ col }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of att.rows">
+                  <td *ngFor="let cell of row">{{ cell }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <button
+            type="button"
+            class="btn-download"
+            *ngIf="att.downloadId"
+            (click)="downloadAttachment(att)"
+          >
+            Download PDF{{ att.filename ? ' · ' + att.filename : '' }}
+          </button>
+        </div>
+
+        <div class="tools" *ngIf="m.toolsUsed?.length">
+          Tools: {{ m.toolsUsed!.join(', ') }}
+        </div>
+      </div>
+      <div #threadEnd></div>
+    </div>
+    <ng-template #loadingTpl>
+      <p class="muted loading">Loading conversation…</p>
+    </ng-template>
+
+    <p class="error" *ngIf="error">{{ error }}</p>
+
+    <div class="composer">
+      <textarea
+        [(ngModel)]="draft"
+        rows="2"
+        placeholder="Ask about due amounts, customers, notes, or PDF export…"
+        (keydown)="onKeydown($event)"
+        [disabled]="sending"
+      ></textarea>
+      <button type="button" class="btn-send" (click)="send()" [disabled]="sending || !draft.trim() || (status && !status.ready)">
+        {{ sending ? 'Working…' : 'Send' }}
+      </button>
+    </div>
+  </section>
+</div>

@@ -38,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -66,6 +67,10 @@ public class AnalyticsController {
             new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("dd/MM/yyyy").toFormatter(Locale.ENGLISH),
             new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("yyyy-MM-dd").toFormatter(Locale.ENGLISH)
     );
+    /** Max matches kept per suggestion query (ranked buffer for offset pagination). */
+    private static final int CUSTOMER_SUGGESTION_BUFFER = 500;
+    private static final long CUSTOMER_SUGGESTION_CACHE_TTL_MS = 60_000L;
+    private final ConcurrentHashMap<String, CachedCustomerSuggestions> customerSuggestionCache = new ConcurrentHashMap<>();
     private final AuthSessionService authSessionService;
     private final DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository;
     private final ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository;
@@ -114,7 +119,8 @@ public class AnalyticsController {
 
         // SECURITY: Extract from POST body instead of URL query parameters
         String query = request != null ? request.query() : null;
-        int limit = request != null && request.limit() != null ? request.limit() : 20;
+        int limit = request != null && request.limit() != null ? request.limit() : CUSTOMER_SUGGESTION_BUFFER;
+        int offset = request != null && request.offset() != null ? request.offset() : 0;
 
         // SECURITY: Validate query parameters
         if (query == null || query.trim().length() < 3) {
@@ -127,59 +133,115 @@ public class AnalyticsController {
             query = query.substring(0, 100);
         }
 
-        // SECURITY: Validate limit to prevent DoS
-        if (limit < 1 || limit > 100) {
-            limit = 20;
+        // One response up to 500 matches (clients scroll locally — no multi-page API).
+        if (limit < 1 || limit > CUSTOMER_SUGGESTION_BUFFER) {
+            limit = CUSTOMER_SUGGESTION_BUFFER;
+        }
+        if (offset < 0) {
+            offset = 0;
+        }
+        if (offset >= CUSTOMER_SUGGESTION_BUFFER) {
+            return ResponseEntity.ok(List.of());
         }
 
         String q = query.trim().toLowerCase(Locale.ROOT);
-        Set<String> results = new LinkedHashSet<>();
+        List<String> ranked = getRankedCustomerSuggestions(q);
+        if (offset >= ranked.size()) {
+            return ResponseEntity.ok(List.of());
+        }
+        int to = Math.min(offset + limit, ranked.size());
+        return ResponseEntity.ok(new ArrayList<>(ranked.subList(offset, to)));
+    }
 
-        // Sales invoice customers (latest Detailed Sales Invoices upload)
-        DetailedSalesInvoicesUpload latest = detailedSalesInvoicesUploadRepository.findTopByOrderByUploadedAtDesc();
-        if (latest != null && latest.file() != null && latest.file().sheets() != null) {
-            UploadedExcelFile file = latest.file();
-            for (UploadedExcelSheet sheet : file.sheets()) {
-                List<String> customerHeaders = sheet.headers().stream()
-                        .filter(ExcelUploadHeaderRules::isCustomerHeader)
-                        .toList();
-                if (customerHeaders.isEmpty()) {
-                    continue;
-                }
-                for (Map<String, String> row : sheet.rows()) {
-                    for (String header : customerHeaders) {
-                        String value = row.get(header);
-                        if (value == null || value.isBlank()) {
-                            continue;
-                        }
-                        String normalized = value.trim();
-                        if (normalized.toLowerCase(Locale.ROOT).contains(q)) {
-                            results.add(normalized);
-                            if (results.size() >= limit) {
-                                return ResponseEntity.ok(new ArrayList<>(results));
-                            }
-                        }
-                    }
-                }
-            }
+    /**
+     * Builds (or returns cached) up to {@link #CUSTOMER_SUGGESTION_BUFFER} ranked matches for {@code q}.
+     */
+    private List<String> getRankedCustomerSuggestions(String q) {
+        long now = System.currentTimeMillis();
+        CachedCustomerSuggestions cached = customerSuggestionCache.get(q);
+        if (cached != null && cached.expiresAtMillis() > now) {
+            return cached.ranked();
         }
 
-        // Customer master (customer_master) — names already on Outstanding Due / master
+        Set<String> results = new LinkedHashSet<>();
+
+        // Customer master only for autocomplete — avoids scanning the full sales upload (main slowdown).
         for (PaymentDateOverride override : paymentDateOverrideRepository.findAll()) {
             String name = override.customerName();
             if (name == null || name.isBlank()) {
                 continue;
             }
             String normalized = name.trim();
-            if (normalized.toLowerCase(Locale.ROOT).contains(q)) {
+            String place = override.place() != null ? override.place().trim() : "";
+            boolean nameMatch = normalized.toLowerCase(Locale.ROOT).contains(q);
+            boolean placeMatch = !place.isEmpty() && place.toLowerCase(Locale.ROOT).contains(q);
+            if (nameMatch || placeMatch) {
                 results.add(normalized);
-                if (results.size() >= limit) {
-                    return ResponseEntity.ok(new ArrayList<>(results));
+                if (results.size() >= CUSTOMER_SUGGESTION_BUFFER) {
+                    break;
                 }
             }
         }
 
-        return ResponseEntity.ok(new ArrayList<>(results));
+        List<String> ranked = results.stream()
+                .sorted((a, b) -> {
+                    int rankCmp = Integer.compare(suggestionMatchRank(a, q), suggestionMatchRank(b, q));
+                    if (rankCmp != 0) {
+                        return rankCmp;
+                    }
+                    int shopCmp = suggestionShopKey(a).compareTo(suggestionShopKey(b));
+                    if (shopCmp != 0) {
+                        return shopCmp;
+                    }
+                    return a.toLowerCase(Locale.ROOT).compareTo(b.toLowerCase(Locale.ROOT));
+                })
+                .limit(CUSTOMER_SUGGESTION_BUFFER)
+                .collect(Collectors.toList());
+
+        customerSuggestionCache.put(q, new CachedCustomerSuggestions(ranked, now + CUSTOMER_SUGGESTION_CACHE_TTL_MS));
+        // Keep cache from growing without bound across distinct queries
+        if (customerSuggestionCache.size() > 200) {
+            customerSuggestionCache.entrySet().removeIf(e -> e.getValue().expiresAtMillis() <= now);
+        }
+        return ranked;
+    }
+
+    private record CachedCustomerSuggestions(List<String> ranked, long expiresAtMillis) {
+    }
+
+    /** Lowercased shop name used for suggestion ordering (portion before '('). */
+    private static String suggestionShopKey(String name) {
+        if (name == null) {
+            return "";
+        }
+        String lower = name.toLowerCase(Locale.ROOT).trim();
+        int paren = lower.indexOf('(');
+        if (paren > 0) {
+            return lower.substring(0, paren).trim();
+        }
+        return lower;
+    }
+
+    /**
+     * Lower is better. Two cohorts only:
+     * 0 = query matches the shop name (before '('),
+     * 1 = query matches only via place / rest of the string (e.g. {@code vir} → {@code virar}).
+     */
+    private static int suggestionMatchRank(String name, String q) {
+        if (name == null || q == null || q.isEmpty()) {
+            return 1;
+        }
+        String shopName = suggestionShopKey(name);
+        if (shopName.contains(q)) {
+            return 0;
+        }
+        // Token prefix on shop name: "viraj" for query "vir"
+        for (String token : shopName.replaceAll("[^a-z0-9]+", " ").trim().split("\\s+")) {
+            if (!token.isEmpty() && token.startsWith(q)) {
+                return 0;
+            }
+        }
+        return 1;
     }
 
     @PostMapping("/phone-suggestions")
