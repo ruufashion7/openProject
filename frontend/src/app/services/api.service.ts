@@ -233,6 +233,8 @@ export interface PaymentDateCustomerCard {
   withinAmount?: number;
   midAmount?: number;
   beyondAmount?: number;
+  /** True when customer is retained (shown even with ₹0). */
+  retained?: boolean | null;
 }
 
 export interface ExcludedCustomerView {
@@ -240,6 +242,13 @@ export interface ExcludedCustomerView {
   customerName: string;
   excludedAt?: string | null;
   excludedBy?: string | null;
+}
+
+export interface RetainedCustomerView {
+  customerKey: string;
+  customerName: string;
+  retainedAt?: string | null;
+  retainedBy?: string | null;
 }
 
 export interface WhatsappBroadcastRecipientInputDto {
@@ -610,6 +619,28 @@ export class ApiService {
 
   restoreExcludedCustomer(customerKey: string): Observable<ExcludedCustomerView> {
     return this.http.post<ExcludedCustomerView>(`${this.baseUrl}/analytics/customers/restore`, {
+      customerKey
+    }, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  getRetainedCustomers(): Observable<RetainedCustomerView[]> {
+    return this.http.get<RetainedCustomerView[]>(`${this.baseUrl}/analytics/customers/retained`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  retainCustomer(customer: string): Observable<RetainedCustomerView> {
+    return this.http.post<RetainedCustomerView>(`${this.baseUrl}/analytics/customers/retain`, {
+      customer
+    }, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  unretainCustomer(customerKey: string): Observable<RetainedCustomerView> {
+    return this.http.post<RetainedCustomerView>(`${this.baseUrl}/analytics/customers/unretain`, {
       customerKey
     }, {
       headers: this.auth.getAuthHeaders()

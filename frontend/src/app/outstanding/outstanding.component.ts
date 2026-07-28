@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
-import { ApiService, CustomerLedgerEntry, CustomerSummaryResponse, CustomerNote, ExcludedCustomerView } from '../services/api.service';
+import { ApiService, CustomerLedgerEntry, CustomerSummaryResponse, CustomerNote, ExcludedCustomerView, RetainedCustomerView } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
@@ -104,6 +104,9 @@ export class OutstandingComponent implements OnInit, OnDestroy {
   canExcludeCustomer = false;
   isCurrentCustomerExcluded = false;
   currentExcludedKey: string | null = null;
+  canRetainCustomer = false;
+  isCurrentCustomerRetained = false;
+  currentRetainedKey: string | null = null;
   
   // Subscription management
   private destroy$ = new Subject<void>();
@@ -175,6 +178,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     this.canEditCustomerNotes = this.permissionService.canEditCustomerNotes();
     this.canEditCustomerLocation = this.permissionService.canEditCustomerLocation();
     this.canExcludeCustomer = this.permissionService.canExcludeCustomer();
+    this.canRetainCustomer = this.permissionService.canRetainCustomer();
   }
 
   private initCustomerSelectionFromStorage(): void {
@@ -696,10 +700,16 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     this.currentExcludedKey = null;
   }
 
+  private resetRetentionStatus(): void {
+    this.isCurrentCustomerRetained = false;
+    this.currentRetainedKey = null;
+  }
+
   private refreshExclusionStatus(): void {
     const name = this.getCustomerNameForMasterWrites();
     if (!name) {
       this.resetExclusionStatus();
+      this.resetRetentionStatus();
       return;
     }
     this.api.getExcludedCustomers()
@@ -714,9 +724,30 @@ export class OutstandingComponent implements OnInit, OnDestroy {
           this.resetExclusionStatus();
         }
       });
+    this.api.getRetainedCustomers()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (list) => {
+          const match = this.findRetainedMatch(list ?? [], name);
+          this.isCurrentCustomerRetained = !!match;
+          this.currentRetainedKey = match?.customerKey ?? null;
+        },
+        error: () => {
+          this.resetRetentionStatus();
+        }
+      });
   }
 
   private findExcludedMatch(list: ExcludedCustomerView[], displayName: string): ExcludedCustomerView | undefined {
+    const targetKey = this.normalizeCustomerKey(displayName);
+    return list.find((item) => {
+      const nameKey = this.normalizeCustomerKey(item.customerName || '');
+      const key = this.normalizeCustomerKey(item.customerKey || '');
+      return nameKey === targetKey || key === targetKey;
+    });
+  }
+
+  private findRetainedMatch(list: RetainedCustomerView[], displayName: string): RetainedCustomerView | undefined {
     const targetKey = this.normalizeCustomerKey(displayName);
     return list.find((item) => {
       const nameKey = this.normalizeCustomerKey(item.customerName || '');
@@ -732,6 +763,15 @@ export class OutstandingComponent implements OnInit, OnDestroy {
       .replace(/[^a-z0-9]+/g, ' ')
       .trim()
       .replace(/\s+/g, ' ');
+  }
+
+  private apiErrorMessage(err: HttpErrorResponse, fallback: string): string {
+    const body = err?.error;
+    if (body && typeof body === 'object' && typeof (body as { error?: string }).error === 'string'
+        && (body as { error: string }).error.trim()) {
+      return (body as { error: string }).error;
+    }
+    return fallback;
   }
 
   ignoreCurrentCustomer(): void {
@@ -750,8 +790,10 @@ export class OutstandingComponent implements OnInit, OnDestroy {
           this.notificationService.showSuccess(`${name} is now ignored on Outstanding Due`);
           this.refreshExclusionStatus();
         },
-        error: () => {
-          this.notificationService.showError('Could not ignore customer. Try again.');
+        error: (err: HttpErrorResponse) => {
+          this.notificationService.showError(
+            this.apiErrorMessage(err, 'Could not ignore customer. Try again.')
+          );
         }
       });
   }
@@ -772,8 +814,58 @@ export class OutstandingComponent implements OnInit, OnDestroy {
           this.notificationService.showSuccess(`${name || this.currentExcludedKey} restored to Outstanding Due`);
           this.refreshExclusionStatus();
         },
-        error: () => {
-          this.notificationService.showError('Could not restore customer.');
+        error: (err: HttpErrorResponse) => {
+          this.notificationService.showError(
+            this.apiErrorMessage(err, 'Could not restore customer.')
+          );
+        }
+      });
+  }
+
+  retainCurrentCustomer(): void {
+    const name = this.getCustomerNameForMasterWrites();
+    if (!name) {
+      return;
+    }
+    if (!this.canRetainCustomer) {
+      this.permissionService.notifyRoleDenied('retain customers', 'customerRetainEdit');
+      return;
+    }
+    this.api.retainCustomer(name)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.notificationService.showSuccess(`${name} is now retained on Outstanding Due`);
+          this.refreshExclusionStatus();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.notificationService.showError(
+            this.apiErrorMessage(err, 'Could not retain customer. Try again.')
+          );
+        }
+      });
+  }
+
+  unretainCurrentCustomer(): void {
+    if (!this.currentRetainedKey) {
+      return;
+    }
+    if (!this.canRetainCustomer) {
+      this.permissionService.notifyRoleDenied('unretain customers', 'customerRetainEdit');
+      return;
+    }
+    const name = this.getCustomerNameForMasterWrites();
+    this.api.unretainCustomer(this.currentRetainedKey)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.notificationService.showSuccess(`${name || this.currentRetainedKey} removed from retained`);
+          this.refreshExclusionStatus();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.notificationService.showError(
+            this.apiErrorMessage(err, 'Could not unretain customer.')
+          );
         }
       });
   }
@@ -812,6 +904,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     this.editingLocation = false;
     this.syncLocationFieldsFromSummary();
     this.resetExclusionStatus();
+    this.resetRetentionStatus();
   }
 
   clearCustomerSelection(): void {

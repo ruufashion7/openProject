@@ -132,35 +132,49 @@ public class AnalyticsController {
             limit = 20;
         }
 
-        DetailedSalesInvoicesUpload latest = detailedSalesInvoicesUploadRepository.findTopByOrderByUploadedAtDesc();
-        if (latest == null) {
-            return ResponseEntity.ok(List.of());
-        }
-
         String q = query.trim().toLowerCase(Locale.ROOT);
         Set<String> results = new LinkedHashSet<>();
-        UploadedExcelFile file = latest.file();
 
-        for (UploadedExcelSheet sheet : file.sheets()) {
-            List<String> customerHeaders = sheet.headers().stream()
-                    .filter(ExcelUploadHeaderRules::isCustomerHeader)
-                    .toList();
-            if (customerHeaders.isEmpty()) {
-                continue;
-            }
-            for (Map<String, String> row : sheet.rows()) {
-                for (String header : customerHeaders) {
-                    String value = row.get(header);
-                    if (value == null || value.isBlank()) {
-                        continue;
-                    }
-                    String normalized = value.trim();
-                    if (normalized.toLowerCase(Locale.ROOT).contains(q)) {
-                        results.add(normalized);
-                        if (results.size() >= limit) {
-                            return ResponseEntity.ok(new ArrayList<>(results));
+        // Sales invoice customers (latest Detailed Sales Invoices upload)
+        DetailedSalesInvoicesUpload latest = detailedSalesInvoicesUploadRepository.findTopByOrderByUploadedAtDesc();
+        if (latest != null && latest.file() != null && latest.file().sheets() != null) {
+            UploadedExcelFile file = latest.file();
+            for (UploadedExcelSheet sheet : file.sheets()) {
+                List<String> customerHeaders = sheet.headers().stream()
+                        .filter(ExcelUploadHeaderRules::isCustomerHeader)
+                        .toList();
+                if (customerHeaders.isEmpty()) {
+                    continue;
+                }
+                for (Map<String, String> row : sheet.rows()) {
+                    for (String header : customerHeaders) {
+                        String value = row.get(header);
+                        if (value == null || value.isBlank()) {
+                            continue;
+                        }
+                        String normalized = value.trim();
+                        if (normalized.toLowerCase(Locale.ROOT).contains(q)) {
+                            results.add(normalized);
+                            if (results.size() >= limit) {
+                                return ResponseEntity.ok(new ArrayList<>(results));
+                            }
                         }
                     }
+                }
+            }
+        }
+
+        // Customer master (customer_master) — names already on Outstanding Due / master
+        for (PaymentDateOverride override : paymentDateOverrideRepository.findAll()) {
+            String name = override.customerName();
+            if (name == null || name.isBlank()) {
+                continue;
+            }
+            String normalized = name.trim();
+            if (normalized.toLowerCase(Locale.ROOT).contains(q)) {
+                results.add(normalized);
+                if (results.size() >= limit) {
+                    return ResponseEntity.ok(new ArrayList<>(results));
                 }
             }
         }
@@ -885,7 +899,7 @@ public class AnalyticsController {
                 .filter(override -> override.longitude() != null)
                 .collect(Collectors.toMap(PaymentDateOverride::customerKey, PaymentDateOverride::longitude, (a, b) -> a));
 
-        List<PaymentDateCustomerCard> results = aggregates.values().stream()
+        List<PaymentDateCustomerCard> dueCards = aggregates.values().stream()
                 .filter(aggregate -> !customerExclusionService.isExcludedForUploadRow(
                         aggregate.displayName,
                         aggregate.customerKey,
@@ -893,24 +907,74 @@ public class AnalyticsController {
                         paymentDateOverrides.get(aggregate.customerKey)
                 ))
                 .sorted((a, b) -> Double.compare(b.totalAmount, a.totalAmount))
-                .map(aggregate -> new PaymentDateCustomerCard(
-                        aggregate.displayName,
-                        aggregate.totalAmount,
-                        nextPaymentDates.getOrDefault(aggregate.customerKey, null),
-                        customerPhones.getOrDefault(aggregate.customerKey, null),
-                        whatsAppStatuses.getOrDefault(aggregate.customerKey, "not sent"),
-                        customerCategories.getOrDefault(aggregate.customerKey, null),
-                        lookupLastOrderDate(aggregate.customerKey, aggregate.displayName, lastOrderDates),
-                        needsFollowUpFlags.getOrDefault(aggregate.customerKey, false),
-                        customerAddresses.getOrDefault(aggregate.customerKey, null),
-                        customerLatitudes.getOrDefault(aggregate.customerKey, null),
-                        customerLongitudes.getOrDefault(aggregate.customerKey, null),
-                        customerPlaces.getOrDefault(aggregate.customerKey, null),
-                        aggregate.withinAmount,
-                        aggregate.midAmount,
-                        aggregate.beyondAmount
+                .map(aggregate -> {
+                    PaymentDateOverride override = paymentDateOverrides.get(aggregate.customerKey);
+                    boolean retained = override != null && override.isRetained();
+                    return new PaymentDateCustomerCard(
+                            aggregate.displayName,
+                            aggregate.totalAmount,
+                            nextPaymentDates.getOrDefault(aggregate.customerKey, null),
+                            customerPhones.getOrDefault(aggregate.customerKey, null),
+                            whatsAppStatuses.getOrDefault(aggregate.customerKey, "not sent"),
+                            customerCategories.getOrDefault(aggregate.customerKey, null),
+                            lookupLastOrderDate(aggregate.customerKey, aggregate.displayName, lastOrderDates),
+                            needsFollowUpFlags.getOrDefault(aggregate.customerKey, false),
+                            customerAddresses.getOrDefault(aggregate.customerKey, null),
+                            customerLatitudes.getOrDefault(aggregate.customerKey, null),
+                            customerLongitudes.getOrDefault(aggregate.customerKey, null),
+                            customerPlaces.getOrDefault(aggregate.customerKey, null),
+                            aggregate.withinAmount,
+                            aggregate.midAmount,
+                            aggregate.beyondAmount,
+                            retained
+                    );
+                })
+                .toList();
+
+        Set<String> keysAlreadyListed = dueCards.stream()
+                .map(card -> normalizeCustomer(card.customer()))
+                .filter(k -> !k.isBlank())
+                .collect(Collectors.toCollection(HashSet::new));
+
+        List<PaymentDateCustomerCard> retainedOnlyCards = paymentDateOverrides.values().stream()
+                .filter(PaymentDateOverride::isRetained)
+                .filter(override -> !override.isExcluded())
+                .filter(override -> {
+                    String key = override.customerKey();
+                    return key != null && !key.isBlank() && !keysAlreadyListed.contains(key)
+                            && !aggregates.containsKey(key);
+                })
+                .sorted((a, b) -> {
+                    String na = a.customerName() != null ? a.customerName() : a.customerKey();
+                    String nb = b.customerName() != null ? b.customerName() : b.customerKey();
+                    return na.compareToIgnoreCase(nb);
+                })
+                .map(override -> new PaymentDateCustomerCard(
+                        override.customerName() != null && !override.customerName().isBlank()
+                                ? override.customerName()
+                                : override.customerKey(),
+                        0.0,
+                        nextPaymentDates.getOrDefault(override.customerKey(), null),
+                        customerPhones.getOrDefault(override.customerKey(), null),
+                        whatsAppStatuses.getOrDefault(override.customerKey(), "not sent"),
+                        customerCategories.getOrDefault(override.customerKey(), null),
+                        lookupLastOrderDate(override.customerKey(), override.customerName(), lastOrderDates),
+                        needsFollowUpFlags.getOrDefault(override.customerKey(), false),
+                        customerAddresses.getOrDefault(override.customerKey(), null),
+                        customerLatitudes.getOrDefault(override.customerKey(), null),
+                        customerLongitudes.getOrDefault(override.customerKey(), null),
+                        customerPlaces.getOrDefault(override.customerKey(), null),
+                        0.0,
+                        0.0,
+                        0.0,
+                        true
                 ))
                 .toList();
+
+        List<PaymentDateCustomerCard> results = new ArrayList<>(dueCards.size() + retainedOnlyCards.size());
+        results.addAll(dueCards);
+        results.addAll(retainedOnlyCards);
+        results.sort((a, b) -> Double.compare(b.totalAmount(), a.totalAmount()));
 
         return ResponseEntity.ok(results);
     }

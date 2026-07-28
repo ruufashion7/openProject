@@ -29,6 +29,8 @@ public class UserPermissions {
     private boolean uploadAuditPage;
     /** Ignore / restore customers on Outstanding Due (hidden from board after upload). */
     private boolean customerExcludeEdit;
+    /** Retain customers on Outstanding Due even with ₹0 outstanding. */
+    private boolean customerRetainEdit;
 
     public UserPermissions() {
         // Default all permissions to false
@@ -40,7 +42,7 @@ public class UserPermissions {
                           boolean rateListPage, boolean rateListUpload, boolean salesVisualization, boolean customerLocations,
                           boolean customerCategoryEdit, boolean customerNotesEdit, boolean customerLocationEdit,
                           boolean whatsappBroadcast, boolean uploadsListPage, boolean uploadAuditPage,
-                          boolean customerExcludeEdit) {
+                          boolean customerExcludeEdit, boolean customerRetainEdit) {
         this.fileUpload = fileUpload;
         this.hardDelete = hardDelete;
         this.invoicePage = invoicePage;
@@ -61,6 +63,7 @@ public class UserPermissions {
         this.uploadsListPage = uploadsListPage;
         this.uploadAuditPage = uploadAuditPage;
         this.customerExcludeEdit = customerExcludeEdit;
+        this.customerRetainEdit = customerRetainEdit;
     }
 
     public boolean isFileUpload() {
@@ -221,5 +224,13 @@ public class UserPermissions {
 
     public void setCustomerExcludeEdit(boolean customerExcludeEdit) {
         this.customerExcludeEdit = customerExcludeEdit;
+    }
+
+    public boolean isCustomerRetainEdit() {
+        return customerRetainEdit;
+    }
+
+    public void setCustomerRetainEdit(boolean customerRetainEdit) {
+        this.customerRetainEdit = customerRetainEdit;
     }
 }

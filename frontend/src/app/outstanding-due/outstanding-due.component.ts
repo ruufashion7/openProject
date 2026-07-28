@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, takeUntil } from 'rxjs';
-import { ApiService, PaymentDateCustomerCard, ExcludedCustomerView } from '../services/api.service';
+import { ApiService, PaymentDateCustomerCard, ExcludedCustomerView, RetainedCustomerView } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
@@ -41,6 +41,7 @@ interface FilterState {
   followUp: 'all' | 'needed' | 'not-needed';
   location: 'all' | 'with' | 'without';
   orderDate: 'all' | '0-45' | '46-85' | '85+';
+  retained: 'all' | 'yes' | 'no';
   places: string[];
 }
 
@@ -52,6 +53,7 @@ interface FilterDimensionCounts {
   followUp: Record<'all' | 'needed' | 'not-needed', number>;
   location: Record<'all' | 'with' | 'without', number>;
   orderDate: Record<'all' | '0-45' | '46-85' | '85+', number>;
+  retained: Record<'all' | 'yes' | 'no', number>;
 }
 
 @Component({
@@ -87,6 +89,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     followUp: 'all',
     location: 'all',
     orderDate: 'all',
+    retained: 'all',
     places: []
   };
 
@@ -142,16 +145,28 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
   canChangeFollowUp = false;
   canEditCustomerCategory = false;
   canExcludeCustomer = false;
+  canRetainCustomer = false;
   
   // Ignored customers
   showIgnoredPanel = false;
   excludedCustomers: ExcludedCustomerView[] = [];
   ignoreCustomerInput = '';
+  ignoreNameSuggestions: string[] = [];
+  showIgnoreNameSuggestions = false;
+
+  // Retained customers
+  showRetainedPanel = false;
+  retainedCustomers: RetainedCustomerView[] = [];
+  retainCustomerInput = '';
+  retainNameSuggestions: string[] = [];
+  showRetainNameSuggestions = false;
   
   // Timers
   private saveTimers: Record<string, number> = {};
   private processingDateChange: Record<string, boolean> = {};
   private searchTimer: any = null;
+  private ignoreSuggestTimer: any = null;
+  private retainSuggestTimer: any = null;
   private readonly filterStorageKey = 'outstandingDueV2.filters';
 
   /** Cascading counts for filter pills (recomputed in {@link updateFilteredCards}). */
@@ -161,7 +176,8 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     customerCategory: { all: 0, 'semi-wholesale': 0, A: 0, B: 0, C: 0 },
     followUp: { all: 0, needed: 0, 'not-needed': 0 },
     location: { all: 0, with: 0, without: 0 },
-    orderDate: { all: 0, '0-45': 0, '46-85': 0, '85+': 0 }
+    orderDate: { all: 0, '0-45': 0, '46-85': 0, '85+': 0 },
+    retained: { all: 0, yes: 0, no: 0 }
   };
 
   /** Rows matching current filters except place (scope for place picker). */
@@ -200,10 +216,12 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
         this.canChangeFollowUp = this.permissionService.canChangeFollowUp();
         this.canEditCustomerCategory = this.permissionService.canEditCustomerCategory();
         this.canExcludeCustomer = this.permissionService.canExcludeCustomer();
+        this.canRetainCustomer = this.permissionService.canRetainCustomer();
 
         this.restoreFilters();
         this.loadData();
         this.loadExcludedCustomers();
+        this.loadRetainedCustomers();
       });
   }
 
@@ -211,6 +229,8 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     // Clear timers
     Object.values(this.saveTimers).forEach(timer => clearTimeout(timer));
     if (this.searchTimer) clearTimeout(this.searchTimer);
+    if (this.ignoreSuggestTimer) clearTimeout(this.ignoreSuggestTimer);
+    if (this.retainSuggestTimer) clearTimeout(this.retainSuggestTimer);
     // Complete destroy subject to cleanup subscriptions
     this.destroy$.next();
     this.destroy$.complete();
@@ -260,6 +280,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
           this.status = 'idle';
           this.message = this.cards.length ? '' : 'No payment data available.';
           this.loadExcludedCustomers();
+          this.loadRetainedCustomers();
         },
         error: (err: HttpErrorResponse) => {
           if (err.status === 401) {
@@ -404,6 +425,13 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       filtered = filtered.filter(card => this.cardMatchesOrderDateBucket(card, f.orderDate));
     }
 
+    if (f.retained !== 'all') {
+      filtered = filtered.filter(card => {
+        const isRetained = !!card.retained;
+        return f.retained === 'yes' ? isRetained : !isRetained;
+      });
+    }
+
     return filtered;
   }
 
@@ -534,6 +562,13 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       '85+': baseOrder.filter(c => this.cardMatchesOrderDateBucket(c, '85+')).length
     };
 
+    const baseRetained = this.filterCardsByState(this.cards, this.mergeFilterState({ retained: 'all' }));
+    this.filterCounts.retained = {
+      all: baseRetained.length,
+      yes: baseRetained.filter(c => !!c.retained).length,
+      no: baseRetained.filter(c => !c.retained).length
+    };
+
     const basePlace = this.filterCardsByState(this.cards, this.mergeFilterState({ places: [] }));
     this.countPlaceScope = basePlace.length;
     const next: Record<string, number> = {};
@@ -616,6 +651,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       followUp: 'all',
       location: 'all',
       orderDate: 'all',
+      retained: 'all',
       places: []
     };
     this.saveFilters();
@@ -629,6 +665,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
            this.filters.followUp !== 'all' ||
            this.filters.location !== 'all' ||
            this.filters.orderDate !== 'all' ||
+           this.filters.retained !== 'all' ||
            this.filters.places.length > 0;
   }
 
@@ -1212,6 +1249,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       'Due Date',
       'WhatsApp Status',
       'Follow Up',
+      'Retained',
     ] as const;
     const totalCols = cols.length;
     const watermarkRow = buildExcelWatermarkRow(totalCols);
@@ -1228,6 +1266,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       card.nextPaymentDate || '',
       card.whatsAppStatus || 'not sent',
       card.needsFollowUp ? 'Yes' : 'No',
+      card.retained ? 'Yes' : 'No',
     ]);
     const ws = XLSX.utils.aoa_to_sheet([watermarkRow, headerRow, ...bodyRows]);
     const colWidths = [
@@ -1241,6 +1280,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       { wch: 16 },
       { wch: 14 },
       { wch: 16 },
+      { wch: 10 },
       { wch: 10 },
     ];
     ws['!cols'] = colWidths;
@@ -1269,7 +1309,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       return;
     }
     autoTable(doc, {
-      head: [['Customer', 'Phone', 'Amount', '1-45', '46-85', '85+', 'Category', 'Last Invoice', 'Due Date', 'Status']],
+      head: [['Customer', 'Phone', 'Amount', '1-45', '46-85', '85+', 'Category', 'Last Invoice', 'Due Date', 'Status', 'Retained']],
       body: this.filteredCards.map(card => [
         card.customer || '',
         card.phoneNumber ? formatPhoneDisplay(card.phoneNumber) : '',
@@ -1281,6 +1321,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
         card.lastOrderDate || '',
         card.nextPaymentDate || '',
         card.whatsAppStatus || 'not sent',
+        card.retained ? 'Yes' : 'No',
       ]),
       theme: 'striped',
       styles: { font: PDF_UNICODE_FONT, fontStyle: 'normal' },
@@ -1310,6 +1351,9 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
           parsed.places = parsed.place ? [parsed.place] : [];
         }
         if (!Array.isArray(parsed.places)) parsed.places = [];
+        if (parsed.retained !== 'all' && parsed.retained !== 'yes' && parsed.retained !== 'no') {
+          parsed.retained = 'all';
+        }
         this.filters = { ...this.filters, ...parsed, places: parsed.places || [] };
       }
     } catch (e) {
@@ -1330,11 +1374,41 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       });
   }
 
+  loadRetainedCustomers(): void {
+    this.api.getRetainedCustomers()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (list) => {
+          this.retainedCustomers = list ?? [];
+        },
+        error: () => {
+          this.retainedCustomers = [];
+        }
+      });
+  }
+
   toggleIgnoredPanel(): void {
     this.showIgnoredPanel = !this.showIgnoredPanel;
     if (this.showIgnoredPanel) {
+      this.showRetainedPanel = false;
       this.loadExcludedCustomers();
     }
+  }
+
+  toggleRetainedPanel(): void {
+    this.showRetainedPanel = !this.showRetainedPanel;
+    if (this.showRetainedPanel) {
+      this.showIgnoredPanel = false;
+      this.loadRetainedCustomers();
+    }
+  }
+
+  private apiErrorMessage(err: HttpErrorResponse, fallback: string): string {
+    const body = err?.error;
+    if (body && typeof body === 'object' && typeof body.error === 'string' && body.error.trim()) {
+      return body.error;
+    }
+    return fallback;
   }
 
   excludeCustomerByName(): void {
@@ -1346,6 +1420,8 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       this.permissionService.notifyRoleDenied('ignore customers on Outstanding Due', 'customerExcludeEdit');
       return;
     }
+    this.showIgnoreNameSuggestions = false;
+    this.ignoreNameSuggestions = [];
     this.api.excludeCustomer(name)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -1355,10 +1431,22 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
           this.loadExcludedCustomers();
           this.loadData();
         },
-        error: () => {
-          this.notificationService.showError('Could not ignore customer. Check the name and try again.');
+        error: (err: HttpErrorResponse) => {
+          this.notificationService.showError(
+            this.apiErrorMessage(err, 'Could not ignore customer. Check the name and try again.')
+          );
         }
       });
+  }
+
+  onIgnoreNameInput(): void {
+    this.scheduleNameSuggestions('ignore');
+  }
+
+  selectIgnoreNameSuggestion(name: string): void {
+    this.ignoreCustomerInput = name;
+    this.ignoreNameSuggestions = [];
+    this.showIgnoreNameSuggestions = false;
   }
 
   restoreExcludedCustomer(customerKey: string, displayName?: string | null): void {
@@ -1374,8 +1462,121 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
           this.loadExcludedCustomers();
           this.loadData();
         },
-        error: () => {
-          this.notificationService.showError('Could not restore customer.');
+        error: (err: HttpErrorResponse) => {
+          this.notificationService.showError(
+            this.apiErrorMessage(err, 'Could not restore customer.')
+          );
+        }
+      });
+  }
+
+  retainCustomerByName(): void {
+    const name = this.retainCustomerInput.trim();
+    if (!name) {
+      return;
+    }
+    if (!this.canRetainCustomer) {
+      this.permissionService.notifyRoleDenied('retain customers on Outstanding Due', 'customerRetainEdit');
+      return;
+    }
+    this.showRetainNameSuggestions = false;
+    this.retainNameSuggestions = [];
+    this.api.retainCustomer(name)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.notificationService.showSuccess(`${name} is now retained`);
+          this.retainCustomerInput = '';
+          this.loadRetainedCustomers();
+          this.loadData();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.notificationService.showError(
+            this.apiErrorMessage(err, 'Could not retain customer. Check the name and try again.')
+          );
+        }
+      });
+  }
+
+  onRetainNameInput(): void {
+    this.scheduleNameSuggestions('retain');
+  }
+
+  selectRetainNameSuggestion(name: string): void {
+    this.retainCustomerInput = name;
+    this.retainNameSuggestions = [];
+    this.showRetainNameSuggestions = false;
+  }
+
+  private scheduleNameSuggestions(kind: 'ignore' | 'retain'): void {
+    const query = (kind === 'ignore' ? this.ignoreCustomerInput : this.retainCustomerInput).trim();
+
+    if (kind === 'ignore') {
+      if (this.ignoreSuggestTimer) clearTimeout(this.ignoreSuggestTimer);
+    } else if (this.retainSuggestTimer) {
+      clearTimeout(this.retainSuggestTimer);
+    }
+
+    if (query.length < 3) {
+      if (kind === 'ignore') {
+        this.ignoreNameSuggestions = [];
+        this.showIgnoreNameSuggestions = false;
+      } else {
+        this.retainNameSuggestions = [];
+        this.showRetainNameSuggestions = false;
+      }
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      this.api.getCustomerSuggestions(query, 20)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (suggestions) => {
+            if (kind === 'ignore') {
+              this.ignoreNameSuggestions = suggestions ?? [];
+              this.showIgnoreNameSuggestions = this.ignoreNameSuggestions.length > 0;
+            } else {
+              this.retainNameSuggestions = suggestions ?? [];
+              this.showRetainNameSuggestions = this.retainNameSuggestions.length > 0;
+            }
+          },
+          error: () => {
+            if (kind === 'ignore') {
+              this.ignoreNameSuggestions = [];
+              this.showIgnoreNameSuggestions = false;
+            } else {
+              this.retainNameSuggestions = [];
+              this.showRetainNameSuggestions = false;
+            }
+          }
+        });
+    }, 300);
+
+    if (kind === 'ignore') {
+      this.ignoreSuggestTimer = timer;
+    } else {
+      this.retainSuggestTimer = timer;
+    }
+  }
+
+  unretainCustomer(customerKey: string, displayName?: string | null): void {
+    if (!this.canRetainCustomer) {
+      this.permissionService.notifyRoleDenied('unretain customers', 'customerRetainEdit');
+      return;
+    }
+    this.api.unretainCustomer(customerKey)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.notificationService.showSuccess(`${displayName || customerKey} removed from retained`);
+          this.loadRetainedCustomers();
+          this.loadData();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.notificationService.showError(
+            this.apiErrorMessage(err, 'Could not unretain customer.')
+          );
         }
       });
   }

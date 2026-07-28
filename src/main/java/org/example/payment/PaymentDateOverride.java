@@ -26,6 +26,10 @@ public record PaymentDateOverride(
         Boolean excluded,
         Instant excludedAt,
         String excludedBy,
+        /** Keep on Outstanding Due even with ₹0 outstanding (cash / no-due customers). */
+        Boolean retained,
+        Instant retainedAt,
+        String retainedBy,
         Instant updatedAt
 ) {
     public PaymentDateOverride {
@@ -41,6 +45,9 @@ public record PaymentDateOverride(
         if (excluded == null) {
             excluded = Boolean.FALSE;
         }
+        if (retained == null) {
+            retained = Boolean.FALSE;
+        }
     }
 
     public boolean isActive() {
@@ -49,5 +56,9 @@ public record PaymentDateOverride(
 
     public boolean isExcluded() {
         return Boolean.TRUE.equals(excluded);
+    }
+
+    public boolean isRetained() {
+        return Boolean.TRUE.equals(retained);
     }
 }

@@ -59,6 +59,9 @@ class CustomerMasterPhoneIngestServiceTest {
                         p.excluded(),
                         p.excludedAt(),
                         p.excludedBy(),
+                        p.retained(),
+                        p.retainedAt(),
+                        p.retainedBy(),
                         p.updatedAt()
                 );
             }
@@ -97,6 +100,9 @@ class CustomerMasterPhoneIngestServiceTest {
                 null,
                 null,
                 List.of(),
+                false,
+                null,
+                null,
                 false,
                 null,
                 null,

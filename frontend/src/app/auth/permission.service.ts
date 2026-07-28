@@ -91,6 +91,10 @@ export class PermissionService {
     return this.hasPermission('outstandingPage') && this.hasPermission('customerExcludeEdit');
   }
 
+  canRetainCustomer(): boolean {
+    return this.hasPermission('outstandingPage') && this.hasPermission('customerRetainEdit');
+  }
+
   canAccessRateList(): boolean {
     return this.hasPermission('rateListPage');
   }

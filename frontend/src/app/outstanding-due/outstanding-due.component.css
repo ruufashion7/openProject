@@ -267,6 +267,24 @@
   justify-content: center;
 }
 
+.retained-count-badge {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.badge-retained {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
 .ignored-add-row {
   display: flex;
   gap: 12px;
@@ -277,6 +295,7 @@
 .ignored-search {
   flex: 1;
   margin: 0;
+  position: relative;
 }
 
 .ignored-permission-hint {

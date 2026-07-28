@@ -16,7 +16,8 @@ public record PaymentDateCustomerCard(
         /** Receivable ageing bucket amounts — same source as Customer Details summary. */
         double withinAmount,
         double midAmount,
-        double beyondAmount
+        double beyondAmount,
+        /** True when customer is on the shared Retain list (shown even with ₹0). */
+        Boolean retained
 ) {
 }
-

@@ -190,6 +190,14 @@ public class CustomerMasterDedupeService {
         String excludedBy = excluded
                 ? (keeper.isExcluded() ? keeper.excludedBy() : loser.excludedBy())
                 : null;
+        // Prefer exclude over retain if both somehow set after merge.
+        boolean retained = !excluded && (keeper.isRetained() || loser.isRetained());
+        Instant retainedAt = retained
+                ? (keeper.isRetained() ? keeper.retainedAt() : loser.retainedAt())
+                : null;
+        String retainedBy = retained
+                ? (keeper.isRetained() ? keeper.retainedBy() : loser.retainedBy())
+                : null;
 
         return PaymentDateOverrideCopy.copy(
                 keeper,
@@ -208,7 +216,10 @@ public class CustomerMasterDedupeService {
                 mergedNotes,
                 excluded,
                 excludedAt,
-                excludedBy
+                excludedBy,
+                retained,
+                retainedAt,
+                retainedBy
         );
     }
 

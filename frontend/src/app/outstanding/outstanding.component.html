@@ -347,6 +347,36 @@
                 Ask an admin to enable “Ignore Customers” in Access Control to change this.
               </p>
             </div>
+            <div class="info-card ignore-customer-card retain-customer-card"
+                 [class.border-green]="isCurrentCustomerRetained">
+              <p class="info-card-label">Retain on Outstanding Due</p>
+              <p class="ignore-status-text" [class.retained]="isCurrentCustomerRetained">
+                {{ isCurrentCustomerRetained
+                  ? 'Kept on Outstanding Due even with ₹0 outstanding'
+                  : 'Not retained — zero-due customers stay off the board' }}
+              </p>
+              <button
+                *ngIf="canRetainCustomer && !isCurrentCustomerRetained"
+                type="button"
+                class="btn btn-retain-customer"
+                (click)="retainCurrentCustomer()"
+                [attr.title]="permissionService.accessDeniedTooltip(canRetainCustomer, 'customerRetainEdit')"
+              >
+                Retain customer
+              </button>
+              <button
+                *ngIf="canRetainCustomer && isCurrentCustomerRetained"
+                type="button"
+                class="btn btn-restore-customer"
+                (click)="unretainCurrentCustomer()"
+                [attr.title]="permissionService.accessDeniedTooltip(canRetainCustomer, 'customerRetainEdit')"
+              >
+                Unretain customer
+              </button>
+              <p class="ignore-permission-hint" *ngIf="!canRetainCustomer">
+                Ask an admin to enable “Retain Customers” in Access Control to change this.
+              </p>
+            </div>
           </div>
         </div>
 

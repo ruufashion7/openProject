@@ -3,32 +3,31 @@ package org.example.api;
 import org.example.auth.AuthSessionService;
 import org.example.auth.SessionInfo;
 import org.example.auth.SessionPermissions;
-import org.example.payment.CustomerExclusionService;
-import org.example.payment.CustomerExclusionService.ExcludedCustomerView;
+import org.example.payment.CustomerRetentionService;
+import org.example.payment.CustomerRetentionService.RetainedCustomerView;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/analytics/customers")
-public class CustomerExclusionController {
+public class CustomerRetentionController {
 
     private final AuthSessionService authSessionService;
-    private final CustomerExclusionService customerExclusionService;
+    private final CustomerRetentionService customerRetentionService;
 
-    public CustomerExclusionController(
+    public CustomerRetentionController(
             AuthSessionService authSessionService,
-            CustomerExclusionService customerExclusionService
+            CustomerRetentionService customerRetentionService
     ) {
         this.authSessionService = authSessionService;
-        this.customerExclusionService = customerExclusionService;
+        this.customerRetentionService = customerRetentionService;
     }
 
-    @GetMapping("/excluded")
-    public ResponseEntity<?> listExcluded(
+    @GetMapping("/retained")
+    public ResponseEntity<?> listRetained(
             @RequestHeader(value = "Authorization", required = false) String authHeader
     ) {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
@@ -38,26 +37,26 @@ public class CustomerExclusionController {
         if (!SessionPermissions.canAccessOutstandingPage(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        return ResponseEntity.ok(customerExclusionService.listExcluded());
+        return ResponseEntity.ok(customerRetentionService.listRetained());
     }
 
-    @PostMapping("/exclude")
-    public ResponseEntity<?> exclude(
+    @PostMapping("/retain")
+    public ResponseEntity<?> retain(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @RequestBody CustomerExcludeRequest request
+            @RequestBody CustomerRetainRequest request
     ) {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canExcludeCustomer(session)) {
+        if (!SessionPermissions.canRetainCustomer(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         if (request == null || request.customer() == null || request.customer().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Customer name is required"));
         }
         try {
-            ExcludedCustomerView view = customerExclusionService.excludeByDisplayName(
+            RetainedCustomerView view = customerRetentionService.retainByDisplayName(
                     request.customer().trim(),
                     session.displayName()
             );
@@ -69,23 +68,23 @@ public class CustomerExclusionController {
         }
     }
 
-    @PostMapping("/restore")
-    public ResponseEntity<?> restore(
+    @PostMapping("/unretain")
+    public ResponseEntity<?> unretain(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @RequestBody CustomerRestoreRequest request
+            @RequestBody CustomerUnretainRequest request
     ) {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canExcludeCustomer(session)) {
+        if (!SessionPermissions.canRetainCustomer(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         if (request == null || request.customerKey() == null || request.customerKey().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Customer key is required"));
         }
         try {
-            ExcludedCustomerView view = customerExclusionService.restoreByCustomerKey(
+            RetainedCustomerView view = customerRetentionService.unretainByCustomerKey(
                     request.customerKey().trim(),
                     session.displayName()
             );
@@ -108,9 +107,9 @@ public class CustomerExclusionController {
         return authHeader.trim();
     }
 
-    private record CustomerExcludeRequest(String customer) {
+    private record CustomerRetainRequest(String customer) {
     }
 
-    private record CustomerRestoreRequest(String customerKey) {
+    private record CustomerUnretainRequest(String customerKey) {
     }
 }

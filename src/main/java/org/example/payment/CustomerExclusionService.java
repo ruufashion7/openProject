@@ -80,6 +80,12 @@ public class CustomerExclusionService {
         PaymentDateOverride target = findExistingForDisplayName(trimmed)
                 .orElseGet(() -> PaymentDateOverrideCopy.newShell(key, trimmed));
 
+        if (target.isRetained()) {
+            throw new IllegalStateException(
+                    "Customer is retained. Unretain them before ignoring."
+            );
+        }
+
         PaymentDateOverride saved = repository.save(
                 PaymentDateOverrideCopy.withExcluded(target, true, performedBy)
         );

@@ -471,6 +471,9 @@ public class CustomerNotesController {
                 new ArrayList<CustomerNote>(),
                 null,
                 null,
+                null,
+                null,
+                null,
                 null
         );
         

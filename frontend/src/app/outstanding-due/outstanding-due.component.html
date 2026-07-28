@@ -21,6 +21,14 @@
         >
           <span>🚫</span>
         </button>
+        <button
+          class="btn-icon"
+          (click)="toggleRetainedPanel()"
+          [class.active]="showRetainedPanel"
+          title="Retained customers"
+        >
+          <span>📌</span>
+        </button>
         <button class="btn-primary-modern" (click)="downloadExcel()" title="Download Excel">
           <span>📥</span>
           <span>Excel</span>
@@ -78,17 +86,29 @@
             type="text"
             class="search-input-modern"
             [(ngModel)]="ignoreCustomerInput"
+            (input)="onIgnoreNameInput()"
+            (focus)="onIgnoreNameInput()"
             (keyup.enter)="excludeCustomerByName()"
             placeholder="Ignore by customer name..."
+            autocomplete="off"
           />
           <button
             class="btn-clear-search"
             *ngIf="ignoreCustomerInput"
-            (click)="ignoreCustomerInput = ''"
+            (click)="ignoreCustomerInput = ''; ignoreNameSuggestions = []; showIgnoreNameSuggestions = false"
             title="Clear"
           >
             ×
           </button>
+        </div>
+        <div class="search-suggestions" *ngIf="showIgnoreNameSuggestions && ignoreNameSuggestions.length">
+          <div
+            class="suggestion-item"
+            *ngFor="let suggestion of ignoreNameSuggestions"
+            (mousedown)="selectIgnoreNameSuggestion(suggestion)"
+          >
+            <span class="suggestion-name">{{ suggestion }}</span>
+          </div>
         </div>
       </div>
       <button class="btn-primary-modern" (click)="excludeCustomerByName()" [disabled]="!ignoreCustomerInput.trim()">
@@ -118,6 +138,81 @@
     </div>
     <ng-template #noIgnored>
       <p class="ignored-empty">No ignored customers.</p>
+    </ng-template>
+  </div>
+
+  <!-- Retained customers panel -->
+  <div class="ignored-customers-panel retained-customers-panel" *ngIf="status === 'idle' && showRetainedPanel">
+    <div class="ignored-panel-header">
+      <div>
+        <h2 class="ignored-panel-title">Retained customers</h2>
+        <p class="ignored-panel-subtitle">
+          Always shown on Outstanding Due, including when outstanding is ₹0 (cash / no-due customers).
+        </p>
+      </div>
+      <span class="ignored-count-badge retained-count-badge">{{ retainedCustomers.length }}</span>
+    </div>
+
+    <div class="ignored-add-row" *ngIf="canRetainCustomer">
+      <div class="search-container ignored-search">
+        <div class="search-input-wrapper">
+          <span class="search-icon">📌</span>
+          <input
+            type="text"
+            class="search-input-modern"
+            [(ngModel)]="retainCustomerInput"
+            (input)="onRetainNameInput()"
+            (focus)="onRetainNameInput()"
+            (keyup.enter)="retainCustomerByName()"
+            placeholder="Retain by customer name..."
+            autocomplete="off"
+          />
+          <button
+            class="btn-clear-search"
+            *ngIf="retainCustomerInput"
+            (click)="retainCustomerInput = ''; retainNameSuggestions = []; showRetainNameSuggestions = false"
+            title="Clear"
+          >
+            ×
+          </button>
+        </div>
+        <div class="search-suggestions" *ngIf="showRetainNameSuggestions && retainNameSuggestions.length">
+          <div
+            class="suggestion-item"
+            *ngFor="let suggestion of retainNameSuggestions"
+            (mousedown)="selectRetainNameSuggestion(suggestion)"
+          >
+            <span class="suggestion-name">{{ suggestion }}</span>
+          </div>
+        </div>
+      </div>
+      <button class="btn-primary-modern" (click)="retainCustomerByName()" [disabled]="!retainCustomerInput.trim()">
+        Retain
+      </button>
+    </div>
+    <p class="ignored-permission-hint" *ngIf="!canRetainCustomer">
+      You can view retained customers. Ask an admin to enable “Retain Customers” in Access Control to change this list.
+    </p>
+
+    <div class="ignored-list" *ngIf="retainedCustomers.length; else noRetained">
+      <div class="ignored-item" *ngFor="let item of retainedCustomers">
+        <div class="ignored-item-info">
+          <div class="ignored-item-name">{{ item.customerName || item.customerKey }}</div>
+          <div class="ignored-item-meta" *ngIf="item.retainedBy">
+            Retained by {{ item.retainedBy }}
+          </div>
+        </div>
+        <button
+          *ngIf="canRetainCustomer"
+          class="btn-restore-ignored"
+          (click)="unretainCustomer(item.customerKey, item.customerName)"
+        >
+          Unretain
+        </button>
+      </div>
+    </div>
+    <ng-template #noRetained>
+      <p class="ignored-empty">No retained customers.</p>
     </ng-template>
   </div>
 
@@ -181,6 +276,10 @@
       <span class="filter-chip" *ngIf="filters.orderDate !== 'all'">
         Ageing: {{ filters.orderDate === '0-45' ? '1-45 days' : filters.orderDate === '46-85' ? '46-85 days' : filters.orderDate === '85+' ? '85+ days' : filters.orderDate }}
         <button (click)="setFilter('orderDate', 'all')">×</button>
+      </span>
+      <span class="filter-chip" *ngIf="filters.retained !== 'all'">
+        Retained: {{ filters.retained === 'yes' ? 'Only' : 'Hide' }}
+        <button (click)="setFilter('retained', 'all')">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.places.length > 0">
         Place: {{ filters.places.join(', ') }}
@@ -468,6 +567,42 @@
       </div>
     </div>
 
+    <div class="filter-group">
+      <label class="filter-group-label">Retained</label>
+      <div class="filter-buttons">
+        <button
+          type="button"
+          class="filter-btn"
+          [class.active]="filters.retained === 'all'"
+          (click)="setFilter('retained', 'all')"
+          [attr.aria-label]="'All, ' + formatFilterCount(filterCounts.retained.all) + ' customers'"
+        >
+          <span class="filter-btn-text">All</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.retained.all) }}</span>
+        </button>
+        <button
+          type="button"
+          class="filter-btn"
+          [class.active]="filters.retained === 'yes'"
+          (click)="setFilter('retained', 'yes')"
+          [attr.aria-label]="'Retained only, ' + formatFilterCount(filterCounts.retained.yes) + ' customers'"
+        >
+          <span class="filter-btn-text">Retained only</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.retained.yes) }}</span>
+        </button>
+        <button
+          type="button"
+          class="filter-btn"
+          [class.active]="filters.retained === 'no'"
+          (click)="setFilter('retained', 'no')"
+          [attr.aria-label]="'Not retained, ' + formatFilterCount(filterCounts.retained.no) + ' customers'"
+        >
+          <span class="filter-btn-text">Not retained</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.retained.no) }}</span>
+        </button>
+      </div>
+    </div>
+
     <div class="filter-group place-autocomplete-wrap" #placeAutocompleteWrap>
       <div class="filter-group-label-row">
         <label class="filter-group-label">Place</label>
@@ -542,7 +677,10 @@
     >
       <div class="card-header">
         <div class="customer-info">
-          <h3 class="customer-name">{{ card.customer }}</h3>
+          <h3 class="customer-name">
+            {{ card.customer }}
+            <span class="badge-retained" *ngIf="card.retained" title="Retained customer">Retained</span>
+          </h3>
           <div class="customer-phone-container" *ngIf="card.phoneNumber">
             <p class="customer-phone">{{ formatPhoneDisplay(card.phoneNumber) }}</p>
             <div class="phone-actions-small">

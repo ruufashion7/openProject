@@ -164,4 +164,9 @@ public final class SessionPermissions {
     public static boolean canExcludeCustomer(SessionInfo session) {
         return has(session, UserPermissions::isCustomerExcludeEdit);
     }
+
+    /** Retain / unretain customers on Outstanding Due (including ₹0). */
+    public static boolean canRetainCustomer(SessionInfo session) {
+        return has(session, UserPermissions::isCustomerRetainEdit);
+    }
 }
