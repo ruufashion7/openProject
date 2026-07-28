@@ -91,6 +91,63 @@
           <button type="button" class="btn btn-close-highlight" (click)="clearCustomerSelection()" aria-label="Close">
             ×
           </button>
+          <!-- Always show for a selected customer (including ₹0 / no receivable summary). -->
+          <div class="customer-board-actions" *ngIf="selectedCustomerName">
+            <div class="customer-board-action" [class.is-active]="isCurrentCustomerExcluded">
+              <span class="customer-board-action-label">
+                {{ isCurrentCustomerExcluded ? 'Ignored on Outstanding Due' : 'On Outstanding Due board' }}
+              </span>
+              <button
+                *ngIf="canExcludeCustomer && !isCurrentCustomerExcluded"
+                type="button"
+                class="btn btn-ignore-customer btn-board-action"
+                (click)="ignoreCurrentCustomer()"
+                [attr.title]="permissionService.accessDeniedTooltip(canExcludeCustomer, 'customerExcludeEdit')"
+              >
+                Ignore customer
+              </button>
+              <button
+                *ngIf="canExcludeCustomer && isCurrentCustomerExcluded"
+                type="button"
+                class="btn btn-restore-customer btn-board-action"
+                (click)="restoreCurrentCustomer()"
+                [attr.title]="permissionService.accessDeniedTooltip(canExcludeCustomer, 'customerExcludeEdit')"
+              >
+                Restore customer
+              </button>
+              <span class="customer-board-action-hint" *ngIf="!canExcludeCustomer">
+                Enable “Ignore Customers” in Access Control
+              </span>
+            </div>
+            <div class="customer-board-action" [class.is-retained]="isCurrentCustomerRetained">
+              <span class="customer-board-action-label">
+                {{ isCurrentCustomerRetained
+                  ? 'Retained (shown even with ₹0 due)'
+                  : 'Not retained (₹0 due hides them)' }}
+              </span>
+              <button
+                *ngIf="canRetainCustomer && !isCurrentCustomerRetained"
+                type="button"
+                class="btn btn-retain-customer btn-board-action"
+                (click)="retainCurrentCustomer()"
+                [attr.title]="permissionService.accessDeniedTooltip(canRetainCustomer, 'customerRetainEdit')"
+              >
+                Retain customer
+              </button>
+              <button
+                *ngIf="canRetainCustomer && isCurrentCustomerRetained"
+                type="button"
+                class="btn btn-restore-customer btn-board-action"
+                (click)="unretainCurrentCustomer()"
+                [attr.title]="permissionService.accessDeniedTooltip(canRetainCustomer, 'customerRetainEdit')"
+              >
+                Unretain customer
+              </button>
+              <span class="customer-board-action-hint" *ngIf="!canRetainCustomer">
+                Enable “Retain Customers” in Access Control
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 

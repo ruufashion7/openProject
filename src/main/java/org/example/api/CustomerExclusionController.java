@@ -35,7 +35,8 @@ public class CustomerExclusionController {
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (!SessionPermissions.canAccessOutstandingPage(session)) {
+        // Customer Details also needs status for Ignore / Retain actions
+        if (!SessionPermissions.canAccessDetailsOrOutstanding(session)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(customerExclusionService.listExcluded());

@@ -188,16 +188,16 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       {
         key: 'customerExcludeEdit',
         label: 'Ignore Customers',
-        description: 'Hide customers from Outstanding Due even when they appear in uploads',
+        description: 'Hide customers from Outstanding Due even when they appear in uploads (Customer Details or Outstanding Due)',
         kind: 'action',
-        requiresAny: ['outstandingPage']
+        requiresAny: ['detailsPage', 'outstandingPage']
       },
       {
         key: 'customerRetainEdit',
         label: 'Retain Customers',
-        description: 'Keep customers on Outstanding Due even with ₹0 outstanding (e.g. cash / no-due)',
+        description: 'Keep customers on Outstanding Due even with ₹0 outstanding (Customer Details or Outstanding Due)',
         kind: 'action',
-        requiresAny: ['outstandingPage']
+        requiresAny: ['detailsPage', 'outstandingPage']
       },
       {
         key: 'aiAgentPage',

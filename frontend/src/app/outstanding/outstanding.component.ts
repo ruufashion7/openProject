@@ -215,11 +215,8 @@ export class OutstandingComponent implements OnInit, OnDestroy {
    * hit a different document than the one the summary reads.
    */
   private getCustomerNameForMasterWrites(): string | null {
-    // Summary is cleared while the next /customer-summary request is in flight; using only
-    // selectedCustomerName here would send the wrong customer key (canonical name mismatch).
-    if (this.customerSummary === undefined) {
-      return null;
-    }
+    // Prefer canonical name from summary when present; otherwise use the selected display name
+    // (needed for ₹0 / no-receivable customers where summary.found is false).
     const fromSummary = this.customerSummary?.customer?.trim();
     if (fromSummary) {
       return fromSummary;
@@ -472,9 +469,13 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     if (isPhoneNumber) {
       this.selectedCustomerName = null;
       this.selectedPhoneNumber = name;
+      this.resetExclusionStatus();
+      this.resetRetentionStatus();
     } else {
       this.selectedCustomerName = name;
       this.selectedPhoneNumber = null;
+      // Load ignore/retain status immediately (do not wait for receivable summary)
+      this.refreshExclusionStatus();
     }
     
     this.customerSummary = undefined;
@@ -522,8 +523,8 @@ export class OutstandingComponent implements OnInit, OnDestroy {
         }
         
         if (!summary.found) {
-          this.customerStatus = 'No data found for this customer.';
-          this.customerStatusIsError = true; // Make "not found" messages red for consistency
+          this.customerStatus = 'No receivable ageing for this customer (can still ignore/retain).';
+          this.customerStatusIsError = false;
         }
         // Get payment date and WhatsApp status from customer summary
         if (summary.nextPaymentDate) {
@@ -557,6 +558,8 @@ export class OutstandingComponent implements OnInit, OnDestroy {
         }
         this.customerStatus = 'Unable to load customer summary.';
         this.customerStatusIsError = true;
+        // Still allow ignore/retain using the selected name
+        this.refreshExclusionStatus();
       }
     });
 

@@ -1335,6 +1335,57 @@
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
 }
 
+.customer-board-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.customer-board-action {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+.customer-board-action.is-active {
+  border-color: #fecaca;
+  background: rgba(254, 242, 242, 0.9);
+}
+
+.customer-board-action.is-retained {
+  border-color: #a7f3d0;
+  background: rgba(236, 253, 245, 0.9);
+}
+
+.customer-board-action-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  line-height: 1.35;
+}
+
+.customer-board-action-hint {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.btn-board-action {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .customer-board-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 .btn-close-highlight {
   position: absolute;
   top: 16px;
