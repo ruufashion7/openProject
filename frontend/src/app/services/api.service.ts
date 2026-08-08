@@ -198,6 +198,11 @@ export interface CustomerSummaryResponse {
   latitude?: number | null;
   longitude?: number | null;
   place?: string | null;
+  creditLimitOverride?: number | null;
+  effectiveCreditLimit?: number | null;
+  creditLimitSource?: 'override' | 'category' | null;
+  overCreditLimit?: boolean;
+  creditLimitUtilization?: number | null;
 }
 
 export interface CustomerLocation {
@@ -235,6 +240,11 @@ export interface PaymentDateCustomerCard {
   beyondAmount?: number;
   /** True when customer is retained (shown even with ₹0). */
   retained?: boolean | null;
+  creditLimitOverride?: number | null;
+  effectiveCreditLimit?: number | null;
+  creditLimitSource?: 'override' | 'category' | null;
+  overCreditLimit?: boolean;
+  creditLimitUtilization?: number | null;
 }
 
 export interface ExcludedCustomerView {
@@ -585,6 +595,30 @@ export class ApiService {
     }, {
       headers: this.auth.getAuthHeaders()
     });
+  }
+
+  updateCustomerCreditLimit(customer: string, creditLimit: number | null): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/analytics/outstanding-due/credit-limit`, {
+      customer,
+      creditLimit
+    }, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  getCustomerCreditLimitDefaults(): Observable<{ limits: Record<string, number> }> {
+    return this.http.get<{ limits: Record<string, number> }>(
+      `${this.baseUrl}/settings/customer-credit-limits`,
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  updateCustomerCreditLimitDefaults(limits: Record<string, number>): Observable<{ limits: Record<string, number> }> {
+    return this.http.put<{ success: boolean; limits: Record<string, number> }>(
+      `${this.baseUrl}/admin/settings/customer-credit-limits`,
+      { limits },
+      { headers: this.auth.getAuthHeaders() }
+    );
   }
 
   updatePlace(customer: string, place: string | null): Observable<void> {

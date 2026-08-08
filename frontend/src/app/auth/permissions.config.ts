@@ -172,6 +172,13 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
         requiresAny: ['detailsPage', 'outstandingPage']
       },
       {
+        key: 'customerLimitEdit',
+        label: 'Edit Customer Credit Limit',
+        description: 'Set per-customer credit limit override on Customer Details',
+        kind: 'action',
+        requiresAny: ['detailsPage', 'outstandingPage']
+      },
+      {
         key: 'customerNotesEdit',
         label: 'Edit Customer Notes',
         description: 'Add, edit, or delete notes (viewing needs page access only)',

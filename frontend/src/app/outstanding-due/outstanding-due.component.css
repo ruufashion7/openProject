@@ -274,7 +274,6 @@
 
 .badge-retained {
   display: inline-block;
-  margin-left: 8px;
   padding: 2px 8px;
   border-radius: 6px;
   font-size: 11px;
@@ -283,6 +282,71 @@
   background: #ecfdf5;
   color: #047857;
   border: 1px solid #a7f3d0;
+  flex-shrink: 0;
+}
+
+.badge-over-limit {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  flex-shrink: 0;
+}
+
+.credit-limit-line {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.amount-over-limit {
+  color: #b91c1c;
+}
+
+.stat-warning {
+  border-color: #fecaca;
+  background: #fffbeb;
+}
+
+.category-limits-panel .category-limits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+  align-items: end;
+}
+
+.category-limits-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.category-limits-panel input {
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.btn-link-small {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.filter-over-limit.active {
+  border-color: #f87171;
+  background: #fef2f2;
 }
 
 .ignored-add-row {
@@ -855,11 +919,28 @@
   min-width: 0;
 }
 
+.customer-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 2px;
+}
+
+.customer-status-badges {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
 .customer-name {
   font-size: 14px;
   font-weight: 700;
   color: #1e293b;
-  margin: 0 0 2px 0;
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

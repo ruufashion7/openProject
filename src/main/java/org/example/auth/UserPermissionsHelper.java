@@ -33,12 +33,14 @@ public class UserPermissionsHelper {
             true,
             true,
             true,
+            true,
             true
         );
     }
 
     public static UserPermissions getDefaultPermissions() {
         return new UserPermissions(
+            false,
             false,
             false,
             false,

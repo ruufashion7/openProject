@@ -56,6 +56,7 @@ public class UserPermissionsV2Migration implements ApplicationRunner {
         q.addCriteria(Criteria.where("permissions.customerCategoryEdit").exists(false));
         Update u = new Update()
                 .set("permissions.customerCategoryEdit", false)
+                .set("permissions.customerLimitEdit", false)
                 .set("permissions.customerNotesEdit", false)
                 .set("permissions.customerLocationEdit", false);
         mongoTemplate.updateMulti(q, u, User.class);
@@ -103,5 +104,11 @@ public class UserPermissionsV2Migration implements ApplicationRunner {
         q7.addCriteria(Criteria.where("permissions.aiAgentPage").exists(false));
         Update u7 = new Update().set("permissions.aiAgentPage", false);
         mongoTemplate.updateMulti(q7, u7, User.class);
+
+        Query q8 = new Query();
+        q8.addCriteria(Criteria.where("permissions").exists(true));
+        q8.addCriteria(Criteria.where("permissions.customerLimitEdit").exists(false));
+        Update u8 = new Update().set("permissions.customerLimitEdit", false);
+        mongoTemplate.updateMulti(q8, u8, User.class);
     }
 }

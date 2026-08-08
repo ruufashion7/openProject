@@ -17,7 +17,11 @@ public record CustomerSummaryResponse(
         String address, // Customer address/location
         Double latitude, // Latitude coordinate
         Double longitude, // Longitude coordinate
-        String place // Station / place (customer_master)
+        String place, // Station / place (customer_master)
+        Double creditLimitOverride,
+        Double effectiveCreditLimit,
+        String creditLimitSource,
+        boolean overCreditLimit,
+        Double creditLimitUtilization
 ) {
 }
-

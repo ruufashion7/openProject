@@ -17,6 +17,8 @@ public class UserPermissions {
     private boolean customerLocations;
     /** Edits customer category (A/B/C, etc.) on Details / Outstanding flows. */
     private boolean customerCategoryEdit;
+    /** Edits per-customer credit limit override on Details / Outstanding. */
+    private boolean customerLimitEdit;
     /** Create/read/update/delete customer notes on Details / Outstanding. */
     private boolean customerNotesEdit;
     /** Edit address / map location / place on customer master from Details / Outstanding. */
@@ -42,7 +44,7 @@ public class UserPermissions {
                           boolean detailsPage, boolean wholeProjectDownload, boolean outstandingPage,
                           boolean paymentDateEdit, boolean whatsappDateChange, boolean followUpChange,
                           boolean rateListPage, boolean rateListUpload, boolean salesVisualization, boolean customerLocations,
-                          boolean customerCategoryEdit, boolean customerNotesEdit, boolean customerLocationEdit,
+                          boolean customerCategoryEdit, boolean customerLimitEdit, boolean customerNotesEdit, boolean customerLocationEdit,
                           boolean whatsappBroadcast, boolean uploadsListPage, boolean uploadAuditPage,
                           boolean customerExcludeEdit, boolean customerRetainEdit, boolean aiAgentPage) {
         this.fileUpload = fileUpload;
@@ -59,6 +61,7 @@ public class UserPermissions {
         this.salesVisualization = salesVisualization;
         this.customerLocations = customerLocations;
         this.customerCategoryEdit = customerCategoryEdit;
+        this.customerLimitEdit = customerLimitEdit;
         this.customerNotesEdit = customerNotesEdit;
         this.customerLocationEdit = customerLocationEdit;
         this.whatsappBroadcast = whatsappBroadcast;
@@ -179,6 +182,14 @@ public class UserPermissions {
 
     public void setCustomerCategoryEdit(boolean customerCategoryEdit) {
         this.customerCategoryEdit = customerCategoryEdit;
+    }
+
+    public boolean isCustomerLimitEdit() {
+        return customerLimitEdit;
+    }
+
+    public void setCustomerLimitEdit(boolean customerLimitEdit) {
+        this.customerLimitEdit = customerLimitEdit;
     }
 
     public boolean isCustomerNotesEdit() {

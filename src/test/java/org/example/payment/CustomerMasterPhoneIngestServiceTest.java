@@ -62,6 +62,7 @@ class CustomerMasterPhoneIngestServiceTest {
                         p.retained(),
                         p.retainedAt(),
                         p.retainedBy(),
+                        p.creditLimitOverride(),
                         p.updatedAt()
                 );
             }
@@ -104,6 +105,7 @@ class CustomerMasterPhoneIngestServiceTest {
                 null,
                 null,
                 false,
+                null,
                 null,
                 null,
                 Instant.parse("2025-01-01T00:00:00Z")

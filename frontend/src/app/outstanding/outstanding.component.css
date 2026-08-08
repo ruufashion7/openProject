@@ -324,6 +324,51 @@
   font-weight: 600;
 }
 
+.summary-limit-source {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.summary-limit-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.summary-limit-warning {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
+.credit-limit-edit {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.credit-limit-input {
+  flex: 1;
+  min-width: 120px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.btn-secondary-small {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+}
+
 .phone-number-container {
   display: flex;
   align-items: center;

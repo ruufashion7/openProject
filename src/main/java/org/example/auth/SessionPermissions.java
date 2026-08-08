@@ -135,6 +135,14 @@ public final class SessionPermissions {
         return has(session, UserPermissions::isCustomerCategoryEdit);
     }
 
+    /** Per-customer credit limit override on Details / Outstanding. */
+    public static boolean canEditCustomerLimit(SessionInfo session) {
+        if (!canAccessDetailsOrOutstanding(session)) {
+            return false;
+        }
+        return has(session, UserPermissions::isCustomerLimitEdit);
+    }
+
     /** Read customer notes on Details / Outstanding (same page access as customer master). */
     public static boolean canViewCustomerNotes(SessionInfo session) {
         return canAccessDetailsOrOutstanding(session);

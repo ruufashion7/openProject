@@ -30,6 +30,8 @@ public record PaymentDateOverride(
         Boolean retained,
         Instant retainedAt,
         String retainedBy,
+        /** Per-customer override; null uses category default from app_settings. */
+        Double creditLimitOverride,
         Instant updatedAt
 ) {
     public PaymentDateOverride {

@@ -43,6 +43,7 @@ interface FilterState {
   orderDate: 'all' | '0-45' | '46-85' | '85+';
   retained: 'all' | 'yes' | 'no';
   places: string[];
+  creditLimit: 'all' | 'over' | 'within' | 'none';
 }
 
 /** Per-option counts with other filters applied (cascading). */
@@ -54,6 +55,7 @@ interface FilterDimensionCounts {
   location: Record<'all' | 'with' | 'without', number>;
   orderDate: Record<'all' | '0-45' | '46-85' | '85+', number>;
   retained: Record<'all' | 'yes' | 'no', number>;
+  creditLimit: Record<'all' | 'over' | 'within' | 'none', number>;
 }
 
 @Component({
@@ -90,7 +92,8 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     location: 'all',
     orderDate: 'all',
     retained: 'all',
-    places: []
+    places: [],
+    creditLimit: 'all'
   };
 
   /** Autocomplete input value for place */
@@ -138,6 +141,15 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
   sortOrder: 'asc' | 'desc' = 'desc';
   selectedCard: PaymentDateCustomerCard | null = null;
   showFilters = false;
+  showCategoryLimitsPanel = false;
+  isAdmin = false;
+  categoryLimitEdits: Record<string, string> = {
+    'semi-wholesale': '',
+    A: '',
+    B: '',
+    C: ''
+  };
+  savingCategoryLimits = false;
   
   // Permissions
   canEditPaymentDate = false;
@@ -180,7 +192,8 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     followUp: { all: 0, needed: 0, 'not-needed': 0 },
     location: { all: 0, with: 0, without: 0 },
     orderDate: { all: 0, '0-45': 0, '46-85': 0, '85+': 0 },
-    retained: { all: 0, yes: 0, no: 0 }
+    retained: { all: 0, yes: 0, no: 0 },
+    creditLimit: { all: 0, over: 0, within: 0, none: 0 }
   };
 
   /** Rows matching current filters except place (scope for place picker). */
@@ -220,11 +233,15 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
         this.canEditCustomerCategory = this.permissionService.canEditCustomerCategory();
         this.canExcludeCustomer = this.permissionService.canExcludeCustomer();
         this.canRetainCustomer = this.permissionService.canRetainCustomer();
+        this.isAdmin = this.auth.isAdmin();
 
         this.restoreFilters();
         this.loadData();
         this.loadExcludedCustomers();
         this.loadRetainedCustomers();
+        if (this.isAdmin) {
+          this.loadCategoryCreditLimits();
+        }
       });
   }
 
@@ -437,7 +454,40 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       });
     }
 
+    if (f.creditLimit !== 'all') {
+      filtered = filtered.filter(card => this.cardMatchesCreditLimit(card, f.creditLimit));
+    }
+
     return filtered;
+  }
+
+  private cardMatchesCreditLimit(card: PaymentDateCustomerCard, mode: FilterState['creditLimit']): boolean {
+    if (mode === 'all') {
+      return true;
+    }
+    const hasLimit = card.effectiveCreditLimit != null;
+    if (mode === 'none') {
+      return !hasLimit;
+    }
+    if (mode === 'over') {
+      return !!card.overCreditLimit;
+    }
+    return hasLimit && !card.overCreditLimit;
+  }
+
+  getOverLimitCount(): number {
+    return this.filteredCards.filter(c => c.overCreditLimit).length;
+  }
+
+  getCreditLimitSourceLabel(card: PaymentDateCustomerCard): string {
+    if (card.creditLimitSource === 'override') {
+      return 'Custom';
+    }
+    if (card.creditLimitSource === 'category') {
+      const cat = card.customerCategory ?? this.getCustomerCategory(card);
+      return cat ? `Cat ${cat}` : 'Category';
+    }
+    return '';
   }
 
   private cardMatchesPaymentDate(card: PaymentDateCustomerCard, mode: FilterState['paymentDate']): boolean {
@@ -574,6 +624,14 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       no: baseRetained.filter(c => !c.retained).length
     };
 
+    const baseCredit = this.filterCardsByState(this.cards, this.mergeFilterState({ creditLimit: 'all' }));
+    this.filterCounts.creditLimit = {
+      all: baseCredit.length,
+      over: baseCredit.filter(c => this.cardMatchesCreditLimit(c, 'over')).length,
+      within: baseCredit.filter(c => this.cardMatchesCreditLimit(c, 'within')).length,
+      none: baseCredit.filter(c => this.cardMatchesCreditLimit(c, 'none')).length
+    };
+
     const basePlace = this.filterCardsByState(this.cards, this.mergeFilterState({ places: [] }));
     this.countPlaceScope = basePlace.length;
     const next: Record<string, number> = {};
@@ -669,7 +727,8 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       location: 'all',
       orderDate: 'all',
       retained: 'all',
-      places: []
+      places: [],
+      creditLimit: 'all'
     };
     this.saveFilters();
     this.updateFilteredCards();
@@ -683,6 +742,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
            this.filters.location !== 'all' ||
            this.filters.orderDate !== 'all' ||
            this.filters.retained !== 'all' ||
+           this.filters.creditLimit !== 'all' ||
            this.filters.places.length > 0;
   }
 
@@ -1350,6 +1410,55 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     doc.save(`outstanding-due-${new Date().toISOString().split('T')[0]}.pdf`);
   }
 
+  loadCategoryCreditLimits(): void {
+    this.api.getCustomerCreditLimitDefaults().subscribe({
+      next: (res) => {
+        const limits = res.limits ?? {};
+        this.categoryLimitEdits = {
+          'semi-wholesale': String(limits['semi-wholesale'] ?? ''),
+          A: String(limits['A'] ?? ''),
+          B: String(limits['B'] ?? ''),
+          C: String(limits['C'] ?? '')
+        };
+      }
+    });
+  }
+
+  saveCategoryCreditLimits(): void {
+    if (!this.isAdmin) {
+      return;
+    }
+    const limits: Record<string, number> = {};
+    for (const key of ['semi-wholesale', 'A', 'B', 'C']) {
+      const raw = (this.categoryLimitEdits[key] ?? '').trim().replace(/,/g, '');
+      const parsed = Number(raw);
+      if (!raw || !Number.isFinite(parsed) || parsed < 0) {
+        this.notificationService.showError(`Enter a valid limit for ${key}.`, 4000);
+        return;
+      }
+      limits[key] = parsed;
+    }
+    this.savingCategoryLimits = true;
+    this.api.updateCustomerCreditLimitDefaults(limits).subscribe({
+      next: (res) => {
+        this.savingCategoryLimits = false;
+        const saved = res.limits ?? limits;
+        this.categoryLimitEdits = {
+          'semi-wholesale': String(saved['semi-wholesale'] ?? ''),
+          A: String(saved['A'] ?? ''),
+          B: String(saved['B'] ?? ''),
+          C: String(saved['C'] ?? '')
+        };
+        this.loadData();
+        this.notificationService.showSuccess('Category credit limits saved.', 3000);
+      },
+      error: () => {
+        this.savingCategoryLimits = false;
+        this.notificationService.showError('Failed to save category limits.', 3000);
+      }
+    });
+  }
+
   private saveFilters(): void {
     try {
       localStorage.setItem(this.filterStorageKey, JSON.stringify(this.filters));
@@ -1370,6 +1479,9 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
         if (!Array.isArray(parsed.places)) parsed.places = [];
         if (parsed.retained !== 'all' && parsed.retained !== 'yes' && parsed.retained !== 'no') {
           parsed.retained = 'all';
+        }
+        if (parsed.creditLimit !== 'all' && parsed.creditLimit !== 'over' && parsed.creditLimit !== 'within' && parsed.creditLimit !== 'none') {
+          parsed.creditLimit = 'all';
         }
         this.filters = { ...this.filters, ...parsed, places: parsed.places || [] };
       }

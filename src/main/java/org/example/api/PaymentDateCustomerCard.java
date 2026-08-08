@@ -18,6 +18,11 @@ public record PaymentDateCustomerCard(
         double midAmount,
         double beyondAmount,
         /** True when customer is on the shared Retain list (shown even with ₹0). */
-        Boolean retained
+        Boolean retained,
+        Double creditLimitOverride,
+        Double effectiveCreditLimit,
+        String creditLimitSource,
+        boolean overCreditLimit,
+        Double creditLimitUtilization
 ) {
 }

@@ -73,6 +73,10 @@ export class PermissionService {
     return this.canAccessDetailsOrOutstanding() && this.hasPermission('customerCategoryEdit');
   }
 
+  canEditCustomerLimit(): boolean {
+    return this.canAccessDetailsOrOutstanding() && this.hasPermission('customerLimitEdit');
+  }
+
   /** Read notes on Details / Outstanding (no extra role). */
   canViewCustomerNotes(): boolean {
     return this.canAccessDetailsOrOutstanding();

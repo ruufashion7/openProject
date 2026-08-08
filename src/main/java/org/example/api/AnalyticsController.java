@@ -9,6 +9,8 @@ import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
 import org.example.payment.CustomerExclusionService;
+import org.example.settings.CreditLimitResolution;
+import org.example.settings.CustomerCreditLimitService;
 import org.example.upload.DetailedSalesInvoicesUpload;
 import org.example.upload.DetailedSalesInvoicesUploadRepository;
 import org.example.upload.ExcelUploadHeaderRules;
@@ -76,6 +78,7 @@ public class AnalyticsController {
     private final ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository;
     private final PaymentDateOverrideRepository paymentDateOverrideRepository;
     private final CustomerExclusionService customerExclusionService;
+    private final CustomerCreditLimitService customerCreditLimitService;
     private final Environment environment;
 
     public AnalyticsController(AuthSessionService authSessionService,
@@ -83,12 +86,14 @@ public class AnalyticsController {
                                ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository,
                                PaymentDateOverrideRepository paymentDateOverrideRepository,
                                CustomerExclusionService customerExclusionService,
+                               CustomerCreditLimitService customerCreditLimitService,
                                Environment environment) {
         this.authSessionService = authSessionService;
         this.detailedSalesInvoicesUploadRepository = detailedSalesInvoicesUploadRepository;
         this.receivableAgeingReportUploadRepository = receivableAgeingReportUploadRepository;
         this.paymentDateOverrideRepository = paymentDateOverrideRepository;
         this.customerExclusionService = customerExclusionService;
+        this.customerCreditLimitService = customerCreditLimitService;
         this.environment = environment;
     }
 
@@ -452,7 +457,7 @@ public class AnalyticsController {
             Double latitude = paymentDateOverride != null ? paymentDateOverride.latitude() : null;
             Double longitude = paymentDateOverride != null ? paymentDateOverride.longitude() : null;
             String place = paymentDateOverride != null ? paymentDateOverride.place() : null;
-            return ResponseEntity.ok(new CustomerSummaryResponse(
+            return ResponseEntity.ok(buildCustomerSummaryResponse(
                     customerNameForResponse != null ? customerNameForResponse : "",
                     false,
                     searchPhone,
@@ -469,7 +474,8 @@ public class AnalyticsController {
                     address,
                     latitude,
                     longitude,
-                    place
+                    place,
+                    paymentDateOverride
             ));
         }
 
@@ -646,7 +652,7 @@ public class AnalyticsController {
         Double latitude = paymentDateOverride != null ? paymentDateOverride.latitude() : null;
         Double longitude = paymentDateOverride != null ? paymentDateOverride.longitude() : null;
         String place = paymentDateOverride != null ? paymentDateOverride.place() : null;
-        return ResponseEntity.ok(new CustomerSummaryResponse(
+        return ResponseEntity.ok(buildCustomerSummaryResponse(
                 foundCustomerName != null && !foundCustomerName.isEmpty() ? foundCustomerName : (resolvedCustomer != null && !resolvedCustomer.matches("\\d{10,}") ? resolvedCustomer : ""),
                 found,
                 phoneNumber,
@@ -663,7 +669,8 @@ public class AnalyticsController {
                 address,
                 latitude,
                 longitude,
-                place
+                place,
+                paymentDateOverride
         ));
     }
 
@@ -972,7 +979,7 @@ public class AnalyticsController {
                 .map(aggregate -> {
                     PaymentDateOverride override = paymentDateOverrides.get(aggregate.customerKey);
                     boolean retained = override != null && override.isRetained();
-                    return new PaymentDateCustomerCard(
+                    return buildPaymentDateCustomerCard(
                             aggregate.displayName,
                             aggregate.totalAmount,
                             nextPaymentDates.getOrDefault(aggregate.customerKey, null),
@@ -988,7 +995,8 @@ public class AnalyticsController {
                             aggregate.withinAmount,
                             aggregate.midAmount,
                             aggregate.beyondAmount,
-                            retained
+                            retained,
+                            override
                     );
                 })
                 .toList();
@@ -1011,7 +1019,7 @@ public class AnalyticsController {
                     String nb = b.customerName() != null ? b.customerName() : b.customerKey();
                     return na.compareToIgnoreCase(nb);
                 })
-                .map(override -> new PaymentDateCustomerCard(
+                .map(override -> buildPaymentDateCustomerCard(
                         override.customerName() != null && !override.customerName().isBlank()
                                 ? override.customerName()
                                 : override.customerKey(),
@@ -1029,7 +1037,8 @@ public class AnalyticsController {
                         0.0,
                         0.0,
                         0.0,
-                        true
+                        true,
+                        override
                 ))
                 .toList();
 
@@ -2012,6 +2021,53 @@ public class AnalyticsController {
     private record CustomerCategoryUpdateRequest(String customer, String category) {
     }
 
+    private record CreditLimitUpdateRequest(String customer, Double creditLimit) {
+    }
+
+    @PostMapping("/outstanding-due/credit-limit")
+    public ResponseEntity<Map<String, Object>> updateCreditLimit(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody CreditLimitUpdateRequest request
+    ) {
+        try {
+            SessionInfo session = authSessionService.validate(extractToken(authHeader));
+            if (session == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Unauthorized", "message", "Session expired or invalid"));
+            }
+            if (!SessionPermissions.canEditCustomerLimit(session)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Forbidden", "message", "You do not have permission to edit customer credit limit."));
+            }
+            if (request == null || request.customer() == null || request.customer().isBlank()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Invalid request", "message", "Customer name is required"));
+            }
+            String customerKey = normalizeCustomer(request.customer());
+            if (customerKey.isBlank()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Invalid customer", "message", "Customer name cannot be empty"));
+            }
+            Double creditLimit = request.creditLimit();
+            if (creditLimit != null && creditLimit < 0) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Invalid limit", "message", "Credit limit cannot be negative"));
+            }
+
+            PaymentDateOverride existingOverride = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
+            PaymentDateOverride base = existingOverride != null
+                    ? existingOverride
+                    : PaymentDateOverrideCopy.newShell(customerKey, request.customer().trim());
+            PaymentDateOverride updated = PaymentDateOverrideCopy.withCreditLimitOverride(base, creditLimit);
+            paymentDateOverrideRepository.save(updated);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Customer credit limit updated successfully"));
+        } catch (Exception e) {
+            logger.error("Error updating customer credit limit", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Internal server error", "message", "Failed to update customer credit limit. Please try again."));
+        }
+    }
+
     @PostMapping("/outstanding-due/customer-category")
     public ResponseEntity<Map<String, Object>> updateCustomerCategory(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
@@ -2553,6 +2609,99 @@ public class AnalyticsController {
             return authHeader.substring(prefix.length()).trim();
         }
         return authHeader.trim();
+    }
+
+    private CustomerSummaryResponse buildCustomerSummaryResponse(
+            String customer,
+            boolean found,
+            String phoneNumber,
+            double totalAmount,
+            boolean within45Days,
+            double withinAmount,
+            double midAmount,
+            double beyondAmount,
+            double unknownAmount,
+            String nextPaymentDate,
+            String whatsAppStatus,
+            String customerCategory,
+            Boolean needsFollowUp,
+            String address,
+            Double latitude,
+            Double longitude,
+            String place,
+            PaymentDateOverride override
+    ) {
+        CreditLimitResolution credit = customerCreditLimitService.resolve(totalAmount, override);
+        return new CustomerSummaryResponse(
+                customer,
+                found,
+                phoneNumber,
+                totalAmount,
+                within45Days,
+                withinAmount,
+                midAmount,
+                beyondAmount,
+                unknownAmount,
+                nextPaymentDate,
+                whatsAppStatus,
+                customerCategory,
+                needsFollowUp,
+                address,
+                latitude,
+                longitude,
+                place,
+                credit.creditLimitOverride(),
+                credit.effectiveCreditLimit(),
+                credit.creditLimitSource(),
+                credit.overCreditLimit(),
+                credit.creditLimitUtilization()
+        );
+    }
+
+  @SuppressWarnings("java:S107")
+    private PaymentDateCustomerCard buildPaymentDateCustomerCard(
+            String customer,
+            double totalAmount,
+            String nextPaymentDate,
+            String phoneNumber,
+            String whatsAppStatus,
+            String customerCategory,
+            String lastOrderDate,
+            Boolean needsFollowUp,
+            String address,
+            Double latitude,
+            Double longitude,
+            String place,
+            double withinAmount,
+            double midAmount,
+            double beyondAmount,
+            Boolean retained,
+            PaymentDateOverride override
+    ) {
+        CreditLimitResolution credit = customerCreditLimitService.resolve(totalAmount, override);
+        return new PaymentDateCustomerCard(
+                customer,
+                totalAmount,
+                nextPaymentDate,
+                phoneNumber,
+                whatsAppStatus,
+                customerCategory,
+                lastOrderDate,
+                needsFollowUp,
+                address,
+                latitude,
+                longitude,
+                place,
+                withinAmount,
+                midAmount,
+                beyondAmount,
+                retained,
+                credit.creditLimitOverride(),
+                credit.effectiveCreditLimit(),
+                credit.creditLimitSource(),
+                credit.overCreditLimit(),
+                credit.creditLimitUtilization()
+        );
     }
 
     /**

@@ -194,6 +194,42 @@
                 ₹{{ customerSummary?.totalAmount | number:'1.2-2' }}
               </p>
             </div>
+            <div class="summary-tile" *ngIf="customerSummary?.effectiveCreditLimit != null">
+              <p class="summary-label">Credit Limit</p>
+              <p
+                class="summary-amount"
+                [class.red]="customerSummary?.overCreditLimit"
+              >
+                ₹{{ customerSummary?.effectiveCreditLimit | number:'1.0-0' }}
+                <span class="summary-limit-source" *ngIf="getCreditLimitSourceLabel()">
+                  ({{ getCreditLimitSourceLabel() }})
+                </span>
+              </p>
+              <p class="summary-limit-meta" *ngIf="getCreditLimitUtilizationPercent() != null">
+                {{ getCreditLimitUtilizationPercent() }}% of limit used
+              </p>
+              <p class="summary-limit-warning" *ngIf="customerSummary?.overCreditLimit">
+                Over credit limit
+              </p>
+              <div class="credit-limit-edit" *ngIf="canEditCustomerLimit">
+                <input
+                  type="text"
+                  class="credit-limit-input"
+                  [(ngModel)]="creditLimitInput"
+                  (input)="onCreditLimitInput()"
+                  placeholder="Custom limit (₹)"
+                  [attr.title]="permissionService.accessDeniedTooltip(canEditCustomerLimit, 'customerLimitEdit')"
+                />
+                <button
+                  type="button"
+                  class="btn btn-secondary-small"
+                  *ngIf="customerSummary?.creditLimitOverride != null"
+                  (click)="clearCreditLimitOverride()"
+                >
+                  Use category default
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="bucket-grid">
@@ -377,66 +413,6 @@
                 <span class="follow-up-icon" [class.active]="followUpFlagEdit">🚩</span>
                 <span class="follow-up-text">{{ followUpFlagEdit ? 'Yes' : 'No' }}</span>
               </button>
-            </div>
-            <div class="info-card ignore-customer-card"
-                 [class.border-red]="isCurrentCustomerExcluded">
-              <p class="info-card-label">Outstanding Due</p>
-              <p class="ignore-status-text" [class.ignored]="isCurrentCustomerExcluded">
-                {{ isCurrentCustomerExcluded
-                  ? 'Hidden from Outstanding Due (upload data is still kept)'
-                  : 'Shown on Outstanding Due board' }}
-              </p>
-              <button
-                *ngIf="canExcludeCustomer && !isCurrentCustomerExcluded"
-                type="button"
-                class="btn btn-ignore-customer"
-                (click)="ignoreCurrentCustomer()"
-                [attr.title]="permissionService.accessDeniedTooltip(canExcludeCustomer, 'customerExcludeEdit')"
-              >
-                Ignore customer
-              </button>
-              <button
-                *ngIf="canExcludeCustomer && isCurrentCustomerExcluded"
-                type="button"
-                class="btn btn-restore-customer"
-                (click)="restoreCurrentCustomer()"
-                [attr.title]="permissionService.accessDeniedTooltip(canExcludeCustomer, 'customerExcludeEdit')"
-              >
-                Restore to Outstanding Due
-              </button>
-              <p class="ignore-permission-hint" *ngIf="!canExcludeCustomer">
-                Ask an admin to enable “Ignore Customers” in Access Control to change this.
-              </p>
-            </div>
-            <div class="info-card ignore-customer-card retain-customer-card"
-                 [class.border-green]="isCurrentCustomerRetained">
-              <p class="info-card-label">Retain on Outstanding Due</p>
-              <p class="ignore-status-text" [class.retained]="isCurrentCustomerRetained">
-                {{ isCurrentCustomerRetained
-                  ? 'Kept on Outstanding Due even with ₹0 outstanding'
-                  : 'Not retained — zero-due customers stay off the board' }}
-              </p>
-              <button
-                *ngIf="canRetainCustomer && !isCurrentCustomerRetained"
-                type="button"
-                class="btn btn-retain-customer"
-                (click)="retainCurrentCustomer()"
-                [attr.title]="permissionService.accessDeniedTooltip(canRetainCustomer, 'customerRetainEdit')"
-              >
-                Retain customer
-              </button>
-              <button
-                *ngIf="canRetainCustomer && isCurrentCustomerRetained"
-                type="button"
-                class="btn btn-restore-customer"
-                (click)="unretainCurrentCustomer()"
-                [attr.title]="permissionService.accessDeniedTooltip(canRetainCustomer, 'customerRetainEdit')"
-              >
-                Unretain customer
-              </button>
-              <p class="ignore-permission-hint" *ngIf="!canRetainCustomer">
-                Ask an admin to enable “Retain Customers” in Access Control to change this.
-              </p>
             </div>
           </div>
         </div>

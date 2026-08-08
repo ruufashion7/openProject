@@ -64,6 +64,13 @@
         <div class="stat-value">{{ filteredCards.length }} / {{ cards.length }}</div>
       </div>
     </div>
+    <div class="stat-card stat-warning" *ngIf="cards.length > 0">
+      <div class="stat-icon">⚠️</div>
+      <div class="stat-content">
+        <div class="stat-label">Over limit</div>
+        <div class="stat-value">{{ getOverLimitCount() }}</div>
+      </div>
+    </div>
   </div>
 
   <!-- Ignored customers panel -->
@@ -280,6 +287,10 @@
       <span class="filter-chip" *ngIf="filters.retained !== 'all'">
         Retained: {{ filters.retained === 'yes' ? 'Only' : 'Hide' }}
         <button (click)="setFilter('retained', 'all')">×</button>
+      </span>
+      <span class="filter-chip" *ngIf="filters.creditLimit !== 'all'">
+        Credit: {{ filters.creditLimit === 'over' ? 'Over limit' : filters.creditLimit === 'within' ? 'Within limit' : 'No limit' }}
+        <button (click)="setFilter('creditLimit', 'all')">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.places.length > 0">
         Place: {{ filters.places.join(', ') }}
@@ -603,6 +614,66 @@
       </div>
     </div>
 
+    <div class="filter-group">
+      <label class="filter-group-label">Credit limit</label>
+      <div class="filter-buttons">
+        <button
+          type="button"
+          class="filter-btn"
+          [class.active]="filters.creditLimit === 'all'"
+          (click)="setFilter('creditLimit', 'all')"
+        >
+          <span class="filter-btn-text">All</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.creditLimit.all) }}</span>
+        </button>
+        <button
+          type="button"
+          class="filter-btn filter-over-limit"
+          [class.active]="filters.creditLimit === 'over'"
+          (click)="setFilter('creditLimit', 'over')"
+        >
+          <span class="filter-btn-text">Over limit</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.creditLimit.over) }}</span>
+        </button>
+        <button
+          type="button"
+          class="filter-btn"
+          [class.active]="filters.creditLimit === 'within'"
+          (click)="setFilter('creditLimit', 'within')"
+        >
+          <span class="filter-btn-text">Within limit</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.creditLimit.within) }}</span>
+        </button>
+        <button
+          type="button"
+          class="filter-btn"
+          [class.active]="filters.creditLimit === 'none'"
+          (click)="setFilter('creditLimit', 'none')"
+        >
+          <span class="filter-btn-text">No limit</span>
+          <span class="filter-btn-count">{{ formatFilterCount(filterCounts.creditLimit.none) }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-group category-limits-panel" *ngIf="isAdmin">
+      <div class="filter-group-label-row">
+        <label class="filter-group-label">Category credit limits (admin)</label>
+        <button type="button" class="btn-link-small" (click)="showCategoryLimitsPanel = !showCategoryLimitsPanel">
+          {{ showCategoryLimitsPanel ? 'Hide' : 'Edit defaults' }}
+        </button>
+      </div>
+      <div class="category-limits-grid" *ngIf="showCategoryLimitsPanel">
+        <label>Semi-wholesale<input type="text" [(ngModel)]="categoryLimitEdits['semi-wholesale']" /></label>
+        <label>A<input type="text" [(ngModel)]="categoryLimitEdits['A']" /></label>
+        <label>B<input type="text" [(ngModel)]="categoryLimitEdits['B']" /></label>
+        <label>C<input type="text" [(ngModel)]="categoryLimitEdits['C']" /></label>
+        <button type="button" class="btn-primary-modern" [disabled]="savingCategoryLimits" (click)="saveCategoryCreditLimits()">
+          Save limits
+        </button>
+      </div>
+    </div>
+
     <div class="filter-group place-autocomplete-wrap" #placeAutocompleteWrap>
       <div class="filter-group-label-row">
         <label class="filter-group-label">Place</label>
@@ -677,10 +748,13 @@
     >
       <div class="card-header">
         <div class="customer-info">
-          <h3 class="customer-name">
-            {{ card.customer }}
-            <span class="badge-retained" *ngIf="card.retained" title="Retained customer">Retained</span>
-          </h3>
+          <div class="customer-name-row">
+            <h3 class="customer-name">{{ card.customer }}</h3>
+            <div class="customer-status-badges">
+              <span class="badge-retained" *ngIf="card.retained" title="Retained customer">Retained</span>
+              <span class="badge-over-limit" *ngIf="card.overCreditLimit" title="Over credit limit">Over limit</span>
+            </div>
+          </div>
           <div class="customer-phone-container" *ngIf="card.phoneNumber">
             <p class="customer-phone">{{ formatPhoneDisplay(card.phoneNumber) }}</p>
             <div class="phone-actions-small">
@@ -733,7 +807,11 @@
       <div class="card-body">
         <div class="amount-section">
           <div class="amount-label">{{ getAmountDueLabel() }}</div>
-          <div class="amount-value">₹{{ getDisplayAmount(card) | number:'1.2-2' }}</div>
+          <div class="amount-value" [class.amount-over-limit]="card.overCreditLimit">₹{{ getDisplayAmount(card) | number:'1.2-2' }}</div>
+          <div class="credit-limit-line" *ngIf="card.effectiveCreditLimit != null">
+            Limit ₹{{ card.effectiveCreditLimit | number:'1.0-0' }}
+            <span *ngIf="getCreditLimitSourceLabel(card)">({{ getCreditLimitSourceLabel(card) }})</span>
+          </div>
         </div>
 
         <div class="payment-date-section" [class]="getPaymentDateBorderClass(card)">

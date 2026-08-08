@@ -42,6 +42,7 @@ public final class PaymentDateOverrideCopy {
                 src.retained(),
                 src.retainedAt(),
                 src.retainedBy(),
+                src.creditLimitOverride(),
                 Instant.now()
         );
     }
@@ -68,6 +69,34 @@ public final class PaymentDateOverrideCopy {
                 retained,
                 retained ? Instant.now() : null,
                 retained ? retainedBy : null,
+                src.creditLimitOverride(),
+                Instant.now()
+        );
+    }
+
+    public static PaymentDateOverride withCreditLimitOverride(PaymentDateOverride src, Double creditLimitOverride) {
+        return new PaymentDateOverride(
+                src.id(),
+                src.customerKey(),
+                src.customerName(),
+                src.nextPaymentDate() != null ? src.nextPaymentDate() : "",
+                src.phoneNumber(),
+                src.whatsAppStatus(),
+                src.customerCategory(),
+                src.isActive(),
+                src.needsFollowUp() != null ? src.needsFollowUp() : false,
+                src.address(),
+                src.place(),
+                src.latitude(),
+                src.longitude(),
+                src.notes() != null ? src.notes() : List.of(),
+                src.excluded(),
+                src.excludedAt(),
+                src.excludedBy(),
+                src.retained(),
+                src.retainedAt(),
+                src.retainedBy(),
+                creditLimitOverride,
                 Instant.now()
         );
     }
@@ -92,6 +121,7 @@ public final class PaymentDateOverrideCopy {
                 null,
                 null,
                 false,
+                null,
                 null,
                 null,
                 Instant.now()
@@ -186,6 +216,7 @@ public final class PaymentDateOverrideCopy {
                 retained != null ? retained : src.retained(),
                 retainedAt != null ? retainedAt : src.retainedAt(),
                 retainedBy != null ? retainedBy : src.retainedBy(),
+                src.creditLimitOverride(),
                 Instant.now()
         );
     }
@@ -232,6 +263,7 @@ public final class PaymentDateOverrideCopy {
                 src.retained(),
                 src.retainedAt(),
                 src.retainedBy(),
+                src.creditLimitOverride(),
                 Instant.now()
         );
     }

@@ -71,6 +71,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
   whatsappStatusEdit: 'not sent' | 'sent' | 'delivered' = 'not sent';
   customerCategory: 'semi-wholesale' | 'A' | 'B' | 'C' | null = null;
   customerCategoryEdit: 'semi-wholesale' | 'A' | 'B' | 'C' = 'A';
+  creditLimitInput = '';
   followUpFlag: boolean = false;
   followUpFlagEdit: boolean = false;
   highlightedIndex: number = -1;
@@ -92,6 +93,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
   private paymentDateSaveTimer?: number;
   private whatsappStatusSaveTimer?: number;
   private customerCategorySaveTimer?: number;
+  private creditLimitSaveTimer?: number;
   private followUpSaveTimer?: number;
   private isProcessingDateChange = false;
   private readonly selectedCustomerKey = 'openProject.selectedCustomer';
@@ -101,6 +103,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
   canChangeFollowUp = false;
   /** Customer master fields (require Details or Outstanding + specific permission). */
   canEditCustomerCategory = false;
+  canEditCustomerLimit = false;
   canViewCustomerNotes = false;
   canEditCustomerNotes = false;
   canEditCustomerLocation = false;
@@ -177,6 +180,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     this.canChangeWhatsappDate = this.permissionService.canChangeWhatsappDate();
     this.canChangeFollowUp = this.permissionService.canChangeFollowUp();
     this.canEditCustomerCategory = this.permissionService.canEditCustomerCategory();
+    this.canEditCustomerLimit = this.permissionService.canEditCustomerLimit();
     this.canViewCustomerNotes = this.permissionService.canViewCustomerNotes();
     this.canEditCustomerNotes = this.permissionService.canEditCustomerNotes();
     this.canEditCustomerLocation = this.permissionService.canEditCustomerLocation();
@@ -545,6 +549,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
         // Set follow-up flag
         this.followUpFlag = summary.needsFollowUp ?? false;
         this.followUpFlagEdit = this.followUpFlag;
+        this.syncCreditLimitFieldsFromSummary(summary);
         this.syncLocationFieldsFromSummary(summary);
         this.applyCanonicalCustomerNameFromSummary(summary);
         this.refreshExclusionStatus();
@@ -666,6 +671,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
         // Set follow-up flag
         this.followUpFlag = summary.needsFollowUp ?? false;
         this.followUpFlagEdit = this.followUpFlag;
+        this.syncCreditLimitFieldsFromSummary(summary);
         this.syncLocationFieldsFromSummary(summary);
         this.applyCanonicalCustomerNameFromSummary(summary);
         this.refreshExclusionStatus();
@@ -1547,6 +1553,104 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     });
   }
 
+  private syncCreditLimitFieldsFromSummary(summary: CustomerSummaryResponse): void {
+    if (summary.creditLimitOverride != null) {
+      this.creditLimitInput = String(summary.creditLimitOverride);
+    } else {
+      this.creditLimitInput = '';
+    }
+  }
+
+  getCreditLimitSourceLabel(): string {
+    const source = this.customerSummary?.creditLimitSource;
+    if (source === 'override') {
+      return 'Custom';
+    }
+    if (source === 'category') {
+      const cat = this.customerSummary?.customerCategory ?? this.customerCategory;
+      return cat ? `Category ${cat}` : 'Category';
+    }
+    return '';
+  }
+
+  getCreditLimitUtilizationPercent(): number | null {
+    const util = this.customerSummary?.creditLimitUtilization;
+    if (util == null) {
+      return null;
+    }
+    return Math.round(util * 100);
+  }
+
+  onCreditLimitInput(): void {
+    if (!this.canEditCustomerLimit) {
+      return;
+    }
+    if (this.creditLimitSaveTimer) {
+      window.clearTimeout(this.creditLimitSaveTimer);
+    }
+    this.creditLimitSaveTimer = window.setTimeout(() => {
+      this.saveCreditLimitOverride();
+    }, 600);
+  }
+
+  clearCreditLimitOverride(): void {
+    if (!this.canEditCustomerLimit) {
+      this.permissionService.notifyRoleDenied('edit customer credit limit', 'customerLimitEdit');
+      return;
+    }
+    const customer = this.getCustomerNameForMasterWrites();
+    if (!customer) {
+      return;
+    }
+    this.creditLimitInput = '';
+    this.api.updateCustomerCreditLimit(customer, null).subscribe({
+      next: () => {
+        this.reloadCustomerSummaryForCreditLimit(customer);
+        this.notificationService.showSuccess('Using category credit limit.', 3000);
+      },
+      error: () => {
+        this.notificationService.showError('Failed to clear credit limit override.', 3000);
+      }
+    });
+  }
+
+  private saveCreditLimitOverride(): void {
+    if (!this.canEditCustomerLimit) {
+      return;
+    }
+    const customer = this.getCustomerNameForMasterWrites();
+    if (!customer) {
+      return;
+    }
+    const trimmed = this.creditLimitInput.trim().replace(/,/g, '');
+    if (!trimmed) {
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      this.notificationService.showError('Enter a valid credit limit amount.', 3000);
+      return;
+    }
+    this.api.updateCustomerCreditLimit(customer, parsed).subscribe({
+      next: () => {
+        this.reloadCustomerSummaryForCreditLimit(customer);
+        this.notificationService.showSuccess('Credit limit saved.', 3000);
+      },
+      error: () => {
+        this.notificationService.showError('Failed to save credit limit.', 3000);
+      }
+    });
+  }
+
+  private reloadCustomerSummaryForCreditLimit(customer: string): void {
+    this.api.getCustomerSummary(customer).subscribe({
+      next: (summary) => {
+        this.customerSummary = summary;
+        this.syncCreditLimitFieldsFromSummary(summary);
+      }
+    });
+  }
+
   getCustomerCategoryBorderClass(): string {
     const category = this.customerCategoryEdit || this.customerCategory;
     if (!category) {
@@ -1872,6 +1976,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
         this.whatsappStatusEdit = this.whatsappStatus;
         this.followUpFlag = summary.needsFollowUp ?? false;
         this.followUpFlagEdit = this.followUpFlag;
+        this.syncCreditLimitFieldsFromSummary(summary);
         this.syncLocationFieldsFromSummary(summary);
         this.destroyLocationMap();
         if (this.mapExpanded && summary.latitude && summary.longitude) {

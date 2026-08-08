@@ -20,6 +20,7 @@ export interface UserPermissions {
   salesVisualization: boolean;
   customerLocations: boolean;
   customerCategoryEdit: boolean;
+  customerLimitEdit: boolean;
   customerNotesEdit: boolean;
   customerLocationEdit: boolean;
   customerExcludeEdit: boolean;
