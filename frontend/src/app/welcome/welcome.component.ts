@@ -27,6 +27,7 @@ export class WelcomeComponent implements OnInit {
   canAccessOutstandingPage = false;
   canWhatsappBroadcast = false;
   canAccessAiAgent = false;
+  canAccessBillExtract = false;
 
   constructor(
     private auth: AuthService,
@@ -43,6 +44,7 @@ export class WelcomeComponent implements OnInit {
     this.canAccessOutstandingPage = this.permissionService.canAccessOutstandingPage();
     this.canWhatsappBroadcast = this.permissionService.canAccessWhatsappBroadcast();
     this.canAccessAiAgent = this.permissionService.canAccessAiAgent();
+    this.canAccessBillExtract = this.permissionService.canAccessBillExtract();
 
     this.api.getUploadStatus().subscribe({
       next: (status) => {
@@ -96,6 +98,10 @@ export class WelcomeComponent implements OnInit {
 
   goToAiAgent(): void {
     this.router.navigateByUrl('/ai-agent');
+  }
+
+  goToBillExtract(): void {
+    this.router.navigateByUrl('/bill-extract');
   }
 
   goToSalesDetails(): void {

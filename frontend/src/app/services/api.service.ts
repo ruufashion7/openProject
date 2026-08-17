@@ -766,6 +766,14 @@ export class ApiService {
     });
   }
 
+  bulkDeleteRateListEntries(ids: string[]): Observable<{ deletedCount: number; requestedCount: number }> {
+    return this.http.post<{ deletedCount: number; requestedCount: number }>(
+      `${this.baseUrl}/rate-list/bulk-delete`,
+      { ids },
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
   downloadRateListTemplate(): Observable<Blob> {
     return this.http.get(`${this.baseUrl}/rate-list/template`, {
       headers: this.auth.getAuthHeaders(),
@@ -1032,6 +1040,49 @@ export class ApiService {
       responseType: 'blob'
     });
   }
+
+  getBillExtractStatus(): Observable<BillExtractStatus> {
+    return this.http.get<BillExtractStatus>(`${this.baseUrl}/bills/extract/status`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  extractBills(files: File[]): Observable<BillExtractResponse> {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    return this.http.post<BillExtractResponse>(`${this.baseUrl}/bills/extract`, formData, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+}
+
+export interface BillExtractStatus {
+  enabled: boolean;
+  llmConfigured: boolean;
+  ready: boolean;
+  model: string | null;
+  setupHint?: string | null;
+}
+
+export interface BillExtractRow {
+  billNo: string;
+  totalAmount: string;
+  discount: string;
+  amountAfterDiscount: string;
+  payment: string;
+  salesman: string;
+  time: string;
+  remark: string;
+  missing: boolean;
+}
+
+export interface BillExtractResponse {
+  ready: boolean;
+  model: string | null;
+  imagesRead: number;
+  rows: BillExtractRow[];
 }
 
 export interface AiAgentStatus {

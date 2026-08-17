@@ -110,6 +110,10 @@ export class RateListComponent implements OnInit {
   editingSrNoValue: number | null = null;
   showSrNoInput = false;
 
+  selectedGroupKeys = new Set<string>();
+  showBulkDeleteModal = false;
+  bulkDeleting = false;
+
   canAccessRateList = false;
   canUploadRateListFiles = false;
 
@@ -142,6 +146,7 @@ export class RateListComponent implements OnInit {
       next: (entries) => {
         this.rateListEntries = entries || [];
         this.cachedGroupedEntries = null; // Clear cache when data reloads
+        this.clearSelection();
         this.applyFilters();
         this.status = 'idle';
       },
@@ -667,7 +672,131 @@ export class RateListComponent implements OnInit {
           this.logout();
           return;
         }
+        if (err.status === 404) {
+          this.message = 'Entry was not found. It may have already been deleted.';
+          this.loadRateListEntries();
+          return;
+        }
         this.message = 'Failed to delete entry.';
+      }
+    });
+  }
+
+  groupKey(productName: string, size: string): string {
+    return `${productName}::${size}`;
+  }
+
+  isGroupSelected(group: { productName: string; size: string }): boolean {
+    return this.selectedGroupKeys.has(this.groupKey(group.productName, group.size));
+  }
+
+  toggleGroup(group: { productName: string; size: string }, checked: boolean): void {
+    const key = this.groupKey(group.productName, group.size);
+    const next = new Set(this.selectedGroupKeys);
+    if (checked) {
+      next.add(key);
+    } else {
+      next.delete(key);
+    }
+    this.selectedGroupKeys = next;
+  }
+
+  allVisibleSelected(): boolean {
+    const groups = this.getGroupedEntries();
+    return groups.length > 0 && groups.every(g => this.isGroupSelected(g));
+  }
+
+  toggleSelectAll(checked: boolean): void {
+    if (!checked) {
+      this.clearSelection();
+      return;
+    }
+    const next = new Set(this.selectedGroupKeys);
+    this.getGroupedEntries().forEach(g => {
+      next.add(this.groupKey(g.productName, g.size));
+    });
+    this.selectedGroupKeys = next;
+  }
+
+  clearSelection(): void {
+    this.selectedGroupKeys = new Set<string>();
+  }
+
+  selectedVisibleGroups(): Array<{
+    productName: string;
+    size: '80-90' | '95-100';
+    landingEntry?: RateListEntry;
+    resaleEntry?: RateListEntry;
+  }> {
+    return this.getGroupedEntries().filter(g => this.isGroupSelected(g));
+  }
+
+  selectedCount(): number {
+    return this.selectedVisibleGroups().length;
+  }
+
+  selectedEntryIds(): string[] {
+    const ids: string[] = [];
+    for (const group of this.selectedVisibleGroups()) {
+      if (group.landingEntry?.id && (this.typeFilter === 'all' || this.typeFilter === 'landing')) {
+        ids.push(group.landingEntry.id);
+      }
+      if (group.resaleEntry?.id && (this.typeFilter === 'all' || this.typeFilter === 'resale')) {
+        ids.push(group.resaleEntry.id);
+      }
+    }
+    return ids;
+  }
+
+  selectedEntryCount(): number {
+    return this.selectedEntryIds().length;
+  }
+
+  openBulkDeleteModal(): void {
+    if (this.selectedEntryCount() === 0) {
+      return;
+    }
+    this.showBulkDeleteModal = true;
+  }
+
+  closeBulkDeleteModal(): void {
+    if (this.bulkDeleting) {
+      return;
+    }
+    this.showBulkDeleteModal = false;
+  }
+
+  confirmBulkDelete(): void {
+    const ids = this.selectedEntryIds();
+    if (ids.length === 0) {
+      this.closeBulkDeleteModal();
+      return;
+    }
+
+    this.bulkDeleting = true;
+    this.api.bulkDeleteRateListEntries(ids).subscribe({
+      next: (result) => {
+        this.bulkDeleting = false;
+        this.showBulkDeleteModal = false;
+        const deleted = result?.deletedCount ?? ids.length;
+        this.rateListEntries = this.rateListEntries.filter(e => !e.id || !ids.includes(e.id));
+        this.clearSelection();
+        this.applyFilters();
+        this.notificationService.showSuccess(
+          deleted === 1 ? '1 entry deleted successfully!' : `${deleted} entries deleted successfully!`,
+          10000
+        );
+      },
+      error: (err: HttpErrorResponse) => {
+        this.bulkDeleting = false;
+        if (err.status === 401) {
+          this.message = 'Session expired. Please login again.';
+          this.logout();
+          return;
+        }
+        this.showBulkDeleteModal = false;
+        this.message = err.error?.message || 'Failed to delete selected entries.';
+        this.loadRateListEntries();
       }
     });
   }

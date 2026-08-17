@@ -182,4 +182,9 @@ public final class SessionPermissions {
     public static boolean canAccessAiAgent(SessionInfo session) {
         return has(session, UserPermissions::isAiAgentPage);
     }
+
+    /** Bill photo extract page and APIs. */
+    public static boolean canAccessBillExtract(SessionInfo session) {
+        return has(session, UserPermissions::isBillExtractPage);
+    }
 }

@@ -517,10 +517,28 @@
         </div>
       </div>
 
+      <div class="bulk-delete-bar" *ngIf="selectedCount() > 0">
+        <span class="bulk-delete-count">
+          {{ selectedCount() }} row{{ selectedCount() === 1 ? '' : 's' }} selected
+          · {{ selectedEntryCount() }} {{ selectedEntryCount() === 1 ? 'entry' : 'entries' }}
+        </span>
+        <button type="button" class="btn btn-ghost" (click)="clearSelection()">Clear</button>
+        <button type="button" class="btn btn-danger" (click)="openBulkDeleteModal()">Delete selected</button>
+      </div>
+
       <div class="table-container">
         <table class="rate-table">
           <thead>
             <tr>
+              <th class="select-cell">
+                <input
+                  type="checkbox"
+                  [checked]="allVisibleSelected()"
+                  [disabled]="getGroupedEntries().length === 0"
+                  (change)="toggleSelectAll($any($event.target).checked)"
+                  title="Select all visible rows"
+                />
+              </th>
               <th>Sr No</th>
               <th>Product Name</th>
               <th>Size</th>
@@ -531,7 +549,15 @@
           </thead>
           <tbody>
             <ng-container *ngFor="let group of getGroupedEntries(); let i = index">
-              <tr>
+              <tr [class.row-selected]="isGroupSelected(group)">
+                <td class="select-cell">
+                  <input
+                    type="checkbox"
+                    [checked]="isGroupSelected(group)"
+                    (change)="toggleGroup(group, $any($event.target).checked)"
+                    [attr.aria-label]="'Select ' + group.productName + ' ' + group.size"
+                  />
+                </td>
                 <!-- Sr No with rowspan -->
                 <td *ngIf="isFirstRowForProduct(group.productName, group.size, getGroupedEntries(), i)" 
                     [attr.rowspan]="getProductRowspan(group.productName)"
@@ -712,6 +738,39 @@
       </div>
       </div>
     </div>
+
+  <!-- Bulk Delete Modal -->
+  <div class="modal-overlay" *ngIf="showBulkDeleteModal" (click)="closeBulkDeleteModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">🗑️ Delete selected entries</h3>
+        <button type="button" class="modal-close" (click)="closeBulkDeleteModal()" [disabled]="bulkDeleting">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Delete <strong>{{ selectedEntryCount() }}</strong>
+          rate list {{ selectedEntryCount() === 1 ? 'entry' : 'entries' }}
+          from <strong>{{ selectedCount() }}</strong>
+          selected {{ selectedCount() === 1 ? 'row' : 'rows' }}?
+        </p>
+        <ul class="bulk-delete-preview" *ngIf="selectedVisibleGroups().length > 0">
+          <li *ngFor="let group of selectedVisibleGroups().slice(0, 8)">
+            {{ group.productName }} · {{ group.size }}
+          </li>
+          <li *ngIf="selectedVisibleGroups().length > 8">
+            and {{ selectedVisibleGroups().length - 8 }} more…
+          </li>
+        </ul>
+        <p class="modal-warning">⚠️ This action cannot be undone.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" (click)="closeBulkDeleteModal()" [disabled]="bulkDeleting">Cancel</button>
+        <button type="button" class="btn btn-danger" (click)="confirmBulkDelete()" [disabled]="bulkDeleting">
+          {{ bulkDeleting ? 'Deleting…' : 'Delete selected' }}
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Bulk Upload Modal -->
   <div class="modal-overlay" *ngIf="showBulkUploadModal" (click)="closeBulkUploadModal()">

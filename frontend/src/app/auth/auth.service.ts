@@ -29,6 +29,7 @@ export interface UserPermissions {
   uploadsListPage: boolean;
   uploadAuditPage: boolean;
   aiAgentPage: boolean;
+  billExtractPage: boolean;
 }
 
 interface SessionData {

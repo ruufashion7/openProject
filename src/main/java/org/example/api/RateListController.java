@@ -1,12 +1,15 @@
 package org.example.api;
 
+import org.bson.Document;
 import org.example.auth.AuthSessionService;
 import org.example.auth.SessionInfo;
 import org.example.auth.SessionPermissions;
 import org.example.ratelist.RateListEntry;
+import org.example.ratelist.RateListEntryIds;
 import org.example.ratelist.RateListEntryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
@@ -36,6 +39,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,11 +51,14 @@ public class RateListController {
     
     private final AuthSessionService authSessionService;
     private final RateListEntryRepository rateListEntryRepository;
+    private final MongoTemplate mongoTemplate;
 
     public RateListController(AuthSessionService authSessionService,
-                             RateListEntryRepository rateListEntryRepository) {
+                             RateListEntryRepository rateListEntryRepository,
+                             MongoTemplate mongoTemplate) {
         this.authSessionService = authSessionService;
         this.rateListEntryRepository = rateListEntryRepository;
+        this.mongoTemplate = mongoTemplate;
     }
 
     @GetMapping
@@ -234,7 +241,7 @@ public class RateListController {
         }
 
         try {
-            RateListEntry existing = rateListEntryRepository.findById(id).orElse(null);
+            RateListEntry existing = findEntryById(id);
             if (existing == null) {
                 return ResponseEntity.notFound().build();
             }
@@ -348,16 +355,66 @@ public class RateListController {
         }
 
         try {
-            if (!rateListEntryRepository.existsById(id)) {
+            long deleted = mongoTemplate.getCollection(rateListCollection())
+                    .deleteMany(RateListEntryIds.filterById(id))
+                    .getDeletedCount();
+            if (deleted == 0) {
                 return ResponseEntity.notFound().build();
             }
-            
-            rateListEntryRepository.deleteById(id);
             logger.info("Deleted rate list entry: {} by user: {}", id, session.displayName());
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
             logger.error("Error deleting rate list entry: {}", id, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @PostMapping("/bulk-delete")
+    public ResponseEntity<?> bulkDeleteEntries(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody Map<String, Object> request
+    ) {
+        SessionInfo session = authSessionService.validate(extractToken(authHeader));
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!SessionPermissions.canAccessRateList(session)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        Object rawIds = request == null ? null : request.get("ids");
+        if (!(rawIds instanceof List<?> list) || list.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "ids is required and must be a non-empty list."));
+        }
+        if (list.size() > 500) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "Cannot delete more than 500 entries at once."));
+        }
+
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        for (Object item : list) {
+            if (!(item instanceof String id) || id.isBlank() || id.length() > 100) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("message", "Each id must be a non-empty string of at most 100 characters."));
+            }
+            ids.add(id.trim());
+        }
+
+        try {
+            long deleted = mongoTemplate.getCollection(rateListCollection())
+                    .deleteMany(RateListEntryIds.filterByIds(ids))
+                    .getDeletedCount();
+            logger.info("Bulk deleted {} rate list entries (requested {}) by user: {}",
+                    deleted, ids.size(), session.displayName());
+            return ResponseEntity.ok(Map.of(
+                    "deletedCount", deleted,
+                    "requestedCount", ids.size()
+            ));
+        } catch (Exception e) {
+            logger.error("Error bulk deleting rate list entries", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to delete selected entries."));
         }
     }
 
@@ -898,6 +955,20 @@ public class RateListController {
             return authHeader.substring(prefix.length()).trim();
         }
         return authHeader.trim();
+    }
+
+    private String rateListCollection() {
+        return mongoTemplate.getCollectionName(RateListEntry.class);
+    }
+
+    private RateListEntry findEntryById(String id) {
+        Document raw = mongoTemplate.getCollection(rateListCollection())
+                .find(RateListEntryIds.filterById(id))
+                .first();
+        if (raw == null) {
+            return null;
+        }
+        return mongoTemplate.getConverter().read(RateListEntry.class, raw);
     }
 
     @PostMapping("/migrate-product-names")

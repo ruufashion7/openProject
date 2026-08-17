@@ -212,6 +212,13 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
         description: 'LLM data agent for dues, customer lists, notes, and PDF (not a general chatbot)',
         kind: 'page',
         routes: ['/ai-agent']
+      },
+      {
+        key: 'billExtractPage',
+        label: 'Bill Reader',
+        description: 'Upload bill photos and extract bill no, amounts, payment, salesman, and time',
+        kind: 'page',
+        routes: ['/bill-extract']
       }
     ]
   },
@@ -256,6 +263,7 @@ export const ROUTE_PERMISSIONS: Record<string, keyof import('./auth.service').Us
   '/outstanding': 'detailsPage',
   '/outstanding-due': 'outstandingPage',
   '/ai-agent': 'aiAgentPage',
+  '/bill-extract': 'billExtractPage',
   '/whatsapp-outreach': 'whatsappBroadcast',
   '/customer-locations': 'customerLocations',
   '/access-control': 'admin',

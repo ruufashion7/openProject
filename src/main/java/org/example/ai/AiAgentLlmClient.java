@@ -8,9 +8,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+
+import java.time.Duration;
 
 /**
  * OpenAI-compatible Chat Completions client (tools / function calling).
@@ -36,7 +39,10 @@ public class AiAgentLlmClient {
         this.apiKey = apiKey == null ? "" : apiKey.trim();
         this.baseUrl = baseUrl == null || baseUrl.isBlank() ? "https://api.openai.com/v1" : baseUrl.replaceAll("/$", "");
         this.model = model == null || model.isBlank() ? "gpt-4o-mini" : model.trim();
-        this.restClient = RestClient.builder().baseUrl(this.baseUrl).build();
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(20));
+        factory.setReadTimeout(Duration.ofSeconds(120));
+        this.restClient = RestClient.builder().baseUrl(this.baseUrl).requestFactory(factory).build();
     }
 
     public boolean isConfigured() {
@@ -48,6 +54,15 @@ public class AiAgentLlmClient {
     }
 
     public JsonNode chat(ArrayNode messages, ArrayNode tools) {
+        return chat(messages, tools, false);
+    }
+
+    /** Vision / structured extract: same chat API, JSON object response, no tools. */
+    public JsonNode chatJson(ArrayNode messages) {
+        return chat(messages, null, true);
+    }
+
+    private JsonNode chat(ArrayNode messages, ArrayNode tools, boolean jsonObject) {
         if (!isConfigured()) {
             throw new IllegalStateException("AI_AGENT_API_KEY is not configured");
         }
@@ -57,6 +72,11 @@ public class AiAgentLlmClient {
         if (tools != null && !tools.isEmpty()) {
             body.set("tools", tools);
             body.put("tool_choice", "auto");
+        }
+        if (jsonObject) {
+            ObjectNode format = objectMapper.createObjectNode();
+            format.put("type", "json_object");
+            body.set("response_format", format);
         }
         body.put("temperature", 0.1);
 

@@ -10,6 +10,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/outstanding': 'Customer Details',
   '/outstanding-due': 'Outstanding Due',
   '/ai-agent': 'AI Data Agent',
+  '/bill-extract': 'Bill Reader',
   '/whatsapp-outreach': 'WhatsApp Outreach',
   '/customer-locations': 'Customer Locations',
   '/uploads': 'Latest Files',

@@ -87,6 +87,12 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
+    path: 'bill-extract',
+    loadComponent: () =>
+      import('./bill-extract/bill-extract.component').then((m) => m.BillExtractComponent),
+    canActivate: [authGuard]
+  },
+  {
     path: 'access-control',
     loadComponent: () =>
       import('./access-control/access-control.component').then((m) => m.AccessControlComponent),

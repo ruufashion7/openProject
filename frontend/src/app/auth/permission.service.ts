@@ -120,6 +120,10 @@ export class PermissionService {
     return this.hasPermission('aiAgentPage');
   }
 
+  canAccessBillExtract(): boolean {
+    return this.hasPermission('billExtractPage');
+  }
+
   // Check if user can access a route
   canAccessRoute(route: string): boolean {
     if (route === '/uploads') {

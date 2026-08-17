@@ -67,6 +67,12 @@
         <button type="button" class="btn btn-soft" (click)="goToAiAgent()">Open AI Data Agent</button>
       </div>
 
+      <div class="card card-muted welcome-tile" *ngIf="canAccessBillExtract">
+        <h2>Bill Reader</h2>
+        <p class="page-subtitle">Upload bill photos — extract bill no, amounts, payment, and time.</p>
+        <button type="button" class="btn btn-soft" (click)="goToBillExtract()">Open Bill Reader</button>
+      </div>
+
     </div>
   </div>
 </section>

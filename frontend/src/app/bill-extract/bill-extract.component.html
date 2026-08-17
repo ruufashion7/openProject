@@ -1,0 +1,106 @@
+<section class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Bill Reader</h1>
+      <p class="page-subtitle">
+        Upload bill photos. The app reads bill no, amounts, payment, salesman, and time. Missing bill numbers in the range are filled as blank rows.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="hint muted" *ngIf="status && !status.ready">
+      {{ status.setupHint || 'Configure AI_AGENT_API_KEY on the server first. Use a vision-capable model.' }}
+    </p>
+    <p class="hint muted" *ngIf="status?.ready && status?.model">Model: {{ status?.model }}</p>
+
+    <div
+      class="dropzone"
+      [class.is-over]="dragOver"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave()"
+      (drop)="onDrop($event)"
+      (click)="fileInput.click()"
+    >
+      <input
+        #fileInput
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+        multiple
+        hidden
+        (change)="onFileInput($event)"
+      />
+      <p class="dropzone-title">Drop bill photos here, or click to choose</p>
+      <p class="muted small">JPEG, PNG, WebP, or GIF · up to 50 photos · 25 MB each</p>
+    </div>
+
+    <div class="preview-grid" *ngIf="previews.length">
+      <figure class="preview" *ngFor="let item of previews; let i = index">
+        <img [src]="item.url" [alt]="item.file.name" />
+        <figcaption>
+          <span class="preview-name" [title]="item.file.name">{{ item.file.name }}</span>
+          <button type="button" class="btn-remove" (click)="removePreview(i)" aria-label="Remove photo">×</button>
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="actions">
+      <button
+        type="button"
+        class="btn btn-primary"
+        (click)="extract()"
+        [disabled]="!previews.length || extracting"
+      >
+        {{ extracting ? 'Reading bills…' : 'Read bills' }}
+      </button>
+      <button type="button" class="btn btn-ghost" (click)="clearAll()" [disabled]="extracting || (!previews.length && !rows.length)">
+        Clear
+      </button>
+    </div>
+
+    <app-page-state *ngIf="extracting" kind="loading" message="Reading each bill photo…"></app-page-state>
+    <app-page-state *ngIf="error && !extracting" kind="error" [message]="error"></app-page-state>
+  </div>
+
+  <div class="card" *ngIf="rows.length && !extracting">
+    <div class="result-header">
+      <h2 class="result-title">
+        Extracted bills
+        <span class="result-meta">{{ imagesRead }} photo{{ imagesRead === 1 ? '' : 's' }} · {{ rows.length }} row{{ rows.length === 1 ? '' : 's' }}</span>
+      </h2>
+      <div class="result-actions">
+        <button type="button" class="btn btn-ghost" (click)="copyTable()">Copy table</button>
+        <button type="button" class="btn btn-ghost" (click)="downloadCsv()">Download CSV</button>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Bill No</th>
+            <th>Total Amount</th>
+            <th>Discount</th>
+            <th>Amount after discount</th>
+            <th>Card/GPay</th>
+            <th>Salesman</th>
+            <th>Time</th>
+            <th>Remark</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of rows" [class.is-missing]="row.missing">
+            <td class="mono">{{ display(row.billNo) }}</td>
+            <td>{{ display(row.totalAmount) }}</td>
+            <td>{{ display(row.discount) }}</td>
+            <td>{{ display(row.amountAfterDiscount) }}</td>
+            <td>{{ display(row.payment) }}</td>
+            <td>{{ display(row.salesman) }}</td>
+            <td>{{ display(row.time) }}</td>
+            <td>{{ display(row.remark) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

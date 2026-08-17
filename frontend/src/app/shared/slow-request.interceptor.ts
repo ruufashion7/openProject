@@ -21,7 +21,7 @@ export const slowRequestInterceptor: HttpInterceptorFn = (
     return next(req);
   }
   // Large multipart uploads routinely exceed 12s — do not show cold-start toast.
-  if (req.method === 'POST' && (p.endsWith('/api/upload') || p.endsWith('/api/upload/'))) {
+  if (req.method === 'POST' && (p.endsWith('/api/upload') || p.endsWith('/api/upload/') || p.includes('/api/bills/extract'))) {
     return next(req);
   }
 

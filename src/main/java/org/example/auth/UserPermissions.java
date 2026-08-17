@@ -35,6 +35,8 @@ public class UserPermissions {
     private boolean customerRetainEdit;
     /** Natural-language data agent (customer dues, lists, PDF export). */
     private boolean aiAgentPage;
+    /** Upload bill photos and extract bill no / amounts / payment via vision LLM. */
+    private boolean billExtractPage;
 
     public UserPermissions() {
         // Default all permissions to false
@@ -46,7 +48,8 @@ public class UserPermissions {
                           boolean rateListPage, boolean rateListUpload, boolean salesVisualization, boolean customerLocations,
                           boolean customerCategoryEdit, boolean customerLimitEdit, boolean customerNotesEdit, boolean customerLocationEdit,
                           boolean whatsappBroadcast, boolean uploadsListPage, boolean uploadAuditPage,
-                          boolean customerExcludeEdit, boolean customerRetainEdit, boolean aiAgentPage) {
+                          boolean customerExcludeEdit, boolean customerRetainEdit, boolean aiAgentPage,
+                          boolean billExtractPage) {
         this.fileUpload = fileUpload;
         this.hardDelete = hardDelete;
         this.invoicePage = invoicePage;
@@ -70,6 +73,7 @@ public class UserPermissions {
         this.customerExcludeEdit = customerExcludeEdit;
         this.customerRetainEdit = customerRetainEdit;
         this.aiAgentPage = aiAgentPage;
+        this.billExtractPage = billExtractPage;
     }
 
     public boolean isFileUpload() {
@@ -254,5 +258,13 @@ public class UserPermissions {
 
     public void setAiAgentPage(boolean aiAgentPage) {
         this.aiAgentPage = aiAgentPage;
+    }
+
+    public boolean isBillExtractPage() {
+        return billExtractPage;
+    }
+
+    public void setBillExtractPage(boolean billExtractPage) {
+        this.billExtractPage = billExtractPage;
     }
 }

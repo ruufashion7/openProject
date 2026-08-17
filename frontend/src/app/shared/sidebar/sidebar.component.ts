@@ -76,7 +76,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
         { label: 'Customer Details', route: '/outstanding', icon: '📋' },
         { label: 'Invoice Details', route: '/sales-details', icon: '📊' },
         { label: 'Sales Analytics', route: '/sales-visualization', icon: '📈' },
-        { label: 'AI Data Agent', route: '/ai-agent', icon: '🤖' }
+        { label: 'AI Data Agent', route: '/ai-agent', icon: '🤖' },
+        { label: 'Bill Reader', route: '/bill-extract', icon: '🧾' }
       ]
     },
     {

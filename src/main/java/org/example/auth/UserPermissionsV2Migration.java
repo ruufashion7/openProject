@@ -110,5 +110,11 @@ public class UserPermissionsV2Migration implements ApplicationRunner {
         q8.addCriteria(Criteria.where("permissions.customerLimitEdit").exists(false));
         Update u8 = new Update().set("permissions.customerLimitEdit", false);
         mongoTemplate.updateMulti(q8, u8, User.class);
+
+        Query q9 = new Query();
+        q9.addCriteria(Criteria.where("permissions").exists(true));
+        q9.addCriteria(Criteria.where("permissions.billExtractPage").exists(false));
+        Update u9 = new Update().set("permissions.billExtractPage", false);
+        mongoTemplate.updateMulti(q9, u9, User.class);
     }
 }
