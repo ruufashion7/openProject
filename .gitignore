@@ -41,6 +41,8 @@ build/
 ### Local Configuration Files ###
 application-local.properties
 *.local.properties
+google-service-account.json
+*-credentials.json
 
 ### Node (frontend) ###
 frontend/node_modules/

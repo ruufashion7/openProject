@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, takeUntil } from 'rxjs';
-import { ApiService, PaymentDateCustomerCard, ExcludedCustomerView, RetainedCustomerView } from '../services/api.service';
+import { ApiService, PaymentDateCustomerCard, ExcludedCustomerView, RetainedCustomerView, DrivePaymentDateSyncStatus } from '../services/api.service';
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
@@ -168,6 +168,11 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
   readonly nameSuggestLimit = 500;
   private ignoreNameSuggestQuery = '';
 
+  // Drive Excel next-payment-date sync
+  showDriveSyncPanel = false;
+  driveSync: DrivePaymentDateSyncStatus | null = null;
+  driveSyncing = false;
+
   // Retained customers
   showRetainedPanel = false;
   retainedCustomers: RetainedCustomerView[] = [];
@@ -239,6 +244,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
         this.loadData();
         this.loadExcludedCustomers();
         this.loadRetainedCustomers();
+        this.loadDriveSyncStatus();
         if (this.isAdmin) {
           this.loadCategoryCreditLimits();
         }
@@ -1516,10 +1522,78 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       });
   }
 
+  loadDriveSyncStatus(): void {
+    this.api.getDrivePaymentDateSyncStatus()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (status) => {
+          this.driveSync = status;
+          if (status?.configured && (status.unmatched > 0 || status.invalidDates > 0 || status.lastStatus === 'failed')) {
+            this.showDriveSyncPanel = true;
+          }
+        },
+        error: () => {
+          this.driveSync = null;
+        }
+      });
+  }
+
+  toggleDriveSyncPanel(): void {
+    this.showDriveSyncPanel = !this.showDriveSyncPanel;
+    if (this.showDriveSyncPanel) {
+      this.showIgnoredPanel = false;
+      this.showRetainedPanel = false;
+      this.loadDriveSyncStatus();
+    }
+  }
+
+  runDriveSync(): void {
+    if (!this.canEditPaymentDate) {
+      this.permissionService.notifyRoleDenied('sync due dates from Drive', 'paymentDateEdit');
+      return;
+    }
+    if (this.driveSyncing) {
+      return;
+    }
+    this.driveSyncing = true;
+    this.api.runDrivePaymentDateSync()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (status) => {
+          this.driveSync = status;
+          this.driveSyncing = false;
+          this.showDriveSyncPanel = true;
+          if (status.lastStatus === 'success' || status.lastStatus === 'pushed') {
+            this.notificationService.showSuccess(status.lastMessage || 'Due dates synced with Drive Excel.');
+            this.loadOutstandingDue();
+          } else if (status.lastStatus === 'skipped') {
+            this.notificationService.showSuccess(status.lastMessage || 'Drive file has not changed.');
+            this.loadOutstandingDue();
+          } else {
+            this.notificationService.showError(status.lastMessage || 'Drive sync failed.', 4000);
+          }
+        },
+        error: (err: HttpErrorResponse) => {
+          this.driveSyncing = false;
+          if (err.status === 409 && err.error && typeof err.error === 'object' && 'lastStatus' in err.error) {
+            this.driveSync = err.error as DrivePaymentDateSyncStatus;
+            this.notificationService.showError('A Drive sync is already running.', 4000);
+            return;
+          }
+          if (err.status === 403) {
+            this.permissionService.notifyRoleDenied('sync due dates from Drive', 'paymentDateEdit');
+            return;
+          }
+          this.notificationService.showError(this.apiErrorMessage(err, 'Drive sync failed.'), 4000);
+        }
+      });
+  }
+
   toggleIgnoredPanel(): void {
     this.showIgnoredPanel = !this.showIgnoredPanel;
     if (this.showIgnoredPanel) {
       this.showRetainedPanel = false;
+      this.showDriveSyncPanel = false;
       this.loadExcludedCustomers();
     }
   }
@@ -1528,6 +1602,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     this.showRetainedPanel = !this.showRetainedPanel;
     if (this.showRetainedPanel) {
       this.showIgnoredPanel = false;
+      this.showDriveSyncPanel = false;
       this.loadRetainedCustomers();
     }
   }

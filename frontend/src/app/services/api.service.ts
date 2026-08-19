@@ -247,6 +247,31 @@ export interface PaymentDateCustomerCard {
   creditLimitUtilization?: number | null;
 }
 
+export interface DriveSyncRowIssue {
+  excelRow: number;
+  customerName: string;
+  reason: string;
+}
+
+export interface DrivePaymentDateSyncStatus {
+  enabled: boolean;
+  configured: boolean;
+  running: boolean;
+  lastStartedAt?: string | null;
+  lastFinishedAt?: string | null;
+  lastStatus?: string | null;
+  lastMessage?: string | null;
+  lastFileName?: string | null;
+  rowsRead: number;
+  updated: number;
+  unchanged: number;
+  unmatched: number;
+  invalidDates: number;
+  ambiguous: number;
+  unmatchedRows: DriveSyncRowIssue[];
+  invalidDateRows: DriveSyncRowIssue[];
+}
+
 export interface ExcludedCustomerView {
   customerKey: string;
   customerName: string;
@@ -553,6 +578,18 @@ export class ApiService {
 
   getOutstandingDue(): Observable<PaymentDateCustomerCard[]> {
     return this.http.get<PaymentDateCustomerCard[]>(`${this.baseUrl}/analytics/outstanding-due`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  getDrivePaymentDateSyncStatus(): Observable<DrivePaymentDateSyncStatus> {
+    return this.http.get<DrivePaymentDateSyncStatus>(`${this.baseUrl}/analytics/outstanding-due/drive-sync`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  runDrivePaymentDateSync(): Observable<DrivePaymentDateSyncStatus> {
+    return this.http.post<DrivePaymentDateSyncStatus>(`${this.baseUrl}/analytics/outstanding-due/drive-sync`, {}, {
       headers: this.auth.getAuthHeaders()
     });
   }

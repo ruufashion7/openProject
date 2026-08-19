@@ -11,6 +11,7 @@ import org.example.payment.PaymentDateOverrideRepository;
 import org.example.payment.CustomerExclusionService;
 import org.example.settings.CreditLimitResolution;
 import org.example.settings.CustomerCreditLimitService;
+import org.example.drive.DrivePaymentDatePushTrigger;
 import org.example.upload.DetailedSalesInvoicesUpload;
 import org.example.upload.DetailedSalesInvoicesUploadRepository;
 import org.example.upload.ExcelUploadHeaderRules;
@@ -80,6 +81,7 @@ public class AnalyticsController {
     private final CustomerExclusionService customerExclusionService;
     private final CustomerCreditLimitService customerCreditLimitService;
     private final Environment environment;
+    private final DrivePaymentDatePushTrigger drivePaymentDatePushTrigger;
 
     public AnalyticsController(AuthSessionService authSessionService,
                                DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository,
@@ -87,7 +89,8 @@ public class AnalyticsController {
                                PaymentDateOverrideRepository paymentDateOverrideRepository,
                                CustomerExclusionService customerExclusionService,
                                CustomerCreditLimitService customerCreditLimitService,
-                               Environment environment) {
+                               Environment environment,
+                               DrivePaymentDatePushTrigger drivePaymentDatePushTrigger) {
         this.authSessionService = authSessionService;
         this.detailedSalesInvoicesUploadRepository = detailedSalesInvoicesUploadRepository;
         this.receivableAgeingReportUploadRepository = receivableAgeingReportUploadRepository;
@@ -95,6 +98,7 @@ public class AnalyticsController {
         this.customerExclusionService = customerExclusionService;
         this.customerCreditLimitService = customerCreditLimitService;
         this.environment = environment;
+        this.drivePaymentDatePushTrigger = drivePaymentDatePushTrigger;
     }
 
     private boolean isProdProfile() {
@@ -1085,7 +1089,9 @@ public class AnalyticsController {
                 if (existing == null) {
                     return ResponseEntity.ok(Map.of("success", true, "message", "Date cleared"));
                 }
-                paymentDateOverrideRepository.save(PaymentDateOverrideCopy.copy(existing, null, null, "", null, null, null, null, null, null, null, null, null, null, null, null, null));
+                PaymentDateOverride cleared = paymentDateOverrideRepository.save(
+                        PaymentDateOverrideCopy.copy(existing, null, null, "", null, null, null, null, null, null, null, null, null, null, null, null, null));
+                drivePaymentDatePushTrigger.schedule(cleared);
                 return ResponseEntity.ok(Map.of("success", true, "message", "Date cleared successfully"));
             }
             
@@ -1161,7 +1167,8 @@ public class AnalyticsController {
                             null,
                             null);
             
-            paymentDateOverrideRepository.save(updated);
+            PaymentDateOverride saved = paymentDateOverrideRepository.save(updated);
+            drivePaymentDatePushTrigger.schedule(saved);
             return ResponseEntity.ok(Map.of("success", true, "message", "Payment date updated successfully"));
             
         } catch (Exception e) {

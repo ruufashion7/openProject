@@ -33,6 +33,13 @@ services:
       # Shared with openproject-prometheus — Bearer token for /actuator/prometheus
       - key: METRICS_SCRAPE_TOKEN
         generateValue: true
+      # Optional Drive Excel → next payment dates. Leave unset until docs/GOOGLE_DRIVE_PAYMENT_DATES.md is followed.
+      - key: GOOGLE_DRIVE_SYNC_ENABLED
+        value: "false"
+      - key: GOOGLE_DRIVE_FILE_ID
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
 
   - type: web
     name: openproject-prometheus

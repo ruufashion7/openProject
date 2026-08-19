@@ -15,6 +15,14 @@
         </button>
         <button
           class="btn-icon"
+          (click)="toggleDriveSyncPanel()"
+          [class.active]="showDriveSyncPanel"
+          title="Drive Excel due dates"
+        >
+          <span>📑</span>
+        </button>
+        <button
+          class="btn-icon"
           (click)="toggleIgnoredPanel()"
           [class.active]="showIgnoredPanel"
           title="Ignored customers"
@@ -69,6 +77,68 @@
       <div class="stat-content">
         <div class="stat-label">Over limit</div>
         <div class="stat-value">{{ getOverLimitCount() }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Drive Excel next payment date sync -->
+  <div class="ignored-customers-panel drive-sync-panel" *ngIf="status === 'idle' && showDriveSyncPanel">
+    <div class="ignored-panel-header">
+      <div>
+        <h2 class="ignored-panel-title">Drive Excel due dates</h2>
+        <p class="ignored-panel-subtitle" *ngIf="driveSync?.configured">
+          Staff Excel in Google Drive stays in sync both ways on login and Sync now; due-date edits also push back after save.
+        </p>
+        <p class="ignored-panel-subtitle" *ngIf="!driveSync?.configured">
+          Not connected yet. Add GOOGLE_DRIVE_FILE_ID and GOOGLE_SERVICE_ACCOUNT_JSON on the server, then enable google.drive.sync.enabled.
+        </p>
+      </div>
+      <span
+        class="ignored-count-badge"
+        [class.drive-sync-ok]="driveSync?.lastStatus === 'success' || driveSync?.lastStatus === 'skipped' || driveSync?.lastStatus === 'pushed'"
+        [class.drive-sync-fail]="driveSync?.lastStatus === 'failed'"
+      >
+        {{ driveSync?.unmatched || 0 }}
+      </span>
+    </div>
+
+    <p class="drive-sync-meta" *ngIf="driveSync?.lastMessage">{{ driveSync?.lastMessage }}</p>
+    <p class="drive-sync-meta muted" *ngIf="driveSync?.lastFinishedAt">
+      Last run: {{ driveSync?.lastFinishedAt | date: 'medium' }}
+      <span *ngIf="driveSync?.lastFileName"> · {{ driveSync?.lastFileName }}</span>
+    </p>
+    <p class="drive-sync-meta" *ngIf="driveSync?.configured">
+      Read {{ driveSync?.rowsRead || 0 }} · updated {{ driveSync?.updated || 0 }} · unchanged {{ driveSync?.unchanged || 0 }}
+      · unmatched {{ driveSync?.unmatched || 0 }} · invalid dates {{ driveSync?.invalidDates || 0 }}
+    </p>
+
+    <div class="ignored-add-row" *ngIf="canEditPaymentDate">
+      <button
+        class="btn-primary-modern"
+        type="button"
+        (click)="runDriveSync()"
+        [disabled]="driveSyncing || !driveSync?.configured"
+      >
+        {{ driveSyncing || driveSync?.running ? 'Syncing…' : 'Sync now' }}
+      </button>
+    </div>
+
+    <div class="ignored-list" *ngIf="driveSync?.unmatchedRows?.length">
+      <h3 class="drive-sync-list-title">Unmatched or ambiguous names</h3>
+      <div class="ignored-item" *ngFor="let issue of driveSync?.unmatchedRows">
+        <div class="ignored-item-info">
+          <div class="ignored-item-name">Row {{ issue.excelRow }} · {{ issue.customerName }}</div>
+          <div class="ignored-item-meta">{{ issue.reason }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="ignored-list" *ngIf="driveSync?.invalidDateRows?.length">
+      <h3 class="drive-sync-list-title">Invalid dates</h3>
+      <div class="ignored-item" *ngFor="let issue of driveSync?.invalidDateRows">
+        <div class="ignored-item-info">
+          <div class="ignored-item-name">Row {{ issue.excelRow }} · {{ issue.customerName }}</div>
+          <div class="ignored-item-meta">{{ issue.reason }}</div>
+        </div>
       </div>
     </div>
   </div>

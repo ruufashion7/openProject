@@ -16,6 +16,7 @@ import org.example.security.JwtCookieService;
 import org.example.security.LoginCsrfProtectionService;
 import org.example.security.RateLimitingService;
 import org.example.security.SecurityAuditService;
+import org.example.drive.DrivePaymentDateSyncTrigger;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -45,6 +46,7 @@ public class AuthController {
     private final JwtCookieService jwtCookieService;
     private final LoginCsrfProtectionService loginCsrfProtectionService;
     private final CaptchaVerificationService captchaVerificationService;
+    private final DrivePaymentDateSyncTrigger drivePaymentDateSyncTrigger;
 
     public AuthController(AuthSessionService authSessionService,
                          RateLimitingService rateLimitingService,
@@ -52,7 +54,8 @@ public class AuthController {
                          Validator validator,
                          JwtCookieService jwtCookieService,
                          LoginCsrfProtectionService loginCsrfProtectionService,
-                         CaptchaVerificationService captchaVerificationService) {
+                         CaptchaVerificationService captchaVerificationService,
+                         DrivePaymentDateSyncTrigger drivePaymentDateSyncTrigger) {
         this.authSessionService = authSessionService;
         this.rateLimitingService = rateLimitingService;
         this.securityAuditService = securityAuditService;
@@ -60,6 +63,7 @@ public class AuthController {
         this.jwtCookieService = jwtCookieService;
         this.loginCsrfProtectionService = loginCsrfProtectionService;
         this.captchaVerificationService = captchaVerificationService;
+        this.drivePaymentDateSyncTrigger = drivePaymentDateSyncTrigger;
     }
 
     /**
@@ -128,6 +132,8 @@ public class AuthController {
                 csrf
         );
         jwtCookieService.writeSessionCookie(httpResponse, withCsrf.token());
+
+        drivePaymentDateSyncTrigger.onLogin();
 
         return ResponseEntity.ok(withCsrf);
     }

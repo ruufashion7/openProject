@@ -74,6 +74,28 @@ public final class PaymentDateOverrideCopy {
         );
     }
 
+    public static PaymentDateOverride withNextPaymentDate(PaymentDateOverride src, String nextPaymentDate) {
+        return copy(
+                src,
+                null,
+                null,
+                nextPaymentDate != null ? nextPaymentDate : "",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
     public static PaymentDateOverride withCreditLimitOverride(PaymentDateOverride src, Double creditLimitOverride) {
         return new PaymentDateOverride(
                 src.id(),

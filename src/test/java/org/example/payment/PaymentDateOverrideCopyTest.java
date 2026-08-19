@@ -85,4 +85,13 @@ class PaymentDateOverrideCopyTest {
         assertEquals(28.6139, updated.latitude());
         assertEquals(77.2090, updated.longitude());
     }
+
+    @Test
+    void withNextPaymentDate_preservesOtherFields() {
+        PaymentDateOverride existing = PaymentDateOverrideCopy.newShell("abc traders", "ABC Traders");
+        PaymentDateOverride updated = PaymentDateOverrideCopy.withNextPaymentDate(existing, "18-08");
+        assertEquals("18-08", updated.nextPaymentDate());
+        assertEquals("abc traders", updated.customerKey());
+        assertEquals("ABC Traders", updated.customerName());
+    }
 }

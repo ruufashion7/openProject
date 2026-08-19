@@ -267,6 +267,33 @@
   justify-content: center;
 }
 
+.ignored-count-badge.drive-sync-ok {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.ignored-count-badge.drive-sync-fail {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.drive-sync-meta {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.drive-sync-meta.muted {
+  color: #64748b;
+}
+
+.drive-sync-list-title {
+  margin: 8px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
 .retained-count-badge {
   background: #ecfdf5;
   color: #047857;
