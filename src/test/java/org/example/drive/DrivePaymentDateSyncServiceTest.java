@@ -16,6 +16,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -187,6 +188,159 @@ class DrivePaymentDateSyncServiceTest {
         assertEquals(2, downloads.get());
         assertEquals(1, uploads.get());
         verify(paymentDateOverrideRepository, never()).save(any());
+    }
+
+    @Test
+    void syncNow_appendsDriveNoteWhenTextIsNew() throws Exception {
+        DriveSyncProperties properties = new DriveSyncProperties(
+                true, "file-id", "{}", "", true, 50);
+        byte[] xlsx = notesWorkbookBytes("18-08", "Call Monday");
+        DriveWorkbookSource source = new DriveWorkbookSource() {
+            @Override
+            public DriveWorkbookSnapshot download() {
+                return new DriveWorkbookSnapshot("dates.xlsx", "xlsx", "rev-1", xlsx);
+            }
+
+            @Override
+            public DriveWorkbookSnapshot upload(DriveWorkbookSnapshot source, PaymentDateWorkbookWriter.Result written) {
+                return new DriveWorkbookSnapshot("dates.xlsx", "xlsx", "rev-2", written.bytes());
+            }
+        };
+
+        PaymentDateOverride existing = PaymentDateOverrideCopy.copy(
+                PaymentDateOverrideCopy.newShell(CustomerIdentity.normalizeKey("ABC Traders"), "ABC Traders"),
+                null, null, "01-01", null, null, null, null, null, null, null, null, null, List.of(), null, null, null
+        );
+        List<PaymentDateOverride> store = new ArrayList<>();
+        store.add(existing);
+        java.util.concurrent.atomic.AtomicReference<DrivePaymentDateSyncState> syncState =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        when(syncStateRepository.findById(DrivePaymentDateSyncState.SINGLETON_ID))
+                .thenAnswer(invocation -> Optional.ofNullable(syncState.get()));
+        when(syncStateRepository.save(any())).thenAnswer(invocation -> {
+            DrivePaymentDateSyncState saved = invocation.getArgument(0);
+            syncState.set(saved);
+            return saved;
+        });
+        when(paymentDateOverrideRepository.findAll()).thenReturn(store);
+        when(paymentDateOverrideRepository.save(any())).thenAnswer(invocation -> {
+            PaymentDateOverride saved = invocation.getArgument(0);
+            store.set(0, saved);
+            return saved;
+        });
+
+        DrivePaymentDateSyncService service = new DrivePaymentDateSyncService(
+                properties, source, paymentDateOverrideRepository, syncStateRepository);
+        service.syncNow();
+
+        ArgumentCaptor<PaymentDateOverride> captor = ArgumentCaptor.forClass(PaymentDateOverride.class);
+        verify(paymentDateOverrideRepository).save(captor.capture());
+        PaymentDateOverride saved = captor.getValue();
+        assertEquals("18-08", saved.nextPaymentDate());
+        assertEquals(1, saved.notes().size());
+        assertEquals("Call Monday", saved.notes().getFirst().note());
+        assertEquals("Google Drive", saved.notes().getFirst().createdBy());
+    }
+
+    @Test
+    void syncNow_skipsDriveNoteWhenAlreadyPresent() throws Exception {
+        DriveSyncProperties properties = new DriveSyncProperties(
+                true, "file-id", "{}", "", true, 50);
+        byte[] xlsx = notesWorkbookBytes("18-08", "Call Monday");
+        DriveWorkbookSource source = new DriveWorkbookSource() {
+            @Override
+            public DriveWorkbookSnapshot download() {
+                return new DriveWorkbookSnapshot("dates.xlsx", "xlsx", "rev-1", xlsx);
+            }
+
+            @Override
+            public DriveWorkbookSnapshot upload(DriveWorkbookSnapshot source, PaymentDateWorkbookWriter.Result written) {
+                return new DriveWorkbookSnapshot("dates.xlsx", "xlsx", "rev-2", written.bytes());
+            }
+        };
+
+        PaymentDateOverride existing = PaymentDateOverrideCopy.copy(
+                PaymentDateOverrideCopy.newShell(CustomerIdentity.normalizeKey("ABC Traders"), "ABC Traders"),
+                null, null, "18-08", null, null, null, null, null, null, null, null, null,
+                List.of(org.example.payment.CustomerNotes.newDriveNote("Call Monday")),
+                null, null, null
+        );
+        when(syncStateRepository.findById(DrivePaymentDateSyncState.SINGLETON_ID)).thenReturn(Optional.empty());
+        when(syncStateRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentDateOverrideRepository.findAll()).thenReturn(List.of(existing));
+
+        DrivePaymentDateSyncService service = new DrivePaymentDateSyncService(
+                properties, source, paymentDateOverrideRepository, syncStateRepository);
+        service.syncNow();
+
+        verify(paymentDateOverrideRepository, never()).save(any());
+    }
+
+    @Test
+    void syncNow_capsNotesAtSixFromDrive() throws Exception {
+        DriveSyncProperties properties = new DriveSyncProperties(
+                true, "file-id", "{}", "", true, 50);
+        byte[] xlsx = notesWorkbookBytes("18-08", "seventh");
+        DriveWorkbookSource source = new DriveWorkbookSource() {
+            @Override
+            public DriveWorkbookSnapshot download() {
+                return new DriveWorkbookSnapshot("dates.xlsx", "xlsx", "rev-1", xlsx);
+            }
+
+            @Override
+            public DriveWorkbookSnapshot upload(DriveWorkbookSnapshot source, PaymentDateWorkbookWriter.Result written) {
+                return new DriveWorkbookSnapshot("dates.xlsx", "xlsx", "rev-2", written.bytes());
+            }
+        };
+
+        java.time.Instant start = java.time.Instant.parse("2026-01-01T00:00:00Z");
+        List<org.example.payment.CustomerNote> six = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            six.add(new org.example.payment.CustomerNote(
+                    "id-" + i, "note " + i, "staff", start.plusSeconds(i), start.plusSeconds(i), "staff"));
+        }
+        PaymentDateOverride existing = PaymentDateOverrideCopy.copy(
+                PaymentDateOverrideCopy.newShell(CustomerIdentity.normalizeKey("ABC Traders"), "ABC Traders"),
+                null, null, "18-08", null, null, null, null, null, null, null, null, null, six, null, null, null
+        );
+        List<PaymentDateOverride> store = new ArrayList<>();
+        store.add(existing);
+        when(syncStateRepository.findById(DrivePaymentDateSyncState.SINGLETON_ID)).thenReturn(Optional.empty());
+        when(syncStateRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentDateOverrideRepository.findAll()).thenReturn(store);
+        when(paymentDateOverrideRepository.save(any())).thenAnswer(invocation -> {
+            PaymentDateOverride saved = invocation.getArgument(0);
+            store.set(0, saved);
+            return saved;
+        });
+
+        DrivePaymentDateSyncService service = new DrivePaymentDateSyncService(
+                properties, source, paymentDateOverrideRepository, syncStateRepository);
+        service.syncNow();
+
+        ArgumentCaptor<PaymentDateOverride> captor = ArgumentCaptor.forClass(PaymentDateOverride.class);
+        verify(paymentDateOverrideRepository).save(captor.capture());
+        PaymentDateOverride saved = captor.getValue();
+        assertEquals(6, saved.notes().size());
+        assertTrue(saved.notes().stream().anyMatch(note -> "seventh".equals(note.note())));
+        assertTrue(saved.notes().stream().noneMatch(note -> "note 0".equals(note.note())));
+    }
+
+    private static byte[] notesWorkbookBytes(String date, String note) throws Exception {
+        try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
+             var out = new java.io.ByteArrayOutputStream()) {
+            var sheet = workbook.createSheet("Dates");
+            var header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Customer Name");
+            header.createCell(1).setCellValue("Next Payment Date");
+            header.createCell(2).setCellValue("Notes");
+            var row = sheet.createRow(1);
+            row.createCell(0).setCellValue("ABC Traders");
+            row.createCell(1).setCellValue(date);
+            row.createCell(2).setCellValue(note);
+            workbook.write(out);
+            return out.toByteArray();
+        }
     }
 
     private static byte[] workbookBytes() throws Exception {

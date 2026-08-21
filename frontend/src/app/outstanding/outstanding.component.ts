@@ -118,6 +118,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   // Customer Notes
   customerNotes: CustomerNote[] = [];
+  readonly maxCustomerNotes = 6;
   notesExpanded: boolean = false;
   editingNoteId: string | null = null;
   editingNoteContent: string = '';
@@ -2369,6 +2370,10 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     if (!this.newNoteContent.trim()) {
       return;
     }
+    if (this.customerNotes.length >= this.maxCustomerNotes) {
+      this.notificationService.showError('Maximum 6 notes. Delete one to add another.');
+      return;
+    }
 
     if (!this.getCustomerNameForMasterWrites() && !this.selectedPhoneNumber) {
       this.notificationService.showError('Please select a customer first.');
@@ -2388,6 +2393,10 @@ export class OutstandingComponent implements OnInit, OnDestroy {
       error: (err: HttpErrorResponse) => {
         if (err.status === 401) {
           this.logout();
+          return;
+        }
+        if (err.status === 400 && this.customerNotes.length >= this.maxCustomerNotes) {
+          this.notificationService.showError('Maximum 6 notes. Delete one to add another.');
           return;
         }
         this.notificationService.showError('Unable to add note.');

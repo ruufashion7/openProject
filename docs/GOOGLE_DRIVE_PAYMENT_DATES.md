@@ -1,21 +1,24 @@
 # Google Drive Excel → next payment dates
 
-Outstanding Due can sync **customer name + next payment date** with one workbook in Google Drive (`.xlsx` upload or native Google Sheet).
+Outstanding Due can sync **customer name + next payment date + latest note** with one workbook in Google Drive (`.xlsx` upload or native Google Sheet).
 
 - **Two-way sync** on login and **Sync now**: Drive → app, then app → Drive
-- **App → Drive** when you edit a due date in Outstanding Due (after a short debounce)
+- **App → Drive** when you edit a due date in Outstanding Due, or add/edit/delete a customer note (after a short debounce)
 
-Blank Excel date cells are ignored on import (they do not clear app dates). Unknown names are listed, not created.
+Blank Excel date cells are ignored on import (they do not clear app dates). Blank Notes cells are ignored on import (they do not delete app notes). Unknown names are listed, not created.
 
 ## 1. Excel layout
 
 One sheet (first matching sheet, or set `GOOGLE_DRIVE_SHEET_NAME`).
 
-| Customer Name | Next Payment Date | Phone (optional) |
+| Customer Name | Next Payment Date | Notes |
 |---|---|---|
-| ABC Traders | 18-08 | 9876543210 |
+| ABC Traders | 18-08 | Call Monday |
 
 - Header row must include a customer name column and a next-payment / due date column.
+- **Notes** is optional but recommended. The sheet shows only the **latest** customer note.
+- If you type a **new** note in Drive (text that customer does not already have), sync **adds** it as a new note in the app. It never overwrites an existing note. Maximum **6** notes; the oldest is dropped if a 7th arrives from Drive.
+- If you add a note in the app, the **latest** note is written back to the Drive Notes column.
 - Dates: `DD-MM` (same as the app), `DD-MMM-YY` (e.g. `19-Aug-26`), `DD/MM/YYYY`, or a real Excel date cell.
 - Keep this the **same Drive file** (do not upload a copy with a new link).
 - Save the file in Drive; **login** and **Sync now** both run two-way sync.
@@ -82,6 +85,6 @@ Optional: `GOOGLE_DRIVE_SHEET_NAME` if the workbook has several tabs.
 | `Google Sheets write denied` / 403 | Enable **Google Sheets API** in Google Cloud and share the sheet as **Editor** |
 | `Drive file not found` / 404 | Wrong file id, or file not shared with the service account |
 | `Drive access denied` / 403 | Share as **Editor** with the exact service account email |
-| Unmatched names | Excel name does not match customer master; add Phone column |
+| Unmatched names | Excel name does not match customer master; use the exact customer name |
 | Invalid dates | Use `DD-MM`, `DD-MMM-YY` (e.g. `19-Aug-26`), or a real Excel date |
 | Sync skipped | Drive file unchanged since last successful sync — click **Sync now** to force a re-apply |

@@ -5,6 +5,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.example.payment.CustomerNotes;
 import org.example.payment.PaymentDateOverride;
 import org.example.upload.PoiSecurityLimits;
 
@@ -21,7 +22,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Writes app next-payment dates back into a Drive workbook (.xlsx bytes or Google Sheet cells).
+ * Writes app next-payment dates and latest notes back into a Drive workbook.
  */
 public final class PaymentDateWorkbookWriter {
 
@@ -50,7 +51,6 @@ public final class PaymentDateWorkbookWriter {
         }
 
         Map<String, PaymentDateOverride> byKey = DriveCustomerMatcher.indexByKey(customers);
-        Map<String, List<PaymentDateOverride>> byPhone = DriveCustomerMatcher.indexByPhone(customers);
         Set<String> matchedKeys = new HashSet<>();
         List<SheetCellUpdate> cellUpdates = new ArrayList<>();
 
@@ -67,7 +67,7 @@ public final class PaymentDateWorkbookWriter {
             List<String> headers = PaymentDateWorkbookParser.headersOf(headerRow);
             int nameCol = PaymentDateWorkbookParser.indexOfNameHeader(headers);
             int dateCol = PaymentDateWorkbookParser.indexOfDateHeader(headers);
-            int phoneCol = PaymentDateWorkbookParser.indexOfPhoneHeader(headers);
+            int noteCol = PaymentDateWorkbookParser.indexOfNoteHeader(headers);
             if (nameCol < 0 || dateCol < 0) {
                 throw new IllegalArgumentException("Drive workbook needs Customer Name and Next Payment Date columns.");
             }
@@ -82,39 +82,63 @@ public final class PaymentDateWorkbookWriter {
                 if (name.isBlank() || name.equalsIgnoreCase("total")) {
                     continue;
                 }
-                String phone = phoneCol >= 0 ? PaymentDateWorkbookParser.cellText(row, phoneCol) : "";
-                PaymentDateWorkbookRow workbookRow = new PaymentDateWorkbookRow(rowIndex + 1, name, phone, "");
-                if (DriveCustomerMatcher.isAmbiguous(workbookRow, byKey, byPhone)) {
+                PaymentDateWorkbookRow workbookRow = new PaymentDateWorkbookRow(rowIndex + 1, name, "", "");
+                if (DriveCustomerMatcher.isAmbiguous(workbookRow, byKey)) {
                     continue;
                 }
-                Optional<PaymentDateOverride> matched = DriveCustomerMatcher.match(workbookRow, byKey, byPhone);
+                Optional<PaymentDateOverride> matched = DriveCustomerMatcher.match(workbookRow, byKey);
                 if (matched.isEmpty()) {
                     continue;
                 }
                 PaymentDateOverride customer = matched.get();
-                String nextDate = customer.nextPaymentDate() == null ? "" : customer.nextPaymentDate().trim();
-                String excelText = PaymentDateCellParser.toExcelText(nextDate);
-                Cell cell = row.getCell(dateCol, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
-                String current = PaymentDateWorkbookParser.cellText(row, dateCol);
-                if (Objects.equals(current, excelText) || (current.isBlank() && excelText.isBlank())) {
-                    matchedKeys.add(customer.customerKey());
-                    continue;
-                }
-                if (excelText.isBlank()) {
-                    cell.setBlank();
-                } else {
-                    cell.setCellValue(excelText);
-                }
-                cellUpdates.add(new SheetCellUpdate(rowIndex, dateCol, excelText));
                 matchedKeys.add(customer.customerKey());
-                updatedRows++;
+                boolean rowChanged = false;
+
+                String nextDate = customer.nextPaymentDate() == null ? "" : customer.nextPaymentDate().trim();
+                if (!nextDate.isBlank()) {
+                    String excelText = PaymentDateCellParser.toExcelText(nextDate);
+                    Cell dateCell = row.getCell(dateCol, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                    String currentDate = PaymentDateWorkbookParser.cellText(row, dateCol);
+                    if (!Objects.equals(currentDate, excelText) && !(currentDate.isBlank() && excelText.isBlank())) {
+                        dateCell.setCellValue(excelText);
+                        cellUpdates.add(new SheetCellUpdate(rowIndex, dateCol, excelText));
+                        rowChanged = true;
+                    }
+                }
+
+                String latestNote = CustomerNotes.latestText(customer.notes());
+                String currentNote = noteCol >= 0 ? PaymentDateWorkbookParser.cellText(row, noteCol) : "";
+                if (!Objects.equals(CustomerNotes.normalizeText(currentNote), latestNote)) {
+                    if (noteCol < 0) {
+                        noteCol = Math.max(headerRow.getLastCellNum(), 0);
+                        Cell headerCell = headerRow.createCell(noteCol);
+                        headerCell.setCellValue("Notes");
+                        cellUpdates.add(new SheetCellUpdate(headerRowIndex, noteCol, "Notes"));
+                    }
+                    Cell noteCell = row.getCell(noteCol, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                    if (latestNote.isBlank()) {
+                        noteCell.setBlank();
+                    } else {
+                        noteCell.setCellValue(latestNote);
+                    }
+                    cellUpdates.add(new SheetCellUpdate(rowIndex, noteCol, latestNote));
+                    rowChanged = true;
+                }
+
+                if (rowChanged) {
+                    updatedRows++;
+                }
             }
 
             workbook.write(out);
             List<String> notFound = new ArrayList<>();
             for (PaymentDateOverride customer : customers) {
                 if (customer.customerKey() != null && !matchedKeys.contains(customer.customerKey())) {
-                    notFound.add(customer.customerName());
+                    boolean hasDate = customer.nextPaymentDate() != null && !customer.nextPaymentDate().trim().isBlank();
+                    boolean hasNotes = customer.notes() != null && !customer.notes().isEmpty();
+                    if (hasDate || hasNotes) {
+                        notFound.add(customer.customerName());
+                    }
                 }
             }
             return new Result(out.toByteArray(), sheetName, List.copyOf(cellUpdates), updatedRows, List.copyOf(notFound));

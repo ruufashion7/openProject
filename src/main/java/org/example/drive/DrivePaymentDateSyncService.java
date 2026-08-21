@@ -1,5 +1,6 @@
 package org.example.drive;
 
+import org.example.payment.CustomerNotes;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
@@ -74,10 +75,10 @@ public class DrivePaymentDateSyncService {
     }
 
     private void pushAllDueDatesFromApp() {
-        List<PaymentDateOverride> dueDates = paymentDateOverrideRepository.findAll().stream()
-                .filter(override -> override.nextPaymentDate() != null && !override.nextPaymentDate().trim().isBlank())
+        List<PaymentDateOverride> toPush = paymentDateOverrideRepository.findAll().stream()
+                .filter(DrivePaymentDateSyncService::hasDateOrNotes)
                 .toList();
-        pushToDrive(dueDates);
+        pushToDrive(toPush);
     }
 
     /**
@@ -109,7 +110,7 @@ public class DrivePaymentDateSyncService {
                 return;
             }
             DriveWorkbookSnapshot uploaded = workbookSource.upload(snapshot, written);
-            String message = "Pushed " + written.updatedRows() + " due date"
+            String message = "Pushed " + written.updatedRows() + " row"
                     + (written.updatedRows() == 1 ? "" : "s")
                     + " to " + uploaded.fileName() + ".";
             DrivePaymentDateSyncState previous = currentState();
@@ -205,7 +206,7 @@ public class DrivePaymentDateSyncService {
                     snapshot.bytes(), properties.sheetName());
             ApplyResult applied = applyRows(parsed);
 
-            String message = "Updated " + applied.updated + " due date"
+            String message = "Updated " + applied.updated + " customer"
                     + (applied.updated == 1 ? "" : "s")
                     + " from " + snapshot.fileName()
                     + " (sheet " + parsed.sheetName() + ").";
@@ -258,7 +259,6 @@ public class DrivePaymentDateSyncService {
     private ApplyResult applyRows(PaymentDateWorkbookParseResult parsed) {
         List<PaymentDateOverride> all = paymentDateOverrideRepository.findAll();
         Map<String, PaymentDateOverride> byKey = DriveCustomerMatcher.indexByKey(all);
-        Map<String, java.util.List<PaymentDateOverride>> byPhone = DriveCustomerMatcher.indexByPhone(all);
 
         int updated = 0;
         int unchanged = 0;
@@ -266,13 +266,13 @@ public class DrivePaymentDateSyncService {
         List<DriveSyncRowIssue> ambiguousRows = new ArrayList<>();
 
         for (PaymentDateWorkbookRow row : parsed.rows()) {
-            if (DriveCustomerMatcher.isAmbiguous(row, byKey, byPhone)
-                    && DriveCustomerMatcher.match(row, byKey, byPhone).isEmpty()) {
+            if (DriveCustomerMatcher.isAmbiguous(row, byKey)
+                    && DriveCustomerMatcher.match(row, byKey).isEmpty()) {
                 ambiguousRows.add(new DriveSyncRowIssue(row.excelRow(), row.customerName(),
-                        "Matched more than one customer — add a unique phone or exact name"));
+                        "Matched more than one customer — use an exact name"));
                 continue;
             }
-            Optional<PaymentDateOverride> matched = DriveCustomerMatcher.match(row, byKey, byPhone);
+            Optional<PaymentDateOverride> matched = DriveCustomerMatcher.match(row, byKey);
             if (matched.isEmpty()) {
                 unmatchedRows.add(new DriveSyncRowIssue(
                         row.excelRow(),
@@ -281,17 +281,34 @@ public class DrivePaymentDateSyncService {
                 continue;
             }
             PaymentDateOverride existing = matched.get();
-            String current = existing.nextPaymentDate() == null ? "" : existing.nextPaymentDate().trim();
-            if (Objects.equals(current, row.nextPaymentDate())) {
+            String currentDate = existing.nextPaymentDate() == null ? "" : existing.nextPaymentDate().trim();
+            boolean dateChanged = !row.nextPaymentDate().isBlank() && !Objects.equals(currentDate, row.nextPaymentDate());
+            String driveNote = CustomerNotes.normalizeText(row.note());
+            boolean notesChanged = !driveNote.isEmpty() && !CustomerNotes.containsSameText(existing.notes(), driveNote);
+            if (!dateChanged && !notesChanged) {
                 unchanged++;
                 continue;
             }
-            PaymentDateOverride saved = paymentDateOverrideRepository.save(
-                    PaymentDateOverrideCopy.withNextPaymentDate(existing, row.nextPaymentDate()));
+            PaymentDateOverride next = existing;
+            if (dateChanged) {
+                next = PaymentDateOverrideCopy.withNextPaymentDate(next, row.nextPaymentDate());
+            }
+            if (notesChanged) {
+                next = PaymentDateOverrideCopy.withNotes(
+                        next,
+                        CustomerNotes.appendCapped(next.notes(), CustomerNotes.newDriveNote(driveNote)));
+            }
+            PaymentDateOverride saved = paymentDateOverrideRepository.save(next);
             byKey.put(saved.customerKey(), saved);
             updated++;
         }
         return new ApplyResult(updated, unchanged, unmatchedRows, ambiguousRows);
+    }
+
+    private static boolean hasDateOrNotes(PaymentDateOverride override) {
+        boolean hasDate = override.nextPaymentDate() != null && !override.nextPaymentDate().trim().isBlank();
+        boolean hasNotes = override.notes() != null && !override.notes().isEmpty();
+        return hasDate || hasNotes;
     }
 
     private DrivePaymentDateSyncState currentState() {

@@ -6,7 +6,9 @@ import org.example.auth.SessionPermissions;
 import org.example.auth.User;
 import org.example.auth.UserService;
 import org.example.customer.CustomerPhoneNumbers;
+import org.example.drive.DrivePaymentDatePushTrigger;
 import org.example.payment.CustomerNote;
+import org.example.payment.CustomerNotes;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
@@ -39,16 +41,19 @@ public class CustomerNotesController {
     private final AuthSessionService authSessionService;
     private final InputValidationService inputValidationService;
     private final UserService userService;
+    private final DrivePaymentDatePushTrigger drivePaymentDatePushTrigger;
 
     public CustomerNotesController(
             PaymentDateOverrideRepository paymentDateOverrideRepository,
             AuthSessionService authSessionService,
             InputValidationService inputValidationService,
-            UserService userService) {
+            UserService userService,
+            DrivePaymentDatePushTrigger drivePaymentDatePushTrigger) {
         this.paymentDateOverrideRepository = paymentDateOverrideRepository;
         this.authSessionService = authSessionService;
         this.inputValidationService = inputValidationService;
         this.userService = userService;
+        this.drivePaymentDatePushTrigger = drivePaymentDatePushTrigger;
     }
 
     /**
@@ -154,7 +159,7 @@ public class CustomerNotesController {
         if (phoneNumber != null && phoneNumber.length() > 20) {
             return ResponseEntity.badRequest().build();
         }
-        if (noteContent.length() > 5000) { // Max 5000 characters for note
+        if (noteContent.length() > CustomerNotes.MAX_NOTE_LENGTH) { // Max 5000 characters for note
             return ResponseEntity.badRequest().build();
         }
 
@@ -168,6 +173,15 @@ public class CustomerNotesController {
         logger.info("Creating note for customer: customerName={}, phoneNumber={}, customerKey={}", 
                 customerName, phoneNumber, paymentDateOverride.customerKey());
         
+        List<CustomerNote> notes = new ArrayList<>();
+        if (paymentDateOverride.notes() != null && !paymentDateOverride.notes().isEmpty()) {
+            notes.addAll(paymentDateOverride.notes());
+        }
+        if (notes.size() >= CustomerNotes.MAX_NOTES) {
+            logger.info("Rejecting note: customer already has {} notes", notes.size());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
         // Create new note
         CustomerNote newNote = new CustomerNote(
                 UUID.randomUUID().toString(),
@@ -177,17 +191,10 @@ public class CustomerNotesController {
                 now,
                 username
         );
-        
-        // Add note to the list - ensure we have a mutable list
-        List<CustomerNote> notes = new ArrayList<>();
-        if (paymentDateOverride.notes() != null && !paymentDateOverride.notes().isEmpty()) {
-            notes.addAll(paymentDateOverride.notes());
-        }
         notes.add(newNote);
         
         logger.info("Adding note. Total notes before save: {}", notes.size());
         
-        // Update PaymentDateOverride with new notes list
         PaymentDateOverride updated = PaymentDateOverrideCopy.copy(
                 paymentDateOverride,
                 null,
@@ -210,6 +217,7 @@ public class CustomerNotesController {
         
         PaymentDateOverride saved = paymentDateOverrideRepository.save(updated);
         logger.info("Note saved. Saved document has {} notes", saved.notes() != null ? saved.notes().size() : 0);
+        drivePaymentDatePushTrigger.schedule(saved);
 
         CustomerNoteResponse response = new CustomerNoteResponse(
                 newNote.id(),
@@ -258,7 +266,7 @@ public class CustomerNotesController {
         }
 
         // SECURITY: Validate length
-        if (noteContent.length() > 5000) {
+        if (noteContent.length() > CustomerNotes.MAX_NOTE_LENGTH) {
             return ResponseEntity.badRequest().build();
         }
 
@@ -306,7 +314,8 @@ public class CustomerNotesController {
                 null
         );
         
-        paymentDateOverrideRepository.save(updated);
+        PaymentDateOverride saved = paymentDateOverrideRepository.save(updated);
+        drivePaymentDatePushTrigger.schedule(saved);
 
         // Find the updated note for response
         CustomerNote updatedNote = updatedNotes.stream()
@@ -385,7 +394,8 @@ public class CustomerNotesController {
                 null
         );
         
-        paymentDateOverrideRepository.save(updated);
+        PaymentDateOverride saved = paymentDateOverrideRepository.save(updated);
+        drivePaymentDatePushTrigger.schedule(saved);
 
         return ResponseEntity.noContent().build();
     }

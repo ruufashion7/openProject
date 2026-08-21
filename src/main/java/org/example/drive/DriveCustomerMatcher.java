@@ -1,7 +1,6 @@
 package org.example.drive;
 
 import org.example.customer.CustomerIdentity;
-import org.example.customer.CustomerPhoneNumbers;
 import org.example.payment.PaymentDateOverride;
 
 import java.util.ArrayList;
@@ -11,7 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Maps Excel customer rows onto existing {@code customer_master} records. Never creates customers.
+ * Maps Excel customer rows onto existing {@code customer_master} records by name. Never creates customers.
  */
 public final class DriveCustomerMatcher {
 
@@ -22,24 +21,8 @@ public final class DriveCustomerMatcher {
 
     public static Optional<PaymentDateOverride> match(
             PaymentDateWorkbookRow row,
-            Map<String, PaymentDateOverride> byKey,
-            Map<String, List<PaymentDateOverride>> byPhone
+            Map<String, PaymentDateOverride> byKey
     ) {
-        String phoneKey = CustomerPhoneNumbers.normalizeDigitsKey(row.phone());
-        if (phoneKey != null) {
-            List<PaymentDateOverride> phoneHits = byPhone.getOrDefault(phoneKey, List.of());
-            if (phoneHits.size() == 1) {
-                return Optional.of(phoneHits.getFirst());
-            }
-            if (phoneHits.size() > 1) {
-                Optional<PaymentDateOverride> named = bestNameAmong(row.customerName(), phoneHits);
-                if (named.isPresent()) {
-                    return named;
-                }
-                return Optional.empty();
-            }
-        }
-
         String key = CustomerIdentity.normalizeKey(row.customerName());
         PaymentDateOverride exact = byKey.get(key);
         if (exact != null) {
@@ -50,36 +33,13 @@ public final class DriveCustomerMatcher {
 
     public static boolean isAmbiguous(
             PaymentDateWorkbookRow row,
-            Map<String, PaymentDateOverride> byKey,
-            Map<String, List<PaymentDateOverride>> byPhone
+            Map<String, PaymentDateOverride> byKey
     ) {
-        String phoneKey = CustomerPhoneNumbers.normalizeDigitsKey(row.phone());
-        if (phoneKey != null) {
-            List<PaymentDateOverride> phoneHits = byPhone.getOrDefault(phoneKey, List.of());
-            if (phoneHits.size() > 1 && bestNameAmong(row.customerName(), phoneHits).isEmpty()) {
-                return true;
-            }
-            if (phoneHits.size() == 1) {
-                return false;
-            }
-        }
         String key = CustomerIdentity.normalizeKey(row.customerName());
         if (byKey.containsKey(key)) {
             return false;
         }
         return countCloseNameMatches(row.customerName(), new ArrayList<>(byKey.values())) > 1;
-    }
-
-    public static Map<String, List<PaymentDateOverride>> indexByPhone(Iterable<PaymentDateOverride> overrides) {
-        Map<String, List<PaymentDateOverride>> byPhone = new HashMap<>();
-        for (PaymentDateOverride override : overrides) {
-            String phoneKey = CustomerPhoneNumbers.normalizeDigitsKey(override.phoneNumber());
-            if (phoneKey == null) {
-                continue;
-            }
-            byPhone.computeIfAbsent(phoneKey, ignored -> new ArrayList<>()).add(override);
-        }
-        return byPhone;
     }
 
     public static Map<String, PaymentDateOverride> indexByKey(Iterable<PaymentDateOverride> overrides) {

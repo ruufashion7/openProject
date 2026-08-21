@@ -560,7 +560,7 @@
           <div class="notes-content">
             <div class="notes-header" (click)="toggleNotes()">
               <span class="section-label">NOTES</span>
-              <div class="notes-count-badge" *ngIf="customerNotes.length > 0">{{ customerNotes.length }}</div>
+              <div class="notes-count-badge" *ngIf="customerNotes.length > 0">{{ customerNotes.length }}/{{ maxCustomerNotes }}</div>
               <button
                 type="button"
                 class="btn-toggle"
@@ -639,7 +639,11 @@
                 </div>
               </div>
               <div class="add-note-section" *ngIf="canEditCustomerNotes">
+                <p class="no-notes-text" *ngIf="customerNotes.length >= maxCustomerNotes">
+                  Maximum 6 notes. Delete one to add another.
+                </p>
                 <textarea
+                  *ngIf="customerNotes.length < maxCustomerNotes"
                   [(ngModel)]="newNoteContent"
                   class="new-note-textarea"
                   rows="3"
@@ -648,6 +652,7 @@
                 <button
                   type="button"
                   class="btn btn-add-note"
+                  *ngIf="customerNotes.length < maxCustomerNotes"
                   (click)="addNote()"
                   [disabled]="!newNoteContent.trim()"
                 >

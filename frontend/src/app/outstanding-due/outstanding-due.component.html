@@ -87,7 +87,7 @@
       <div>
         <h2 class="ignored-panel-title">Drive Excel due dates</h2>
         <p class="ignored-panel-subtitle" *ngIf="driveSync?.configured">
-          Staff Excel in Google Drive stays in sync both ways on login and Sync now; due-date edits also push back after save.
+          Staff Excel in Google Drive stays in sync both ways on login and Sync now; due-date and latest-note edits also push back after save.
         </p>
         <p class="ignored-panel-subtitle" *ngIf="!driveSync?.configured">
           Not connected yet. Add GOOGLE_DRIVE_FILE_ID and GOOGLE_SERVICE_ACCOUNT_JSON on the server, then enable google.drive.sync.enabled.

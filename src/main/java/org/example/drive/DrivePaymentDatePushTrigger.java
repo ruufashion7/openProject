@@ -12,7 +12,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Debounces app due-date saves into a single Drive workbook upload.
+ * Debounces app due-date and note saves into a single Drive workbook upload.
  */
 @Service
 public class DrivePaymentDatePushTrigger {

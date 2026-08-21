@@ -96,6 +96,28 @@ public final class PaymentDateOverrideCopy {
         );
     }
 
+    public static PaymentDateOverride withNotes(PaymentDateOverride src, List<CustomerNote> notes) {
+        return copy(
+                src,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                notes != null ? notes : List.of(),
+                null,
+                null,
+                null
+        );
+    }
+
     public static PaymentDateOverride withCreditLimitOverride(PaymentDateOverride src, Double creditLimitOverride) {
         return new PaymentDateOverride(
                 src.id(),

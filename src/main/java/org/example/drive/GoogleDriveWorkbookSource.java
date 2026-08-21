@@ -65,7 +65,7 @@ public class GoogleDriveWorkbookSource implements DriveWorkbookSource {
             throw new IOException("Downloaded Drive file is empty.");
         }
         if (bytes.length > MAX_BYTES) {
-            throw new IOException("Drive file is larger than 20 MB. Use a two-column payment-date workbook.");
+            throw new IOException("Drive file is larger than 20 MB. Use a smaller payment-date workbook.");
         }
         return new DriveWorkbookSnapshot(name, mime, checksum, bytes);
     }
