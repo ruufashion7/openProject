@@ -2,7 +2,7 @@
   <aside class="agent-history">
     <div class="history-header">
       <h2>History</h2>
-      <button type="button" class="btn-new" (click)="startNewChat()">New</button>
+      <button type="button" class="btn-new" (click)="startNewChat()" title="Start a new chat">New</button>
     </div>
     <div class="history-list" *ngIf="conversations.length; else noHistory">
       <button
@@ -13,7 +13,7 @@
         (click)="openConversation(c)"
       >
         <span class="history-title">{{ c.title }}</span>
-        <button type="button" class="history-delete" (click)="deleteConversation(c, $event)" title="Delete">×</button>
+        <button type="button" class="history-delete" (click)="deleteConversation(c, $event)" title="Delete chat">×</button>
       </button>
     </div>
     <ng-template #noHistory>
@@ -101,7 +101,7 @@
         (keydown)="onKeydown($event)"
         [disabled]="sending"
       ></textarea>
-      <button type="button" class="btn-send" (click)="send()" [disabled]="sending || !draft.trim() || (status && !status.ready)">
+      <button type="button" class="btn-send" (click)="send()" [disabled]="sending || !draft.trim() || (status && !status.ready)" title="Send message">
         {{ sending ? 'Working…' : 'Send' }}
       </button>
     </div>

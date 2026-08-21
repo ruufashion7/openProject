@@ -1,0 +1,50 @@
+.global-tooltip {
+  position: fixed;
+  z-index: 20000;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 8px));
+  white-space: pre-wrap;
+  word-break: break-word;
+  animation: global-tooltip-in 0.12s ease-out;
+}
+
+.global-tooltip.below {
+  transform: translate(-50%, 8px);
+}
+
+.global-tooltip.align-start {
+  transform: translate(0, calc(-100% - 8px));
+}
+
+.global-tooltip.align-start.below {
+  transform: translate(0, 8px);
+}
+
+.global-tooltip.align-end {
+  transform: translate(-100%, calc(-100% - 8px));
+}
+
+.global-tooltip.align-end.below {
+  transform: translate(-100%, 8px);
+}
+
+@keyframes global-tooltip-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (hover: none) {
+  .global-tooltip {
+    display: none;
+  }
+}

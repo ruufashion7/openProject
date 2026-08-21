@@ -5,11 +5,11 @@
       <p class="page-subtitle">Admin control center — live data health, users, uploads, and outreach</p>
     </div>
     <div class="page-actions dash-actions">
-      <label class="dash-auto-refresh">
+      <label class="dash-auto-refresh" title="Refresh this dashboard every 60 seconds">
         <input type="checkbox" [checked]="autoRefresh" (change)="toggleAutoRefresh()" />
         Auto-refresh (60s)
       </label>
-      <button type="button" class="btn btn-ghost" (click)="load()" [disabled]="refreshing">
+      <button type="button" class="btn btn-ghost" (click)="load()" [disabled]="refreshing" title="Reload operations data">
         {{ refreshing ? 'Refreshing…' : 'Refresh' }}
       </button>
     </div>

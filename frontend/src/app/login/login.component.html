@@ -54,6 +54,7 @@
             (click)="toggleShowPassword()"
             [disabled]="loading"
             [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+            [attr.title]="showPassword ? 'Hide password' : 'Show password'"
             [attr.aria-pressed]="showPassword"
           >
             <svg

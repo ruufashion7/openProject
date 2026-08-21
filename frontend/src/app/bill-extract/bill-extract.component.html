@@ -39,7 +39,7 @@
         <img [src]="item.url" [alt]="item.file.name" />
         <figcaption>
           <span class="preview-name" [title]="item.file.name">{{ item.file.name }}</span>
-          <button type="button" class="btn-remove" (click)="removePreview(i)" aria-label="Remove photo">×</button>
+          <button type="button" class="btn-remove" (click)="removePreview(i)" aria-label="Remove photo" title="Remove photo">×</button>
         </figcaption>
       </figure>
     </div>

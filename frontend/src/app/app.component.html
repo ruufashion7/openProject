@@ -1,4 +1,5 @@
 <div class="app-container" [class.sidebar-open]="sidebarOpen" [class.sidebar-closed]="!sidebarOpen">
+  <app-global-tooltip />
   <app-notification />
   <app-top-header *ngIf="showSidebar" />
   <app-sidebar *ngIf="showSidebar" />

@@ -17,7 +17,7 @@
           class="btn-icon"
           (click)="toggleDriveSyncPanel()"
           [class.active]="showDriveSyncPanel"
-          title="Drive Excel due dates"
+          title="Google Drive Excel: due dates and latest notes"
         >
           <span>📑</span>
         </button>
@@ -118,6 +118,7 @@
         type="button"
         (click)="runDriveSync()"
         [disabled]="driveSyncing || !driveSync?.configured"
+        title="Pull Drive dates and notes, then push the latest from the app"
       >
         {{ driveSyncing || driveSync?.running ? 'Syncing…' : 'Sync now' }}
       </button>
@@ -173,7 +174,7 @@
             class="btn-clear-search"
             *ngIf="ignoreCustomerInput"
             (click)="ignoreCustomerInput = ''; ignoreNameSuggestions = []; showIgnoreNameSuggestions = false"
-            title="Clear"
+            title="Clear name"
           >
             ×
           </button>
@@ -208,6 +209,7 @@
           *ngIf="canExcludeCustomer"
           class="btn-restore-ignored"
           (click)="restoreExcludedCustomer(item.customerKey, item.customerName)"
+          title="Show this customer on Outstanding Due again"
         >
           Restore
         </button>
@@ -248,7 +250,7 @@
             class="btn-clear-search"
             *ngIf="retainCustomerInput"
             (click)="retainCustomerInput = ''; retainNameSuggestions = []; showRetainNameSuggestions = false"
-            title="Clear"
+            title="Clear name"
           >
             ×
           </button>
@@ -283,6 +285,7 @@
           *ngIf="canRetainCustomer"
           class="btn-restore-ignored"
           (click)="unretainCustomer(item.customerKey, item.customerName)"
+          title="Remove retain so this customer can drop off when due is zero"
         >
           Unretain
         </button>
@@ -332,41 +335,41 @@
     <div class="active-filters" *ngIf="hasActiveFilters()">
       <span class="filter-chip" *ngIf="filters.paymentDate !== 'all'">
         Due: {{ filters.paymentDate }}
-        <button (click)="setFilter('paymentDate', 'all')">×</button>
+        <button type="button" (click)="setFilter('paymentDate', 'all')" title="Clear this filter">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.whatsappStatus !== 'all'">
         WhatsApp: {{ filters.whatsappStatus }}
-        <button (click)="setFilter('whatsappStatus', 'all')">×</button>
+        <button type="button" (click)="setFilter('whatsappStatus', 'all')" title="Clear this filter">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.customerCategory !== 'all'">
         Category: {{ filters.customerCategory }}
-        <button (click)="setFilter('customerCategory', 'all')">×</button>
+        <button type="button" (click)="setFilter('customerCategory', 'all')" title="Clear this filter">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.followUp !== 'all'">
         Follow-up: {{ filters.followUp }}
-        <button (click)="setFilter('followUp', 'all')">×</button>
+        <button type="button" (click)="setFilter('followUp', 'all')" title="Clear this filter">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.location !== 'all'">
         Location: {{ filters.location === 'with' ? 'Added' : 'Missing' }}
-        <button (click)="setFilter('location', 'all')">×</button>
+        <button type="button" (click)="setFilter('location', 'all')" title="Clear this filter">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.orderDate !== 'all'">
         Ageing: {{ filters.orderDate === '0-45' ? '1-45 days' : filters.orderDate === '46-85' ? '46-85 days' : filters.orderDate === '85+' ? '85+ days' : filters.orderDate }}
-        <button (click)="setFilter('orderDate', 'all')">×</button>
+        <button type="button" (click)="setFilter('orderDate', 'all')" title="Clear this filter">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.retained !== 'all'">
         Retained: {{ filters.retained === 'yes' ? 'Only' : 'Hide' }}
-        <button (click)="setFilter('retained', 'all')">×</button>
+        <button type="button" (click)="setFilter('retained', 'all')" title="Clear this filter">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.creditLimit !== 'all'">
         Credit: {{ filters.creditLimit === 'over' ? 'Over limit' : filters.creditLimit === 'within' ? 'Within limit' : 'No limit' }}
-        <button (click)="setFilter('creditLimit', 'all')">×</button>
+        <button type="button" (click)="setFilter('creditLimit', 'all')" title="Clear this filter">×</button>
       </span>
       <span class="filter-chip" *ngIf="filters.places.length > 0">
         Place: {{ filters.places.join(', ') }}
-        <button (click)="clearPlaceFilter()">×</button>
+        <button type="button" (click)="clearPlaceFilter()" title="Clear this filter">×</button>
       </span>
-      <button class="btn-clear-all" (click)="clearFilters()">Clear All</button>
+      <button type="button" class="btn-clear-all" (click)="clearFilters()" title="Clear all filters">Clear All</button>
     </div>
   </div>
 
@@ -910,6 +913,7 @@
               *ngIf="dateEdits[card.customer || ''] && canEditPaymentDate"
               (click)="clearPaymentDate(card); $event.stopPropagation()"
               aria-label="Clear date"
+              title="Clear date"
             >
               ×
             </button>

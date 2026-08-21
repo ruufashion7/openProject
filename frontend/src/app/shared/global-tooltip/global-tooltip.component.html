@@ -1,0 +1,10 @@
+<div
+  class="global-tooltip"
+  *ngIf="text"
+  [class.below]="placement === 'below'"
+  [class.align-start]="align === 'start'"
+  [class.align-end]="align === 'end'"
+  [style.left.px]="x"
+  [style.top.px]="y"
+  role="tooltip"
+>{{ text }}</div>

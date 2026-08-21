@@ -6,12 +6,13 @@ import { SidebarComponent } from './shared/sidebar/sidebar.component';
 import { ScrollButtonComponent } from './shared/scroll-button/scroll-button.component';
 import { TopHeaderComponent } from './shared/top-header/top-header.component';
 import { NotificationComponent } from './shared/notification/notification.component';
+import { GlobalTooltipComponent } from './shared/global-tooltip/global-tooltip.component';
 import { SidebarService } from './shared/sidebar/sidebar.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, CommonModule, SidebarComponent, ScrollButtonComponent, TopHeaderComponent, NotificationComponent],
+  imports: [RouterOutlet, CommonModule, SidebarComponent, ScrollButtonComponent, TopHeaderComponent, NotificationComponent, GlobalTooltipComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })

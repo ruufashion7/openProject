@@ -88,7 +88,7 @@
       <div class="customer-highlight-card" *ngIf="selectedCustomerName || selectedPhoneNumber">
         <div class="highlight-card-content">
           <h2 class="highlighted-name">{{ selectedCustomerName || selectedPhoneNumber }}</h2>
-          <button type="button" class="btn btn-close-highlight" (click)="clearCustomerSelection()" aria-label="Close">
+          <button type="button" class="btn btn-close-highlight" (click)="clearCustomerSelection()" aria-label="Close" title="Clear selected customer">
             ×
           </button>
           <!-- Always show for a selected customer (including ₹0 / no receivable summary). -->
@@ -283,6 +283,7 @@
                     *ngIf="paymentDateEdit && canEditPaymentDate"
                     (click)="clearPaymentDate()"
                     aria-label="Clear date"
+                    title="Clear date"
                   >
                     ×
                   </button>
@@ -558,7 +559,7 @@
         <!-- Customer Notes Section (view: any Details/Outstanding user; edit: Customer Notes Edit) -->
         <div class="info-card notes-card" *ngIf="canViewCustomerNotes">
           <div class="notes-content">
-            <div class="notes-header" (click)="toggleNotes()">
+            <div class="notes-header" (click)="toggleNotes()" title="Customer notes (maximum 6). Latest note syncs to Google Drive.">
               <span class="section-label">NOTES</span>
               <div class="notes-count-badge" *ngIf="customerNotes.length > 0">{{ customerNotes.length }}/{{ maxCustomerNotes }}</div>
               <button
@@ -597,7 +598,7 @@
                       placeholder="Edit note..."
                     ></textarea>
                     <div class="note-edit-actions">
-                      <button type="button" class="btn btn-save-note" (click)="saveNote()">
+                      <button type="button" class="btn btn-save-note" (click)="saveNote()" title="Save note changes">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <polyline points="20 6 9 17 4 12"></polyline>
                         </svg>
@@ -655,6 +656,7 @@
                   *ngIf="customerNotes.length < maxCustomerNotes"
                   (click)="addNote()"
                   [disabled]="!newNoteContent.trim()"
+                  title="Add a note. The latest note also appears in Google Drive."
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -673,7 +675,7 @@
           <div class="location-edit-content">
             <div class="location-edit-header">
               <h3>{{ (customerSummary?.address || (customerSummary?.latitude && customerSummary?.longitude)) ? 'Edit Location' : 'Add Location' }}</h3>
-              <button type="button" class="btn-close" (click)="cancelLocationEdit()" aria-label="Close">
+              <button type="button" class="btn-close" (click)="cancelLocationEdit()" aria-label="Close" title="Close">
                 ×
               </button>
             </div>

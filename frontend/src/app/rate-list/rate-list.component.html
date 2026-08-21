@@ -697,7 +697,7 @@
     <div class="modal-content" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3 class="modal-title">➕ Add New Product</h3>
-        <button type="button" class="modal-close" (click)="closeAddProductModal()">✕</button>
+        <button type="button" class="modal-close" (click)="closeAddProductModal()" title="Close">✕</button>
       </div>
       <div class="modal-body">
         <label class="form-field">
@@ -726,7 +726,7 @@
     <div class="modal-content" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3 class="modal-title">🗑️ Delete Product</h3>
-        <button type="button" class="modal-close" (click)="closeDeleteProductModal()">✕</button>
+        <button type="button" class="modal-close" (click)="closeDeleteProductModal()" title="Close">✕</button>
       </div>
       <div class="modal-body">
         <p>Are you sure you want to delete <strong>{{ productToDelete }}</strong>?</p>
@@ -744,7 +744,7 @@
     <div class="modal-content" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3 class="modal-title">🗑️ Delete selected entries</h3>
-        <button type="button" class="modal-close" (click)="closeBulkDeleteModal()" [disabled]="bulkDeleting">✕</button>
+        <button type="button" class="modal-close" (click)="closeBulkDeleteModal()" [disabled]="bulkDeleting" title="Close">✕</button>
       </div>
       <div class="modal-body">
         <p>
@@ -777,7 +777,7 @@
     <div class="modal-content bulk-upload-modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3 class="modal-title">📤 Bulk Upload Rate List</h3>
-        <button type="button" class="modal-close" (click)="closeBulkUploadModal()">✕</button>
+        <button type="button" class="modal-close" (click)="closeBulkUploadModal()" title="Close">✕</button>
       </div>
       <div class="modal-body" [class.uploading]="uploadStatus === 'uploading'">
         <!-- Upload Loader Overlay -->
@@ -847,7 +847,7 @@
                 <div class="file-size">{{ (selectedFile.size / 1024).toFixed(2) }} KB</div>
               </div>
             </div>
-            <button type="button" class="btn-icon-small btn-icon-clear" (click)="selectedFile = null" [disabled]="uploadStatus === 'uploading'">
+            <button type="button" class="btn-icon-small btn-icon-clear" (click)="selectedFile = null" [disabled]="uploadStatus === 'uploading'" title="Remove file">
               ✕
             </button>
           </div>
