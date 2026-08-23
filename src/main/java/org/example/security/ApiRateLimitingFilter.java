@@ -11,8 +11,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * Per-IP sliding-window cap on {@code /api/**} traffic (excluding {@code /api/login}, which uses {@link RateLimitingService}).
- * In-memory only — not shared across multiple app instances; use a gateway or Redis-backed limiter for strict production quotas.
+ * Per-IP cap on {@code /api/**} traffic (login, session, upload status/polls are exempt).
+ * Redis when configured; otherwise a fixed in-memory window per JVM.
  * Registered only from {@link org.example.config.SecurityConfig} (not a {@code @Component}) to avoid double registration.
  */
 public class ApiRateLimitingFilter extends OncePerRequestFilter {
@@ -37,11 +37,7 @@ public class ApiRateLimitingFilter extends OncePerRequestFilter {
         if (path.isEmpty() || !(path.startsWith("/api/") || "/api".equals(path))) {
             return true;
         }
-        // Login has dedicated username/IP policy in AuthController
-        if ("/api/login".equals(path)) {
-            return true;
-        }
-        return false;
+        return ApiServletPaths.isApiRateLimitExempt(request.getMethod(), path);
     }
 
     @Override
@@ -50,6 +46,7 @@ public class ApiRateLimitingFilter extends OncePerRequestFilter {
         String clientIp = clientIp(request);
         if (!rateLimitingService.isApiRequestAllowed(clientIp)) {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+            response.setHeader("Retry-After", String.valueOf(rateLimitingService.apiRetryAfterSeconds(clientIp)));
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write("{\"error\":\"Too many requests. Try again later.\"}");
             return;

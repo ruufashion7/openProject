@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
@@ -25,7 +26,7 @@ public class RateLimitingService {
     private static final String RL_API = "openproject:rl:api:";
 
     private final Cache<String, LoginAttemptInfo> loginAttemptsCache;
-    private final Cache<String, Integer> apiRequestCache;
+    private final Cache<String, ApiWindow> apiRequestCache;
 
     private final int loginMaxAttempts;
     private final int loginWindowMinutes;
@@ -33,19 +34,34 @@ public class RateLimitingService {
     private final int apiWindowMinutes;
     private final StringRedisTemplate redisTemplate;
     private final boolean useRedis;
+    private final Clock clock;
 
+    @Autowired
     public RateLimitingService(
             @Value("${security.rate-limit.login.max-attempts:5}") int loginMaxAttempts,
             @Value("${security.rate-limit.login.window-minutes:15}") int loginWindowMinutes,
-            @Value("${security.rate-limit.api.max-requests:100}") int apiMaxRequests,
+            @Value("${security.rate-limit.api.max-requests:600}") int apiMaxRequests,
             @Value("${security.rate-limit.api.window-minutes:1}") int apiWindowMinutes,
             @Value("${security.rate-limit.backend:auto}") String backend,
             @Autowired(required = false) StringRedisTemplate redisTemplate) {
+        this(loginMaxAttempts, loginWindowMinutes, apiMaxRequests, apiWindowMinutes, backend, redisTemplate,
+                Clock.systemUTC());
+    }
+
+    RateLimitingService(
+            int loginMaxAttempts,
+            int loginWindowMinutes,
+            int apiMaxRequests,
+            int apiWindowMinutes,
+            String backend,
+            StringRedisTemplate redisTemplate,
+            Clock clock) {
         this.loginMaxAttempts = loginMaxAttempts;
         this.loginWindowMinutes = loginWindowMinutes;
         this.apiMaxRequests = apiMaxRequests;
         this.apiWindowMinutes = apiWindowMinutes;
         this.redisTemplate = redisTemplate;
+        this.clock = clock != null ? clock : Clock.systemUTC();
         boolean wantRedis = "redis".equalsIgnoreCase(backend) || "auto".equalsIgnoreCase(backend);
         if ("memory".equalsIgnoreCase(backend)) {
             wantRedis = false;
@@ -75,7 +91,7 @@ public class RateLimitingService {
                 .build();
 
         this.apiRequestCache = Caffeine.newBuilder()
-                .expireAfterWrite(apiWindowMinutes, TimeUnit.MINUTES)
+                .expireAfterWrite(Math.max(1, apiWindowMinutes) + 1L, TimeUnit.MINUTES)
                 .maximumSize(50000)
                 .build();
     }
@@ -221,31 +237,57 @@ public class RateLimitingService {
     }
 
     public boolean isApiRequestAllowed(String identifier) {
+        String id = identifier != null ? identifier : "unknown";
         if (useRedis) {
-            long minute = Instant.now().getEpochSecond() / 60;
-            String key = RL_API + identifier.toLowerCase() + ":" + minute;
+            long minute = clock.instant().getEpochSecond() / 60;
+            String key = RL_API + id.toLowerCase() + ":" + minute;
             Long c = redisTemplate.opsForValue().increment(key);
             if (c != null && c == 1L) {
                 redisTemplate.expire(key, Duration.ofMinutes(apiWindowMinutes + 1L));
             }
             if (c != null && c > apiMaxRequests) {
-                logger.warn("API rate limit exceeded. Identifier: {}", identifier);
+                logger.warn("API rate limit exceeded. Identifier: {}", id);
                 return false;
             }
             return true;
         }
-        String key = "api:" + identifier.toLowerCase();
-        Integer count = apiRequestCache.getIfPresent(key);
-        if (count == null) {
-            apiRequestCache.put(key, 1);
-            return true;
+        String key = "api:" + id.toLowerCase();
+        boolean[] allowed = {true};
+        apiRequestCache.asMap().compute(key, (k, current) -> {
+            Instant now = clock.instant();
+            Duration window = Duration.ofMinutes(Math.max(1, apiWindowMinutes));
+            if (current == null || !now.isBefore(current.windowStart().plus(window))) {
+                return new ApiWindow(1, now);
+            }
+            if (current.count() >= apiMaxRequests) {
+                allowed[0] = false;
+                return current;
+            }
+            return new ApiWindow(current.count() + 1, current.windowStart());
+        });
+        if (!allowed[0]) {
+            logger.warn("API rate limit exceeded. Identifier: {}", id);
         }
-        if (count >= apiMaxRequests) {
-            logger.warn("API rate limit exceeded. Identifier: {}", identifier);
-            return false;
+        return allowed[0];
+    }
+
+    /** Seconds until the current API window resets for this identifier (at least 1). */
+    public int apiRetryAfterSeconds(String identifier) {
+        int windowSeconds = Math.max(60, apiWindowMinutes * 60);
+        if (useRedis) {
+            long remainder = 60 - (clock.instant().getEpochSecond() % 60);
+            return (int) Math.max(1, remainder);
         }
-        apiRequestCache.put(key, count + 1);
-        return true;
+        if (identifier == null || identifier.isBlank()) {
+            return windowSeconds;
+        }
+        ApiWindow current = apiRequestCache.getIfPresent("api:" + identifier.toLowerCase());
+        if (current == null) {
+            return 1;
+        }
+        Instant resetAt = current.windowStart().plus(Duration.ofMinutes(Math.max(1, apiWindowMinutes)));
+        long sec = Duration.between(clock.instant(), resetAt).getSeconds();
+        return (int) Math.max(1, sec);
     }
 
     private boolean isLockedLocal(String key) {
@@ -301,5 +343,9 @@ public class RateLimitingService {
     }
 
     private record LoginAttemptInfo(int attemptCount, Instant firstAttempt) {
+    }
+
+    /** Fixed window for in-memory API caps. Window start must not reset on each increment. */
+    private record ApiWindow(int count, Instant windowStart) {
     }
 }

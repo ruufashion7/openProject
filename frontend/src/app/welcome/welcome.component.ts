@@ -62,9 +62,12 @@ export class WelcomeComponent implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.statusLoading = false;
-        this.analyticsEnabled = false;
-        this.analyticsMessage = messageFromHttpError(err, 'Unable to load upload status.');
-        this.notifications.showError(this.analyticsMessage);
+        // Rate-limit / transport errors must not lock Invoice, Details, or Outstanding Due.
+        this.analyticsEnabled = true;
+        this.analyticsMessage = '';
+        if (err.status !== 429) {
+          this.notifications.showError(messageFromHttpError(err, 'Unable to load upload status.'));
+        }
       }
     });
   }
