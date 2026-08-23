@@ -824,7 +824,6 @@
           <div class="customer-name-row">
             <h3 class="customer-name">{{ card.customer }}</h3>
             <div class="customer-status-badges">
-              <span class="badge-retained" *ngIf="card.retained" title="Retained customer">Retained</span>
               <span class="badge-over-limit" *ngIf="card.overCreditLimit" title="Over credit limit">Over limit</span>
             </div>
           </div>
@@ -873,6 +872,15 @@
             [attr.title]="permissionService.accessDeniedTooltip(canChangeFollowUp, 'followUpChange') || (followUpFlags[card.customer || ''] ? 'Follow-up Needed (Click to remove)' : 'Click to mark for follow-up')"
           >
             🚩
+          </span>
+          <span
+            class="badge-retained-toggle"
+            [class.active]="!!card.retained"
+            [class.badge-retained-no-perm]="!canRetainCustomer"
+            (click)="onRetainToggle(card); $event.stopPropagation()"
+            [attr.title]="permissionService.accessDeniedTooltip(canRetainCustomer, 'customerRetainEdit') || (card.retained ? 'Retained — stays on this page even with ₹0 due (click to remove)' : 'Click to retain — keep on this page even with ₹0 due')"
+          >
+            📌
           </span>
         </div>
       </div>

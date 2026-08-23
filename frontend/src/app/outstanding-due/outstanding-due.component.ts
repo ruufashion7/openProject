@@ -187,6 +187,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
   private searchTimer: any = null;
   private ignoreSuggestTimer: any = null;
   private retainSuggestTimer: any = null;
+  private retainToggleBusy: Record<string, boolean> = {};
   private readonly filterStorageKey = 'outstandingDueV2.filters';
 
   /** Cascading counts for filter pills (recomputed in {@link updateFilteredCards}). */
@@ -1218,6 +1219,100 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       });
   }
 
+  onRetainToggle(card: PaymentDateCustomerCard): void {
+    const name = card.customer;
+    if (!name) {
+      return;
+    }
+    if (!this.canRetainCustomer) {
+      this.permissionService.notifyRoleDenied('retain customers on Outstanding Due', 'customerRetainEdit');
+      return;
+    }
+    if (this.retainToggleBusy[name]) {
+      return;
+    }
+
+    const makingRetained = !card.retained;
+    const shortName = name.length > 30 ? name.substring(0, 30) + '...' : name;
+    this.retainToggleBusy[name] = true;
+    card.retained = makingRetained;
+
+    if (makingRetained) {
+      this.api.retainCustomer(name)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (view) => {
+            const foundCard = this.cards.find(c => c.customer === name);
+            if (foundCard) {
+              foundCard.retained = true;
+            }
+            if (view?.customerKey && !this.retainedCustomers.some(r => r.customerKey === view.customerKey)) {
+              this.retainedCustomers = [...this.retainedCustomers, view];
+            }
+            this.updateFilteredCards();
+            this.loadRetainedCustomers();
+            this.notificationService.showSuccess(`${shortName} is now retained`);
+            this.retainToggleBusy[name] = false;
+          },
+          error: (err: HttpErrorResponse) => {
+            const foundCard = this.cards.find(c => c.customer === name);
+            if (foundCard) {
+              foundCard.retained = false;
+            }
+            this.updateFilteredCards();
+            this.retainToggleBusy[name] = false;
+            this.notificationService.showError(
+              this.apiErrorMessage(err, 'Could not retain customer.')
+            );
+          }
+        });
+      return;
+    }
+
+    const match = this.findRetainedMatch(this.retainedCustomers, name);
+    const customerKey = match?.customerKey || this.normalizeCustomerKey(name);
+    if (!customerKey) {
+      const foundCard = this.cards.find(c => c.customer === name);
+      if (foundCard) {
+        foundCard.retained = true;
+      }
+      this.updateFilteredCards();
+      this.retainToggleBusy[name] = false;
+      this.notificationService.showError('Could not unretain customer.');
+      return;
+    }
+
+    this.api.unretainCustomer(customerKey)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          const foundCard = this.cards.find(c => c.customer === name);
+          if (foundCard) {
+            foundCard.retained = false;
+            if ((foundCard.totalAmount ?? 0) === 0) {
+              this.cards = this.cards.filter(c => c.customer !== name);
+            }
+          }
+          this.retainedCustomers = this.retainedCustomers.filter(r => r.customerKey !== customerKey);
+          this.updateFilteredCards();
+          this.loadRetainedCustomers();
+          this.notificationService.showSuccess(`${shortName} removed from retained`);
+          this.retainToggleBusy[name] = false;
+        },
+        error: (err: HttpErrorResponse) => {
+          const foundCard = this.cards.find(c => c.customer === name);
+          if (foundCard) {
+            foundCard.retained = true;
+          }
+          this.updateFilteredCards();
+          this.retainToggleBusy[name] = false;
+          this.notificationService.showError(
+            this.apiErrorMessage(err, 'Could not unretain customer.')
+          );
+        }
+      });
+  }
+
   openCustomerDetails(card: PaymentDateCustomerCard): void {
     // SECURITY: Do NOT put sensitive data (customer names) in URL query parameters
     // Store in sessionStorage instead
@@ -1802,6 +1897,24 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
           );
         }
       });
+  }
+
+  private findRetainedMatch(list: RetainedCustomerView[], displayName: string): RetainedCustomerView | undefined {
+    const targetKey = this.normalizeCustomerKey(displayName);
+    return list.find((item) => {
+      const nameKey = this.normalizeCustomerKey(item.customerName || '');
+      const key = this.normalizeCustomerKey(item.customerKey || '');
+      return nameKey === targetKey || key === targetKey;
+    });
+  }
+
+  /** Same normalization as backend CustomerIdentity.normalizeKey */
+  private normalizeCustomerKey(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
   }
 
   logout(): void {

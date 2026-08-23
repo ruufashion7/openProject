@@ -299,19 +299,6 @@
   color: #047857;
 }
 
-.badge-retained {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  vertical-align: middle;
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
-  flex-shrink: 0;
-}
-
 .badge-over-limit {
   display: inline-block;
   padding: 2px 8px;
@@ -1054,12 +1041,13 @@
 
 .card-badges {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .badge-location,
-.badge-followup {
+.badge-followup,
+.badge-retained-toggle {
   width: 24px;
   height: 24px;
   display: flex;
@@ -1115,6 +1103,32 @@
 }
 
 .badge-followup-no-perm {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.badge-retained-toggle {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  opacity: 0.3;
+  filter: grayscale(0.7);
+}
+
+.badge-retained-toggle.active {
+  background: #f5f3ff;
+  border: 1px solid #c4b5fd;
+  opacity: 1;
+  filter: grayscale(0);
+}
+
+.badge-retained-toggle:hover {
+  background: #ede9fe;
+  transform: scale(1.1);
+  opacity: 1;
+  filter: grayscale(0);
+}
+
+.badge-retained-no-perm {
   cursor: not-allowed;
   opacity: 0.55;
 }
