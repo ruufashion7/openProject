@@ -31,11 +31,12 @@ import {
   matchesPaymentDateFilter,
   normalizeToDayMonth,
   PAYMENT_DATE_SAVE_DEBOUNCE_MS,
+  PaymentDateFilterMode,
   toIsoDate
 } from '../shared/payment-date.util';
 
 interface FilterState {
-  paymentDate: 'all' | 'past' | 'today' | 'future' | 'none';
+  paymentDate: PaymentDateFilterMode;
   whatsappStatus: 'all' | 'not sent' | 'sent' | 'delivered';
   customerCategory: 'all' | 'semi-wholesale' | 'A' | 'B' | 'C';
   followUp: 'all' | 'needed' | 'not-needed';
@@ -48,7 +49,7 @@ interface FilterState {
 
 /** Per-option counts with other filters applied (cascading). */
 interface FilterDimensionCounts {
-  paymentDate: Record<'all' | 'past' | 'today' | 'future' | 'none', number>;
+  paymentDate: Record<PaymentDateFilterMode, number>;
   whatsappStatus: Record<'all' | 'not sent' | 'sent' | 'delivered', number>;
   customerCategory: Record<'all' | 'semi-wholesale' | 'A' | 'B' | 'C', number>;
   followUp: Record<'all' | 'needed' | 'not-needed', number>;
@@ -192,7 +193,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
 
   /** Cascading counts for filter pills (recomputed in {@link updateFilteredCards}). */
   filterCounts: FilterDimensionCounts = {
-    paymentDate: { all: 0, past: 0, today: 0, future: 0, none: 0 },
+    paymentDate: { all: 0, past: 0, today: 0, tomorrow: 0, future: 0, none: 0 },
     whatsappStatus: { all: 0, 'not sent': 0, sent: 0, delivered: 0 },
     customerCategory: { all: 0, 'semi-wholesale': 0, A: 0, B: 0, C: 0 },
     followUp: { all: 0, needed: 0, 'not-needed': 0 },
@@ -575,6 +576,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
       all: basePayment.length,
       past: basePayment.filter(c => this.cardMatchesPaymentDate(c, 'past')).length,
       today: basePayment.filter(c => this.cardMatchesPaymentDate(c, 'today')).length,
+      tomorrow: basePayment.filter(c => this.cardMatchesPaymentDate(c, 'tomorrow')).length,
       future: basePayment.filter(c => this.cardMatchesPaymentDate(c, 'future')).length,
       none: basePayment.filter(c => this.cardMatchesPaymentDate(c, 'none')).length
     };
@@ -1014,8 +1016,8 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     }
   }
 
-  formatDate(dateString: string): string {
-    if (!dateString) return '';
+  formatDate(dateString: string | null | undefined): string {
+    if (!dateString) return '—';
     try {
       const date = new Date(dateString);
       const day = date.getDate().toString().padStart(2, '0');
@@ -1583,6 +1585,10 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
         }
         if (parsed.creditLimit !== 'all' && parsed.creditLimit !== 'over' && parsed.creditLimit !== 'within' && parsed.creditLimit !== 'none') {
           parsed.creditLimit = 'all';
+        }
+        const paymentDateModes: PaymentDateFilterMode[] = ['all', 'past', 'today', 'tomorrow', 'future', 'none'];
+        if (!paymentDateModes.includes(parsed.paymentDate)) {
+          parsed.paymentDate = 'all';
         }
         this.filters = { ...this.filters, ...parsed, places: parsed.places || [] };
       }

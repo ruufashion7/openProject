@@ -1,5 +1,5 @@
 export type PaymentDateTone = 'neutral' | 'yellow' | 'green' | 'red';
-export type PaymentDateFilterMode = 'all' | 'past' | 'today' | 'future' | 'none';
+export type PaymentDateFilterMode = 'all' | 'past' | 'today' | 'tomorrow' | 'future' | 'none';
 
 export const PAYMENT_DATE_SAVE_DEBOUNCE_MS = 400;
 
@@ -76,6 +76,31 @@ export function getPaymentDateBorderClass(tone: PaymentDateTone): string {
   }
 }
 
+function parseDayMonth(date: string | null | undefined): { day: number; month: number } | null {
+  if (!date) {
+    return null;
+  }
+  const match = date.trim().match(/^(\d{2})-(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  if (!day || !month || day > 31 || month > 12) {
+    return null;
+  }
+  return { day, month };
+}
+
+export function isPaymentDateTomorrow(date: string | null | undefined, now = new Date()): boolean {
+  const parsed = parseDayMonth(date);
+  if (!parsed) {
+    return false;
+  }
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return parsed.day === tomorrow.getDate() && parsed.month === tomorrow.getMonth() + 1;
+}
+
 export function matchesPaymentDateFilter(
   date: string | null | undefined,
   mode: PaymentDateFilterMode
@@ -88,13 +113,16 @@ export function matchesPaymentDateFilter(
   }
   const tone = getPaymentDateTone(date);
   if (mode === 'past') {
-    return tone === 'red';
+    return tone === 'red' && !isPaymentDateTomorrow(date);
   }
   if (mode === 'today') {
     return tone === 'yellow';
   }
+  if (mode === 'tomorrow') {
+    return isPaymentDateTomorrow(date);
+  }
   if (mode === 'future') {
-    return tone === 'green';
+    return tone === 'green' && !isPaymentDateTomorrow(date);
   }
   return false;
 }
