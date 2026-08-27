@@ -7,6 +7,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.example.payment.CustomerNotes;
 import org.example.payment.PaymentDateOverride;
+import org.example.upload.ExcelUploadHeaderRules;
 import org.example.upload.PoiSecurityLimits;
 
 import java.io.ByteArrayInputStream;
@@ -66,6 +67,7 @@ public final class PaymentDateWorkbookWriter {
             }
             List<String> headers = PaymentDateWorkbookParser.headersOf(headerRow);
             int nameCol = PaymentDateWorkbookParser.indexOfNameHeader(headers);
+            int phoneCol = PaymentDateWorkbookParser.indexOfPhoneHeader(headers);
             int dateCol = PaymentDateWorkbookParser.indexOfDateHeader(headers);
             int noteCol = PaymentDateWorkbookParser.indexOfNoteHeader(headers);
             if (nameCol < 0 || dateCol < 0) {
@@ -82,7 +84,7 @@ public final class PaymentDateWorkbookWriter {
                 if (name.isBlank() || name.equalsIgnoreCase("total")) {
                     continue;
                 }
-                PaymentDateWorkbookRow workbookRow = new PaymentDateWorkbookRow(rowIndex + 1, name, "", "");
+                PaymentDateWorkbookRow workbookRow = new PaymentDateWorkbookRow(rowIndex + 1, name, "", "", "");
                 if (DriveCustomerMatcher.isAmbiguous(workbookRow, byKey)) {
                     continue;
                 }
@@ -93,6 +95,21 @@ public final class PaymentDateWorkbookWriter {
                 PaymentDateOverride customer = matched.get();
                 matchedKeys.add(customer.customerKey());
                 boolean rowChanged = false;
+
+                String appPhone = customer.phoneNumber() == null ? "" : customer.phoneNumber().trim();
+                if (!appPhone.isBlank()) {
+                    int targetPhoneCol = resolvePhoneColumn(headerRow, headers, nameCol, phoneCol, dateCol, noteCol);
+                    if (targetPhoneCol >= 0) {
+                        phoneCol = targetPhoneCol;
+                        String currentPhone = PaymentDateWorkbookParser.cellText(row, phoneCol);
+                        if (!Objects.equals(currentPhone, appPhone)) {
+                            Cell phoneCell = row.getCell(phoneCol, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                            phoneCell.setCellValue(appPhone);
+                            cellUpdates.add(new SheetCellUpdate(rowIndex, phoneCol, appPhone));
+                            rowChanged = true;
+                        }
+                    }
+                }
 
                 String nextDate = customer.nextPaymentDate() == null ? "" : customer.nextPaymentDate().trim();
                 if (!nextDate.isBlank()) {
@@ -143,5 +160,35 @@ public final class PaymentDateWorkbookWriter {
             }
             return new Result(out.toByteArray(), sheetName, List.copyOf(cellUpdates), updatedRows, List.copyOf(notFound));
         }
+    }
+
+    /**
+     * Uses an existing Phone column, or the column immediately after Customer Name when that slot
+     * is not already the date or notes column.
+     */
+    private static int resolvePhoneColumn(
+            Row headerRow,
+            List<String> headers,
+            int nameCol,
+            int phoneCol,
+            int dateCol,
+            int noteCol
+    ) {
+        if (phoneCol >= 0) {
+            return phoneCol;
+        }
+        int candidate = nameCol + 1;
+        if (candidate == dateCol || candidate == noteCol) {
+            return -1;
+        }
+        String existingHeader = candidate < headers.size() ? headers.get(candidate).trim() : "";
+        if (!existingHeader.isBlank() && !ExcelUploadHeaderRules.isPhoneHeader(existingHeader)) {
+            return -1;
+        }
+        if (existingHeader.isBlank()) {
+            Cell headerCell = headerRow.getCell(candidate, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+            headerCell.setCellValue("Phone Number");
+        }
+        return candidate;
     }
 }

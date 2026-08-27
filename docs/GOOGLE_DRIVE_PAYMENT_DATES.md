@@ -1,6 +1,6 @@
 # Google Drive Excel → next payment dates
 
-Outstanding Due can sync **customer name + next payment date + latest note** with one workbook in Google Drive (`.xlsx` upload or native Google Sheet).
+Outstanding Due can sync **customer name + phone + next payment date + latest note** with one workbook in Google Drive (`.xlsx` upload or native Google Sheet).
 
 - **Two-way sync** on login and **Sync now**: Drive → app, then app → Drive
 - **App → Drive** when you edit a due date in Outstanding Due, or add/edit/delete a customer note (after a short debounce)
@@ -11,11 +11,12 @@ Blank Excel date cells are ignored on import (they do not clear app dates). Blan
 
 One sheet (first matching sheet, or set `GOOGLE_DRIVE_SHEET_NAME`).
 
-| Customer Name | Next Payment Date | Notes |
-|---|---|---|
-| ABC Traders | 18-08 | Call Monday |
+| Customer Name | Phone Number | Next Payment Date | Notes |
+|---|---|---|---|
+| ABC Traders | 9876543210 | 18-08 | Call Monday |
 
 - Header row must include a customer name column and a next-payment / due date column.
+- **Phone Number** is optional but recommended (place it after Customer Name). Sync writes the app phone number back to Drive; edits in Drive are not imported into the app.
 - **Notes** is optional but recommended. The sheet shows only the **latest** customer note.
 - If you type a **new** note in Drive (text that customer does not already have), sync **adds** it as a new note in the app. It never overwrites an existing note. Maximum **6** notes; the oldest is dropped if a 7th arrives from Drive.
 - If you add a note in the app, the **latest** note is written back to the Drive Notes column.

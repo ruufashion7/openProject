@@ -82,4 +82,36 @@ class PaymentDateWorkbookWriterTest {
         assertEquals(1, parsed.rows().size());
         assertEquals("Paid half", parsed.rows().getFirst().note());
     }
+
+    @Test
+    void applyUpdates_writesPhoneForMatchedCustomer() throws Exception {
+        byte[] bytes;
+        try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Dates");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Customer Name");
+            header.createCell(1).setCellValue("Phone Number");
+            header.createCell(2).setCellValue("Next Payment Date");
+
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("ABC Traders");
+            row.createCell(2).setCellValue("19-08");
+
+            workbook.write(out);
+            bytes = out.toByteArray();
+        }
+
+        PaymentDateOverride customer = PaymentDateOverrideCopy.copy(
+                PaymentDateOverrideCopy.newShell("abc traders", "ABC Traders"),
+                null, null, "19-08", "9876543210", null, null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        PaymentDateWorkbookWriter.Result result = PaymentDateWorkbookWriter.applyUpdates(bytes, "", List.of(customer));
+        assertEquals(1, result.updatedRows());
+        assertTrue(result.notFoundCustomers().isEmpty());
+
+        PaymentDateWorkbookParseResult parsed = PaymentDateWorkbookParser.parse(result.bytes(), "");
+        assertEquals(1, parsed.rows().size());
+        assertEquals("9876543210", parsed.rows().getFirst().phoneNumber());
+    }
 }
