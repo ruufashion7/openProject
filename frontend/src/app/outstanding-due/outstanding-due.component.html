@@ -802,10 +802,7 @@
   </div>
 
   <!-- Loading State -->
-  <div class="loading-state" *ngIf="status === 'loading'">
-    <div class="spinner"></div>
-    <p>Loading outstanding due data...</p>
-  </div>
+  <app-page-state *ngIf="status === 'loading'" kind="loading" message="Loading outstanding due data..."></app-page-state>
 
   <!-- Error State -->
   <div class="error-state" *ngIf="status === 'failed'">

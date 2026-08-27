@@ -8,6 +8,7 @@ import { ApiService, PaymentDateCustomerCard, ExcludedCustomerView, RetainedCust
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
+import { PageStateComponent } from '../shared/page-state/page-state.component';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -62,7 +63,7 @@ interface FilterDimensionCounts {
 @Component({
   selector: 'app-outstanding-due',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PageStateComponent],
   templateUrl: './outstanding-due.component.html',
   styleUrl: './outstanding-due.component.css'
 })

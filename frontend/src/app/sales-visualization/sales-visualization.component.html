@@ -79,10 +79,7 @@
   </div>
 
   <!-- Loading State -->
-  <div *ngIf="status === 'loading'" class="loading-container">
-    <div class="loading-spinner"></div>
-    <p>Loading sales data...</p>
-  </div>
+  <app-page-state *ngIf="status === 'loading'" kind="loading" message="Loading sales data..."></app-page-state>
 
   <!-- Error State -->
   <div *ngIf="status === 'failed'" class="error-container">

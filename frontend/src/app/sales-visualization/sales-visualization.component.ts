@@ -7,13 +7,14 @@ import { ApiService, SalesVisualizationResponse } from '../services/api.service'
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
+import { PageStateComponent } from '../shared/page-state/page-state.component';
 import { ChartConfiguration, ChartData, ChartOptions, ChartType, TooltipItem } from 'chart.js';
 import { NgChartsModule } from 'ng2-charts';
 
 @Component({
   selector: 'app-sales-visualization',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgChartsModule],
+  imports: [CommonModule, FormsModule, NgChartsModule, PageStateComponent],
   templateUrl: './sales-visualization.component.html',
   styleUrl: './sales-visualization.component.css'
 })
