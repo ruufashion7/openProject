@@ -268,6 +268,10 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
+  refreshPage(): void {
+    window.location.reload();
+  }
+
   loadData(): void {
     this.status = 'loading';
     this.api.getUploadStatus()

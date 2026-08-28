@@ -7,6 +7,15 @@
         <p class="page-subtitle-modern">Manage outstanding amounts, due dates, and customer follow-ups</p>
       </div>
       <div class="header-actions">
+        <button
+          type="button"
+          class="btn-icon"
+          (click)="refreshPage()"
+          title="Refresh outstanding due"
+          aria-label="Refresh outstanding due"
+        >
+          <span>↻</span>
+        </button>
         <button class="btn-icon" (click)="toggleViewMode()" [title]="viewMode === 'grid' ? 'Switch to List View' : 'Switch to Grid View'">
           <span>{{ viewMode === 'grid' ? '☰' : '⊞' }}</span>
         </button>
