@@ -6,6 +6,7 @@ import org.example.payment.OutstandingDueCustomerResolver;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
+import org.example.payment.PaymentDateRules;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -122,7 +123,7 @@ class DrivePaymentDateSyncServiceTest {
 
         ArgumentCaptor<PaymentDateOverride> captor = ArgumentCaptor.forClass(PaymentDateOverride.class);
         verify(paymentDateOverrideRepository).save(captor.capture());
-        assertEquals("18-08", captor.getValue().nextPaymentDate());
+        assertEquals(PaymentDateRules.normalizeOverdueToToday("18-08"), captor.getValue().nextPaymentDate());
     }
 
     @Test
@@ -246,7 +247,7 @@ class DrivePaymentDateSyncServiceTest {
         ArgumentCaptor<PaymentDateOverride> captor = ArgumentCaptor.forClass(PaymentDateOverride.class);
         verify(paymentDateOverrideRepository).save(captor.capture());
         PaymentDateOverride saved = captor.getValue();
-        assertEquals("18-08", saved.nextPaymentDate());
+        assertEquals(PaymentDateRules.normalizeOverdueToToday("18-08"), saved.nextPaymentDate());
         assertEquals(1, saved.notes().size());
         assertEquals("Call Monday", saved.notes().getFirst().note());
         assertEquals("Google Drive", saved.notes().getFirst().createdBy());
@@ -256,7 +257,9 @@ class DrivePaymentDateSyncServiceTest {
     void syncNow_skipsDriveNoteWhenAlreadyPresent() throws Exception {
         DriveSyncProperties properties = new DriveSyncProperties(
                 true, "file-id", "{}", "", true, 50);
-        byte[] xlsx = notesWorkbookBytes("18-08", "Call Monday");
+        String today = java.time.LocalDate.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("dd-MM"));
+        byte[] xlsx = notesWorkbookBytes(today, "Call Monday");
         DriveWorkbookSource source = new DriveWorkbookSource() {
             @Override
             public DriveWorkbookSnapshot download() {
@@ -271,7 +274,7 @@ class DrivePaymentDateSyncServiceTest {
 
         PaymentDateOverride existing = PaymentDateOverrideCopy.copy(
                 PaymentDateOverrideCopy.newShell(CustomerIdentity.normalizeKey("ABC Traders"), "ABC Traders"),
-                null, null, "18-08", null, null, null, null, null, null, null, null, null,
+                null, null, today, null, null, null, null, null, null, null, null, null,
                 List.of(org.example.payment.CustomerNotes.newDriveNote("Call Monday")),
                 null, null, null
         );

@@ -8,6 +8,7 @@ import org.example.customer.CustomerPhoneNumbers;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
+import org.example.payment.PaymentDateRules;
 import org.example.payment.CustomerExclusionService;
 import org.example.settings.CreditLimitResolution;
 import org.example.settings.CustomerCreditLimitService;
@@ -439,7 +440,9 @@ public class AnalyticsController {
         String customerKey = resolvedCustomer != null ? normalizeCustomer(resolvedCustomer) : "";
         PaymentDateOverride paymentDateOverride = customerKey.isBlank() ? null 
                 : paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
-        String nextPaymentDate = paymentDateOverride != null ? paymentDateOverride.nextPaymentDate() : null;
+        String nextPaymentDate = paymentDateOverride != null
+                ? PaymentDateRules.normalizeOverdueToToday(paymentDateOverride.nextPaymentDate())
+                : null;
         String whatsAppStatus = paymentDateOverride != null ? paymentDateOverride.whatsAppStatus() : null;
         String customerCategory = paymentDateOverride != null ? paymentDateOverride.customerCategory() : null;
         Boolean needsFollowUp = paymentDateOverride != null ? paymentDateOverride.needsFollowUp() : false;
@@ -615,7 +618,7 @@ public class AnalyticsController {
             customerKey = normalizeCustomer(foundCustomerName);
             paymentDateOverride = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
             if (paymentDateOverride != null) {
-                nextPaymentDate = paymentDateOverride.nextPaymentDate();
+                nextPaymentDate = PaymentDateRules.normalizeOverdueToToday(paymentDateOverride.nextPaymentDate());
                 whatsAppStatus = paymentDateOverride.whatsAppStatus();
                 needsFollowUp = paymentDateOverride.needsFollowUp() != null ? paymentDateOverride.needsFollowUp() : false;
                 customerCategory = paymentDateOverride.customerCategory();
@@ -945,7 +948,10 @@ public class AnalyticsController {
         // Build maps for payment dates, WhatsApp statuses, follow-up flags, and phones from updated customer_master
         Map<String, String> nextPaymentDates = paymentDateOverrides.values().stream()
                 .filter(override -> override.nextPaymentDate() != null)
-                .collect(Collectors.toMap(PaymentDateOverride::customerKey, PaymentDateOverride::nextPaymentDate, (a, b) -> a));
+                .collect(Collectors.toMap(
+                        PaymentDateOverride::customerKey,
+                        override -> PaymentDateRules.normalizeOverdueToToday(override.nextPaymentDate()),
+                        (a, b) -> a));
         Map<String, String> whatsAppStatuses = paymentDateOverrides.values().stream()
                 .filter(override -> override.whatsAppStatus() != null)
                 .collect(Collectors.toMap(PaymentDateOverride::customerKey, PaymentDateOverride::whatsAppStatus, (a, b) -> a));
@@ -1103,6 +1109,10 @@ public class AnalyticsController {
             if (!isValidDayMonth(nextPaymentDate)) {
                 return ResponseEntity.badRequest()
                     .body(Map.of("error", "Invalid date", "message", "Date is not valid (e.g., day must be 1-31, month 1-12)"));
+            }
+            if (PaymentDateRules.isPast(nextPaymentDate)) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Past date not allowed", "message", "Payment date cannot be before today"));
             }
 
             String phoneNumber = request.phoneNumber() == null ? null : request.phoneNumber().trim();

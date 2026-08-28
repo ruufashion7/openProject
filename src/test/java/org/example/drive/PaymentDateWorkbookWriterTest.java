@@ -6,6 +6,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.example.payment.DriveSheetCustomer;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
+import org.example.payment.PaymentDateRules;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -52,7 +53,7 @@ class PaymentDateWorkbookWriterTest {
 
         PaymentDateWorkbookParseResult parsed = PaymentDateWorkbookParser.parse(result.bytes(), "");
         assertEquals(1, parsed.rows().size());
-        assertEquals("19-08", parsed.rows().getFirst().nextPaymentDate());
+        assertEquals(PaymentDateRules.normalizeOverdueToToday("19-08"), parsed.rows().getFirst().nextPaymentDate());
         assertEquals("abc traders", parsed.rows().getFirst().customerKey());
     }
 

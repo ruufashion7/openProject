@@ -28,6 +28,33 @@ export function toIsoDate(value: string): string | null {
   return `${year}-${month}-${day}`;
 }
 
+export function todayIsoDate(now = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function isPaymentDatePast(value: string, now = new Date()): boolean {
+  const parsed = parseDayMonth(value);
+  if (!parsed) {
+    return false;
+  }
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(now.getFullYear(), parsed.month - 1, parsed.day);
+  return target.getTime() < today.getTime();
+}
+
+export function normalizeOverduePaymentDate(value: string | null | undefined, now = new Date()): string {
+  if (!value) {
+    return '';
+  }
+  if (!isPaymentDatePast(value, now)) {
+    return value;
+  }
+  return `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function getPaymentDateTone(date: string | null | undefined): PaymentDateTone {
   if (!date) {
     return 'neutral';

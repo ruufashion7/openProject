@@ -28,11 +28,14 @@ import {
 import {
   getPaymentDateBorderClass as paymentDateBorderClass,
   getPaymentDateTone as paymentDateTone,
+  isPaymentDatePast,
   isValidPaymentDateFormat,
   matchesPaymentDateFilter,
+  normalizeOverduePaymentDate,
   normalizeToDayMonth,
   PAYMENT_DATE_SAVE_DEBOUNCE_MS,
   PaymentDateFilterMode,
+  todayIsoDate,
   toIsoDate
 } from '../shared/payment-date.util';
 
@@ -339,7 +342,9 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     this.customerCategories = {};
     for (const card of this.cards) {
       if (card.customer) {
-        this.dateEdits[card.customer] = card.nextPaymentDate ?? '';
+        const effectiveDate = normalizeOverduePaymentDate(card.nextPaymentDate);
+        card.nextPaymentDate = effectiveDate || null;
+        this.dateEdits[card.customer] = effectiveDate;
         this.whatsappStatuses[card.customer] = card.whatsAppStatus ?? 'not sent';
         // Default to 'A' if no category is set, and save it automatically
         const defaultCategory = card.customerCategory ?? 'A';
@@ -871,6 +876,11 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
 
     const normalized = normalizeToDayMonth(value);
     if (normalized) {
+      if (isPaymentDatePast(normalized)) {
+        this.dateEdits[card.customer] = card.nextPaymentDate ?? '';
+        this.notificationService.showError('Payment date cannot be before today.', 4000);
+        return;
+      }
       this.dateEdits[card.customer] = normalized;
       const foundCard = this.cards.find(c => c.customer === card.customer);
       if (foundCard) {
@@ -894,6 +904,7 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     const current = this.dateEdits[card.customer] ?? '';
     const iso = toIsoDate(current);
     input.type = 'date';
+    input.min = todayIsoDate();
     if (iso) {
       input.value = iso;
     }
@@ -923,6 +934,13 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     const normalized = normalizeToDayMonth(value);
     if (!normalized) {
       input.type = 'text';
+      return;
+    }
+    if (isPaymentDatePast(normalized)) {
+      input.type = 'text';
+      input.value = card.nextPaymentDate ?? '';
+      this.dateEdits[card.customer] = card.nextPaymentDate ?? '';
+      this.notificationService.showError('Payment date cannot be before today.', 4000);
       return;
     }
 
@@ -1053,6 +1071,13 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
     const cleaned = date.trim();
     if (!isValidPaymentDateFormat(cleaned)) {
       this.notificationService.showError('Invalid date format. Use DD-MM.', 4000);
+      const card = this.cards.find(c => c.customer === customer);
+      this.dateEdits[customer] = card?.nextPaymentDate ?? '';
+      this.cdr.markForCheck();
+      return;
+    }
+    if (cleaned && isPaymentDatePast(cleaned)) {
+      this.notificationService.showError('Payment date cannot be before today.', 4000);
       const card = this.cards.find(c => c.customer === customer);
       this.dateEdits[customer] = card?.nextPaymentDate ?? '';
       this.cdr.markForCheck();

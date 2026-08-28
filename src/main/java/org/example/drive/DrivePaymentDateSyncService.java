@@ -7,6 +7,7 @@ import org.example.payment.OutstandingDueCustomerResolver;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
+import org.example.payment.PaymentDateRules;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -342,7 +343,8 @@ public class DrivePaymentDateSyncService {
             }
             PaymentDateOverride existing = matched.get();
             String currentDate = existing.nextPaymentDate() == null ? "" : existing.nextPaymentDate().trim();
-            boolean dateChanged = !row.nextPaymentDate().isBlank() && !Objects.equals(currentDate, row.nextPaymentDate());
+            String effectiveDriveDate = PaymentDateRules.normalizeOverdueToToday(row.nextPaymentDate());
+            boolean dateChanged = !effectiveDriveDate.isBlank() && !Objects.equals(currentDate, effectiveDriveDate);
             String driveNote = CustomerNotes.normalizeText(row.note());
             boolean notesChanged = !driveNote.isEmpty() && !CustomerNotes.containsSameText(existing.notes(), driveNote);
             String drivePhoneCanon = canonicalDrivePhone(row.phoneNumber());
@@ -354,7 +356,7 @@ public class DrivePaymentDateSyncService {
             }
             PaymentDateOverride next = existing;
             if (dateChanged) {
-                next = PaymentDateOverrideCopy.withNextPaymentDate(next, row.nextPaymentDate());
+                next = PaymentDateOverrideCopy.withNextPaymentDate(next, effectiveDriveDate);
             }
             if (phoneChanged) {
                 next = PaymentDateOverrideCopy.withPhoneNumber(next, drivePhoneCanon);

@@ -9,6 +9,7 @@ import org.example.customer.CustomerPhoneNumbers;
 import org.example.payment.CustomerNotes;
 import org.example.payment.DriveSheetCustomer;
 import org.example.payment.PaymentDateOverride;
+import org.example.payment.PaymentDateRules;
 import org.example.upload.ExcelUploadHeaderRules;
 import org.example.upload.PoiSecurityLimits;
 
@@ -312,7 +313,8 @@ public final class PaymentDateWorkbookWriter {
             }
         }
 
-        String nextDate = customer.nextPaymentDate() == null ? "" : customer.nextPaymentDate().trim();
+        String normalizedDate = PaymentDateRules.normalizeOverdueToToday(customer.nextPaymentDate());
+        String nextDate = normalizedDate == null ? "" : normalizedDate.trim();
         if (!nextDate.isBlank()) {
             String excelText = PaymentDateCellParser.toExcelText(nextDate);
             Cell dateCell = row.getCell(dateCol, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);

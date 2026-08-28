@@ -25,9 +25,11 @@ import { formatInrForExcel, formatInrForPdf } from '../shared/format-inr-export'
 import {
   getPaymentDateBorderClass as paymentDateBorderClass,
   getPaymentDateTone as paymentDateTone,
+  isPaymentDatePast,
   isValidPaymentDateFormat,
   normalizeToDayMonth,
   PAYMENT_DATE_SAVE_DEBOUNCE_MS,
+  todayIsoDate,
   toIsoDate
 } from '../shared/payment-date.util';
 import { ensurePdfUnicodeFonts, PDF_UNICODE_FONT } from '../shared/pdf-unicode-font';
@@ -1246,6 +1248,11 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     
     // Update for immediate color change
     if (normalized) {
+      if (isPaymentDatePast(normalized)) {
+        this.paymentDateEdit = this.paymentDate ?? '';
+        this.notificationService.showError('Payment date cannot be before today.', 4000);
+        return;
+      }
       this.paymentDate = normalized;
       if (this.customerSummary) {
         this.customerSummary = {
@@ -1272,6 +1279,7 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     
     // Switch to date input type
     input.type = 'date';
+    input.min = todayIsoDate();
     if (iso) {
       input.value = iso;
     }
@@ -1306,6 +1314,13 @@ export class OutstandingComponent implements OnInit, OnDestroy {
     const normalized = normalizeToDayMonth(value);
     if (!normalized) {
       input.type = 'text';
+      return;
+    }
+    if (isPaymentDatePast(normalized)) {
+      input.type = 'text';
+      input.value = this.paymentDate ?? '';
+      this.paymentDateEdit = this.paymentDate ?? '';
+      this.notificationService.showError('Payment date cannot be before today.', 4000);
       return;
     }
     
@@ -1394,6 +1409,13 @@ export class OutstandingComponent implements OnInit, OnDestroy {
       this.customerStatus = 'Invalid date format. Use dd-MM.';
       this.customerStatusIsError = true;
       this.notificationService.showError('Invalid date format. Use DD-MM.', 4000);
+      return;
+    }
+    if (cleaned && isPaymentDatePast(cleaned)) {
+      this.customerStatus = 'Payment date cannot be before today.';
+      this.customerStatusIsError = true;
+      this.notificationService.showError(this.customerStatus, 4000);
+      this.paymentDateEdit = this.paymentDate ?? '';
       return;
     }
     this.customerStatus = '';
