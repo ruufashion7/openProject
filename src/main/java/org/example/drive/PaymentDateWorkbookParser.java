@@ -46,6 +46,7 @@ public final class PaymentDateWorkbookParser {
                 String header = cell == null ? "" : FORMATTER.formatCellValue(cell).trim();
                 headers.add(header);
             }
+            int idCol = indexOfCustomerIdHeader(headers);
             int nameCol = indexOfNameHeader(headers);
             int phoneCol = indexOfPhoneHeader(headers);
             int dateCol = indexOfDateHeader(headers);
@@ -53,7 +54,8 @@ public final class PaymentDateWorkbookParser {
             if (nameCol < 0 || dateCol < 0) {
                 throw new IllegalArgumentException(
                         "Sheet \"" + sheet.getSheetName()
-                                + "\" needs columns for Customer Name and Next Payment Date (optional: Phone Number, Notes).");
+                                + "\" needs columns for Customer Name and Next Payment Date "
+                                + "(optional: Customer ID, Phone Number, Notes).");
             }
 
             List<PaymentDateWorkbookRow> rows = new ArrayList<>();
@@ -67,6 +69,7 @@ public final class PaymentDateWorkbookParser {
                 if (name.isBlank() || name.equalsIgnoreCase("total")) {
                     continue;
                 }
+                String customerKey = idCol >= 0 ? cellText(row, idCol) : "";
                 String phone = phoneCol >= 0 ? cellText(row, phoneCol) : "";
                 String note = noteCol >= 0 ? CustomerNotes.clip(cellText(row, noteCol)) : "";
                 Optional<String> parsedDate = PaymentDateCellParser.fromCell(row.getCell(dateCol, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL));
@@ -78,14 +81,14 @@ public final class PaymentDateWorkbookParser {
                     if (note.isBlank() && phone.isBlank()) {
                         continue;
                     }
-                    rows.add(new PaymentDateWorkbookRow(rowIndex + 1, name, phone, "", note));
+                    rows.add(new PaymentDateWorkbookRow(rowIndex + 1, customerKey, name, phone, "", note));
                     continue;
                 }
                 String date = parsedDate.get();
                 if (date.isBlank() && note.isBlank() && phone.isBlank()) {
                     continue;
                 }
-                rows.add(new PaymentDateWorkbookRow(rowIndex + 1, name, phone, date, note));
+                rows.add(new PaymentDateWorkbookRow(rowIndex + 1, customerKey, name, phone, date, note));
             }
             return new PaymentDateWorkbookParseResult(sheet.getSheetName(), List.copyOf(rows), List.copyOf(invalidDates));
         }
@@ -152,6 +155,7 @@ public final class PaymentDateWorkbookParser {
             String header = headers.get(i);
             if (ExcelUploadHeaderRules.isCustomerHeader(header)
                     && !ExcelUploadHeaderRules.isPhoneHeader(header)
+                    && !ExcelUploadHeaderRules.isCustomerIdHeader(header)
                     && !isNoteHeader(header)) {
                 return i;
             }
@@ -159,6 +163,24 @@ public final class PaymentDateWorkbookParser {
         for (int i = 0; i < headers.size(); i++) {
             String n = headers.get(i).trim().toLowerCase(Locale.ROOT);
             if (n.equals("name") || n.equals("party") || n.equals("party name")) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    static int indexOfCustomerIdHeader(List<String> headers) {
+        for (int i = 0; i < headers.size(); i++) {
+            if (ExcelUploadHeaderRules.isCustomerIdHeader(headers.get(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    static int indexOfOutstandingAmountHeader(List<String> headers) {
+        for (int i = 0; i < headers.size(); i++) {
+            if (ExcelUploadHeaderRules.isDriveOutstandingAmountHeader(headers.get(i))) {
                 return i;
             }
         }

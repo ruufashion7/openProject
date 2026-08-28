@@ -22,6 +22,32 @@ public final class ExcelUploadHeaderRules {
         return normalized.contains("customer");
     }
 
+    public static boolean isDriveOutstandingAmountHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        String normalized = header.trim().toLowerCase(Locale.ROOT);
+        if (normalized.contains("date") || normalized.contains("phone") || normalized.contains("note")) {
+            return false;
+        }
+        return normalized.equals("outstanding amount")
+                || normalized.equals("due amount")
+                || normalized.equals("amount due")
+                || normalized.equals("outstanding")
+                || normalized.equals("due");
+    }
+
+    public static boolean isCustomerIdHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        String normalized = header.trim().toLowerCase(Locale.ROOT);
+        return normalized.equals("customer id")
+                || normalized.equals("customer key")
+                || normalized.equals("cust id")
+                || normalized.equals("customer code");
+    }
+
     public static boolean isPhoneHeader(String header) {
         if (header == null) {
             return false;

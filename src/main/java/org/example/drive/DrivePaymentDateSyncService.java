@@ -1,6 +1,9 @@
 package org.example.drive;
 
+import org.example.customer.CustomerPhoneNumbers;
 import org.example.payment.CustomerNotes;
+import org.example.payment.DriveSheetCustomer;
+import org.example.payment.OutstandingDueCustomerResolver;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
@@ -10,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,6 +27,7 @@ public class DrivePaymentDateSyncService {
     private final DriveSyncProperties properties;
     private final DriveWorkbookSource workbookSource;
     private final PaymentDateOverrideRepository paymentDateOverrideRepository;
+    private final OutstandingDueCustomerResolver outstandingDueCustomerResolver;
     private final DrivePaymentDateSyncStateRepository syncStateRepository;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -32,11 +35,13 @@ public class DrivePaymentDateSyncService {
             DriveSyncProperties properties,
             DriveWorkbookSource workbookSource,
             PaymentDateOverrideRepository paymentDateOverrideRepository,
+            OutstandingDueCustomerResolver outstandingDueCustomerResolver,
             DrivePaymentDateSyncStateRepository syncStateRepository
     ) {
         this.properties = properties;
         this.workbookSource = workbookSource;
         this.paymentDateOverrideRepository = paymentDateOverrideRepository;
+        this.outstandingDueCustomerResolver = outstandingDueCustomerResolver;
         this.syncStateRepository = syncStateRepository;
     }
 
@@ -57,63 +62,96 @@ public class DrivePaymentDateSyncService {
     }
 
     /**
-     * Pull from Drive, then push app due dates back to Excel.
+     * Pull from Drive (skip if file unchanged), then push app data back to Excel.
      */
-    public void syncTwoWayOnLogin() {
-        syncTwoWay(true);
+    public DrivePaymentDateSyncResponse syncTwoWayOnLogin() {
+        return syncTwoWay(true);
+    }
+
+    /**
+     * Full two-way sync after receivable ageing upload (always pull, then push).
+     */
+    public DrivePaymentDateSyncResponse syncTwoWayAfterUpload() {
+        return syncTwoWay(false);
     }
 
     private DrivePaymentDateSyncResponse syncTwoWay(boolean skipPullIfUnchanged) {
-        if (!properties.isConfigured()) {
+        if (!properties.enabled()) {
             return status();
         }
-        run(skipPullIfUnchanged);
-        if (properties.writeBackEnabled()) {
-            pushAllDueDatesFromApp();
+        if (!properties.isConfigured()) {
+            DrivePaymentDateSyncState state = save(withMessage(currentState(), "failed",
+                    "Drive sync is enabled but GOOGLE_DRIVE_FILE_ID or GOOGLE_SERVICE_ACCOUNT_JSON is missing."));
+            return toResponse(state);
         }
-        return status();
-    }
 
-    private void pushAllDueDatesFromApp() {
-        List<PaymentDateOverride> toPush = paymentDateOverrideRepository.findAll().stream()
-                .filter(DrivePaymentDateSyncService::hasDateOrNotes)
-                .toList();
-        pushToDrive(toPush);
+        DrivePaymentDateSyncResponse pullResult = run(skipPullIfUnchanged);
+        if (isBusy(pullResult)) {
+            return pullResult;
+        }
+        if (isFailure(pullResult.lastStatus())) {
+            return pullResult;
+        }
+        if (!properties.writeBackEnabled()) {
+            return pullResult;
+        }
+        return pushToDrive(pullResult);
     }
 
     /**
      * Writes app due-date edits back to the Drive .xlsx (debounced from payment-date saves).
      */
-    public void pushToDrive(Collection<PaymentDateOverride> customers) {
+    public void pushToDrive() {
         if (!properties.enabled() || !properties.isConfigured() || !properties.writeBackEnabled()) {
             return;
         }
-        if (customers == null || customers.isEmpty()) {
-            return;
-        }
+        pushToDrive(toResponse(currentState()));
+    }
+
+    private DrivePaymentDateSyncResponse pushToDrive(DrivePaymentDateSyncResponse pullResult) {
         if (!running.compareAndSet(false, true)) {
             log.debug("Drive push skipped: another Drive sync is running.");
-            return;
+            DrivePaymentDateSyncState busy = currentState();
+            return toResponse(new DrivePaymentDateSyncState(
+                    busy.id(),
+                    busy.lastStartedAt(),
+                    busy.lastFinishedAt(),
+                    busy.lastStatus(),
+                    "A Drive sync is already running.",
+                    busy.lastFileName(),
+                    busy.lastChecksum(),
+                    busy.rowsRead(),
+                    busy.updated(),
+                    busy.unchanged(),
+                    busy.unmatched(),
+                    busy.invalidDates(),
+                    busy.ambiguous(),
+                    busy.unmatchedRows(),
+                    busy.invalidDateRows(),
+                    true
+            ));
         }
         Instant started = Instant.now();
         try {
+            List<DriveSheetCustomer> outstanding = outstandingDueCustomerResolver.customersForDriveSheet();
+            Map<String, PaymentDateOverride> allByKey = DriveCustomerMatcher.indexByKey(
+                    paymentDateOverrideRepository.findAll());
             DriveWorkbookSnapshot snapshot = workbookSource.download();
             PaymentDateWorkbookWriter.Result written = PaymentDateWorkbookWriter.applyUpdates(
                     snapshot.bytes(),
                     properties.sheetName(),
-                    customers
+                    outstanding,
+                    allByKey
             );
-            if (written.updatedRows() == 0) {
+            if (!written.hasChanges()) {
                 if (!written.notFoundCustomers().isEmpty()) {
-                    log.warn("Drive push: no Excel row for {}", written.notFoundCustomers());
+                    log.warn("Drive push: could not write {}", written.notFoundCustomers());
                 }
-                return;
+                return pullResult;
             }
             DriveWorkbookSnapshot uploaded = workbookSource.upload(snapshot, written);
-            String message = "Pushed " + written.updatedRows() + " row"
-                    + (written.updatedRows() == 1 ? "" : "s")
-                    + " to " + uploaded.fileName() + ".";
-            DrivePaymentDateSyncState previous = currentState();
+            String pushMessage = pushMessage(written, uploaded.fileName());
+            String message = combinePullAndPushMessage(pullResult.lastMessage(), pushMessage);
             DrivePaymentDateSyncState pushed = new DrivePaymentDateSyncState(
                     DrivePaymentDateSyncState.SINGLETON_ID,
                     started,
@@ -122,21 +160,43 @@ public class DrivePaymentDateSyncService {
                     message,
                     uploaded.fileName(),
                     uploaded.checksum(),
-                    previous.rowsRead(),
-                    written.updatedRows(),
-                    previous.unchanged(),
-                    previous.unmatched(),
-                    previous.invalidDates(),
-                    previous.ambiguous(),
-                    previous.unmatchedRows(),
-                    previous.invalidDateRows(),
+                    pullResult.rowsRead(),
+                    written.updatedRows() + written.insertedRows() + written.removedRows() + written.reorderedRows(),
+                    pullResult.unchanged(),
+                    pullResult.unmatched(),
+                    pullResult.invalidDates(),
+                    pullResult.ambiguous(),
+                    pullResult.unmatchedRows(),
+                    pullResult.invalidDateRows(),
                     false
             );
             save(pushed);
-            log.info("Drive payment-date push finished: {}", message);
+            log.info("Drive payment-date push finished: {}", pushMessage);
+            return toResponse(pushed);
         } catch (Exception ex) {
             log.warn("Drive payment-date push failed: {}", ex.getMessage());
-            save(withMessage(currentState(), "push-failed", safeMessage(ex)));
+            String message = combinePullAndPushMessage(
+                    pullResult.lastMessage(),
+                    "Push failed: " + safeMessage(ex));
+            DrivePaymentDateSyncState failed = new DrivePaymentDateSyncState(
+                    DrivePaymentDateSyncState.SINGLETON_ID,
+                    started,
+                    Instant.now(),
+                    "push-failed",
+                    message,
+                    pullResult.lastFileName(),
+                    currentState().lastChecksum(),
+                    pullResult.rowsRead(),
+                    pullResult.updated(),
+                    pullResult.unchanged(),
+                    pullResult.unmatched(),
+                    pullResult.invalidDates(),
+                    pullResult.ambiguous(),
+                    pullResult.unmatchedRows(),
+                    pullResult.invalidDateRows(),
+                    false
+            );
+            return toResponse(save(failed));
         } finally {
             running.set(false);
         }
@@ -285,13 +345,19 @@ public class DrivePaymentDateSyncService {
             boolean dateChanged = !row.nextPaymentDate().isBlank() && !Objects.equals(currentDate, row.nextPaymentDate());
             String driveNote = CustomerNotes.normalizeText(row.note());
             boolean notesChanged = !driveNote.isEmpty() && !CustomerNotes.containsSameText(existing.notes(), driveNote);
-            if (!dateChanged && !notesChanged) {
+            String drivePhoneCanon = canonicalDrivePhone(row.phoneNumber());
+            boolean phoneChanged = drivePhoneCanon != null
+                    && !CustomerPhoneNumbers.sameCanonicalPhone(existing.phoneNumber(), drivePhoneCanon);
+            if (!dateChanged && !notesChanged && !phoneChanged) {
                 unchanged++;
                 continue;
             }
             PaymentDateOverride next = existing;
             if (dateChanged) {
                 next = PaymentDateOverrideCopy.withNextPaymentDate(next, row.nextPaymentDate());
+            }
+            if (phoneChanged) {
+                next = PaymentDateOverrideCopy.withPhoneNumber(next, drivePhoneCanon);
             }
             if (notesChanged) {
                 next = PaymentDateOverrideCopy.withNotes(
@@ -305,10 +371,38 @@ public class DrivePaymentDateSyncService {
         return new ApplyResult(updated, unchanged, unmatchedRows, ambiguousRows);
     }
 
-    private static boolean hasDateOrNotes(PaymentDateOverride override) {
-        boolean hasDate = override.nextPaymentDate() != null && !override.nextPaymentDate().trim().isBlank();
-        boolean hasNotes = override.notes() != null && !override.notes().isEmpty();
-        return hasDate || hasNotes;
+    private static String pushMessage(PaymentDateWorkbookWriter.Result written, String fileName) {
+        int total = written.updatedRows() + written.insertedRows() + written.removedRows() + written.reorderedRows();
+        StringBuilder message = new StringBuilder("Pushed ")
+                .append(total)
+                .append(total == 1 ? " change" : " changes")
+                .append(" to ")
+                .append(fileName);
+        List<String> parts = new ArrayList<>();
+        if (written.insertedRows() > 0) {
+            parts.add(written.insertedRows() + " added");
+        }
+        if (written.updatedRows() > 0) {
+            parts.add(written.updatedRows() + " updated");
+        }
+        if (written.removedRows() > 0) {
+            parts.add(written.removedRows() + " removed");
+        }
+        if (written.reorderedRows() > 0) {
+            parts.add("sorted by amount");
+        }
+        if (!parts.isEmpty()) {
+            message.append(" (").append(String.join(", ", parts)).append(")");
+        }
+        message.append(".");
+        return message.toString();
+    }
+
+    private static String canonicalDrivePhone(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return CustomerPhoneNumbers.canonicalStorageForm(raw);
     }
 
     private DrivePaymentDateSyncState currentState() {
@@ -390,6 +484,25 @@ public class DrivePaymentDateSyncService {
             return "Drive sync failed.";
         }
         return message.length() <= 400 ? message : message.substring(0, 400);
+    }
+
+    private static String combinePullAndPushMessage(String pullMessage, String pushMessage) {
+        if (pullMessage == null || pullMessage.isBlank()) {
+            return pushMessage;
+        }
+        if (pushMessage == null || pushMessage.isBlank()) {
+            return pullMessage;
+        }
+        return pullMessage + " " + pushMessage;
+    }
+
+    private static boolean isBusy(DrivePaymentDateSyncResponse response) {
+        return response.running()
+                && "A Drive sync is already running.".equals(response.lastMessage());
+    }
+
+    private static boolean isFailure(String status) {
+        return "failed".equals(status) || "push-failed".equals(status);
     }
 
     private DrivePaymentDateSyncResponse toResponse(DrivePaymentDateSyncState state) {

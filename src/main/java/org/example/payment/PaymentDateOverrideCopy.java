@@ -74,6 +74,28 @@ public final class PaymentDateOverrideCopy {
         );
     }
 
+    public static PaymentDateOverride withPhoneNumber(PaymentDateOverride src, String phoneNumber) {
+        return copy(
+                src,
+                null,
+                null,
+                null,
+                phoneNumber,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
     public static PaymentDateOverride withNextPaymentDate(PaymentDateOverride src, String nextPaymentDate) {
         return copy(
                 src,

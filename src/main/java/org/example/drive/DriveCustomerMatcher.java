@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Maps Excel customer rows onto existing {@code customer_master} records by name. Never creates customers.
+ * Maps Excel customer rows onto existing {@code customer_master} records by Customer ID, then name.
  */
 public final class DriveCustomerMatcher {
 
@@ -23,6 +23,10 @@ public final class DriveCustomerMatcher {
             PaymentDateWorkbookRow row,
             Map<String, PaymentDateOverride> byKey
     ) {
+        Optional<PaymentDateOverride> byId = matchByCustomerKey(row.customerKey(), byKey);
+        if (byId.isPresent()) {
+            return byId;
+        }
         String key = CustomerIdentity.normalizeKey(row.customerName());
         PaymentDateOverride exact = byKey.get(key);
         if (exact != null) {
@@ -35,6 +39,12 @@ public final class DriveCustomerMatcher {
             PaymentDateWorkbookRow row,
             Map<String, PaymentDateOverride> byKey
     ) {
+        if (row.customerKey() != null && !row.customerKey().isBlank()) {
+            String key = CustomerIdentity.normalizeKey(row.customerKey());
+            if (byKey.containsKey(key)) {
+                return false;
+            }
+        }
         String key = CustomerIdentity.normalizeKey(row.customerName());
         if (byKey.containsKey(key)) {
             return false;
@@ -51,6 +61,18 @@ public final class DriveCustomerMatcher {
             byKey.putIfAbsent(override.customerKey(), override);
         }
         return byKey;
+    }
+
+    private static Optional<PaymentDateOverride> matchByCustomerKey(String rawKey, Map<String, PaymentDateOverride> byKey) {
+        if (rawKey == null || rawKey.isBlank()) {
+            return Optional.empty();
+        }
+        String key = CustomerIdentity.normalizeKey(rawKey);
+        if (key.isBlank()) {
+            return Optional.empty();
+        }
+        PaymentDateOverride exact = byKey.get(key);
+        return exact == null ? Optional.empty() : Optional.of(exact);
     }
 
     private static Optional<PaymentDateOverride> bestNameAmong(String displayName, List<PaymentDateOverride> candidates) {

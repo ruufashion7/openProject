@@ -52,10 +52,20 @@ public class DrivePaymentDateSyncController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         DrivePaymentDateSyncResponse result = syncService.syncNow();
+        return ResponseEntity.status(httpStatusFor(result)).body(result);
+    }
+
+    private static HttpStatus httpStatusFor(DrivePaymentDateSyncResponse result) {
         if (result.running() && "A Drive sync is already running.".equals(result.lastMessage())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(result);
+            return HttpStatus.CONFLICT;
         }
-        return ResponseEntity.ok(result);
+        if ("failed".equals(result.lastStatus()) || "push-failed".equals(result.lastStatus())) {
+            return HttpStatus.BAD_GATEWAY;
+        }
+        if (result.enabled() && !result.configured()) {
+            return HttpStatus.SERVICE_UNAVAILABLE;
+        }
+        return HttpStatus.OK;
     }
 
     private String extractToken(String authHeader) {

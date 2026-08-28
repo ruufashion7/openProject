@@ -18,7 +18,17 @@ class DriveCustomerMatcherTest {
     void match_exactNormalizedName() {
         PaymentDateOverride abc = customer("ABC Traders", "01-01");
         Map<String, PaymentDateOverride> byKey = DriveCustomerMatcher.indexByKey(List.of(abc));
-        PaymentDateWorkbookRow row = new PaymentDateWorkbookRow(2, "abc traders", "", "18-08", "");
+        PaymentDateWorkbookRow row = new PaymentDateWorkbookRow(2, "abc traders", "abc traders", "", "18-08", "");
+        Optional<PaymentDateOverride> match = DriveCustomerMatcher.match(row, byKey);
+        assertTrue(match.isPresent());
+        assertEquals("ABC Traders", match.get().customerName());
+    }
+
+    @Test
+    void match_byCustomerId_beforeName() {
+        PaymentDateOverride abc = customer("ABC Traders", "01-01");
+        Map<String, PaymentDateOverride> byKey = DriveCustomerMatcher.indexByKey(List.of(abc));
+        PaymentDateWorkbookRow row = new PaymentDateWorkbookRow(2, "abc traders", "Wrong Display Name", "", "18-08", "");
         Optional<PaymentDateOverride> match = DriveCustomerMatcher.match(row, byKey);
         assertTrue(match.isPresent());
         assertEquals("ABC Traders", match.get().customerName());
@@ -27,7 +37,7 @@ class DriveCustomerMatcherTest {
     @Test
     void match_unknownName_empty() {
         PaymentDateOverride abc = customer("ABC Traders", "01-01");
-        PaymentDateWorkbookRow row = new PaymentDateWorkbookRow(2, "Totally Different LLC", "", "18-08", "");
+        PaymentDateWorkbookRow row = new PaymentDateWorkbookRow(2, "", "Totally Different LLC", "", "18-08", "");
         Optional<PaymentDateOverride> match = DriveCustomerMatcher.match(
                 row,
                 DriveCustomerMatcher.indexByKey(List.of(abc))

@@ -1,5 +1,6 @@
 package org.example.upload;
 
+import org.example.drive.DrivePaymentDateSyncTrigger;
 import org.example.security.SecurityAuditService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +42,7 @@ public class UploadJobService {
 
     private final UploadStorageService uploadStorageService;
     private final SecurityAuditService securityAuditService;
+    private final DrivePaymentDateSyncTrigger drivePaymentDateSyncTrigger;
     private final ThreadPoolTaskExecutor uploadExecutor;
     private final UploadAsyncPersistenceService persistence;
 
@@ -72,11 +74,13 @@ public class UploadJobService {
     public UploadJobService(
             UploadStorageService uploadStorageService,
             SecurityAuditService securityAuditService,
+            DrivePaymentDateSyncTrigger drivePaymentDateSyncTrigger,
             @Qualifier("uploadTaskExecutor") ThreadPoolTaskExecutor uploadExecutor,
             UploadAsyncPersistenceService persistence
     ) {
         this.uploadStorageService = uploadStorageService;
         this.securityAuditService = securityAuditService;
+        this.drivePaymentDateSyncTrigger = drivePaymentDateSyncTrigger;
         this.uploadExecutor = uploadExecutor;
         this.persistence = persistence;
     }
@@ -482,6 +486,7 @@ public class UploadJobService {
 
             securityAuditService.logFileUpload(job.userId, originalFilename1, size1, true);
             securityAuditService.logFileUpload(job.userId, originalFilename2, size2, true);
+            drivePaymentDateSyncTrigger.onUploadComplete();
         } catch (UploadCancellationException ex) {
             if (job.abandoned) {
                 return;

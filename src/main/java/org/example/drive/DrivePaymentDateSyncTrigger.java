@@ -6,7 +6,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 /**
- * Runs Drive two-way payment-date sync off the login thread so sign-in stays fast.
+ * Runs Drive two-way payment-date sync off the request/upload thread so the UI stays fast.
  */
 @Service
 public class DrivePaymentDateSyncTrigger {
@@ -23,13 +23,30 @@ public class DrivePaymentDateSyncTrigger {
 
     @Async
     public void onLogin() {
-        if (!properties.isConfigured()) {
+        runTwoWay("login", syncService::syncTwoWayOnLogin);
+    }
+
+    @Async
+    public void onUploadComplete() {
+        runTwoWay("upload", syncService::syncTwoWayAfterUpload);
+    }
+
+    private void runTwoWay(String trigger, java.util.function.Supplier<DrivePaymentDateSyncResponse> sync) {
+        if (!properties.enabled() || !properties.isConfigured()) {
             return;
         }
         try {
-            syncService.syncTwoWayOnLogin();
+            DrivePaymentDateSyncResponse result = sync.get();
+            if (isFailure(result)) {
+                log.warn("Drive two-way sync after {} failed: {}", trigger, result.lastMessage());
+            }
         } catch (Exception ex) {
-            log.warn("Drive two-way sync after login failed: {}", ex.getMessage());
+            log.warn("Drive two-way sync after {} failed: {}", trigger, ex.getMessage());
         }
+    }
+
+    private static boolean isFailure(DrivePaymentDateSyncResponse result) {
+        String status = result.lastStatus();
+        return "failed".equals(status) || "push-failed".equals(status);
     }
 }

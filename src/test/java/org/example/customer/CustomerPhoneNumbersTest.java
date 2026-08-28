@@ -41,6 +41,12 @@ class CustomerPhoneNumbersTest {
     }
 
     @Test
+    void driveExcelText_stripsIndianCountryCode() {
+        assertEquals("9876543210", CustomerPhoneNumbers.driveExcelText("919876543210"));
+        assertEquals("9876543210", CustomerPhoneNumbers.driveExcelText("9876543210"));
+    }
+
+    @Test
     void customerIdentity_matchesAnalyticsStyleKey() {
         assertEquals("abc trading co", CustomerIdentity.normalizeKey("ABC  Trading & Co."));
     }

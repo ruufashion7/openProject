@@ -51,4 +51,21 @@ public final class CustomerPhoneNumbers {
         String b = normalizeDigitsKey(storedOrRawB);
         return a != null && a.equals(b);
     }
+
+    /**
+     * Human-readable phone for Drive Excel cells (10-digit local when stored as Indian {@code 91…}).
+     */
+    public static String driveExcelText(String storedOrRaw) {
+        if (storedOrRaw == null || storedOrRaw.isBlank()) {
+            return "";
+        }
+        String canon = normalizeDigitsKey(storedOrRaw);
+        if (canon == null) {
+            return storedOrRaw.trim();
+        }
+        if (canon.startsWith("91") && canon.length() == 12) {
+            return canon.substring(2);
+        }
+        return canon;
+    }
 }

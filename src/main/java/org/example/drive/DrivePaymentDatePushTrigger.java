@@ -58,7 +58,7 @@ public class DrivePaymentDatePushTrigger {
         Map<String, PaymentDateOverride> batch = Map.copyOf(pending);
         pending.clear();
         if (!batch.isEmpty()) {
-            syncService.pushToDrive(batch.values());
+            syncService.pushToDrive();
         }
     }
 }

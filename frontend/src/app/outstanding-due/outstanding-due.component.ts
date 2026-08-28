@@ -1677,10 +1677,18 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
         },
         error: (err: HttpErrorResponse) => {
           this.driveSyncing = false;
-          if (err.status === 409 && err.error && typeof err.error === 'object' && 'lastStatus' in err.error) {
+          if (err.error && typeof err.error === 'object' && 'lastStatus' in err.error) {
             this.driveSync = err.error as DrivePaymentDateSyncStatus;
-            this.notificationService.showError('A Drive sync is already running.', 4000);
-            return;
+            const status = this.driveSync.lastStatus;
+            const message = this.driveSync.lastMessage || 'Drive sync failed.';
+            if (err.status === 409) {
+              this.notificationService.showError('A Drive sync is already running.', 4000);
+              return;
+            }
+            if (err.status === 502 || err.status === 503 || status === 'failed' || status === 'push-failed') {
+              this.notificationService.showError(message, 5000);
+              return;
+            }
           }
           if (err.status === 403) {
             this.permissionService.notifyRoleDenied('sync due dates from Drive', 'paymentDateEdit');
