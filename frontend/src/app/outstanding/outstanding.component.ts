@@ -177,6 +177,10 @@ export class OutstandingComponent implements OnInit, OnDestroy {
       });
   }
 
+  refreshPage(): void {
+    window.location.reload();
+  }
+
   private applyPermissionFlags(): void {
     this.canDownloadWholeProject = this.permissionService.canDownloadWholeProject();
     this.canEditPaymentDate = this.permissionService.canEditPaymentDate();

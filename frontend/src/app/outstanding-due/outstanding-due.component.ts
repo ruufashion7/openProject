@@ -1692,10 +1692,10 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
           this.showDriveSyncPanel = true;
           if (status.lastStatus === 'success' || status.lastStatus === 'pushed') {
             this.notificationService.showSuccess(status.lastMessage || 'Due dates synced with Drive Excel.');
-            this.loadOutstandingDue();
+            this.reloadPageAfterSync();
           } else if (status.lastStatus === 'skipped') {
             this.notificationService.showSuccess(status.lastMessage || 'Drive file has not changed.');
-            this.loadOutstandingDue();
+            this.reloadPageAfterSync();
           } else {
             this.notificationService.showError(status.lastMessage || 'Drive sync failed.', 4000);
           }
@@ -1722,6 +1722,10 @@ export class OutstandingDueComponent implements OnInit, OnDestroy {
           this.notificationService.showError(this.apiErrorMessage(err, 'Drive sync failed.'), 4000);
         }
       });
+  }
+
+  private reloadPageAfterSync(): void {
+    window.setTimeout(() => window.location.reload(), 500);
   }
 
   toggleIgnoredPanel(): void {
