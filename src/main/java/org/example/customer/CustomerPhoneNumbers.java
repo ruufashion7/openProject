@@ -53,9 +53,9 @@ public final class CustomerPhoneNumbers {
     }
 
     /**
-     * Human-readable phone for Drive Excel cells (10-digit local when stored as Indian {@code 91…}).
+     * User-facing format, e.g. {@code +91 9699767058}.
      */
-    public static String driveExcelText(String storedOrRaw) {
+    public static String displayForm(String storedOrRaw) {
         if (storedOrRaw == null || storedOrRaw.isBlank()) {
             return "";
         }
@@ -64,8 +64,18 @@ public final class CustomerPhoneNumbers {
             return storedOrRaw.trim();
         }
         if (canon.startsWith("91") && canon.length() == 12) {
-            return canon.substring(2);
+            return "+91 " + canon.substring(2);
         }
-        return canon;
+        if (canon.length() == 10) {
+            return "+91 " + canon;
+        }
+        return "+" + canon;
+    }
+
+    /**
+     * Human-readable phone for Drive Excel cells (same as {@link #displayForm}).
+     */
+    public static String driveExcelText(String storedOrRaw) {
+        return displayForm(storedOrRaw);
     }
 }

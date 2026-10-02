@@ -69,7 +69,7 @@
               <ul class="suggestions" *ngIf="phoneSuggestions.length">
                 <li *ngFor="let suggestion of phoneSuggestions">
                   <button type="button" class="btn btn-suggestion" (click)="selectPhoneSuggestion(suggestion)">
-                    {{ suggestion }}
+                    {{ formatPhoneDisplay(suggestion) }}
                   </button>
                 </li>
               </ul>
@@ -435,7 +435,7 @@
               <td>{{ invoice.invoiceDate || '-' }}</td>
               <td>{{ invoice.voucherNo || '-' }}</td>
               <td>{{ invoice.customer || '-' }}</td>
-              <td>{{ invoice.customerPhone || '-' }}</td>
+              <td>{{ invoice.customerPhone ? formatPhoneDisplay(invoice.customerPhone) : '-' }}</td>
               <td class="received-amount" [class.green]="toAmount(invoice.receivedAmount) > 0">₹{{ toAmount(invoice.receivedAmount) | number:'1.2-2' }}</td>
               <td class="current-due" [class.red]="toAmount(invoice.currentDue) > 0">₹{{ toAmount(invoice.currentDue) | number:'1.2-2' }}</td>
               <td *ngIf="!isPaid(invoice.currentDue)" [class.ageing-days]="invoice.ageingDays != null" [class.green]="getAgeingDaysColorClass(invoice.ageingDays) === 'green'" [class.yellow]="getAgeingDaysColorClass(invoice.ageingDays) === 'yellow'" [class.red]="getAgeingDaysColorClass(invoice.ageingDays) === 'red'">

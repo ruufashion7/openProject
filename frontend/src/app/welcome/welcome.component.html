@@ -10,37 +10,51 @@
 
   <div class="card welcome-card" *ngIf="!statusLoading">
     <div class="welcome-grid">
+      <h3 class="welcome-section-label" *ngIf="canUpload || canAccessUploadsList || canAccessUploadAudit || canAccessHardDelete">
+        Data import
+      </h3>
+
       <div class="card card-muted welcome-tile" *ngIf="canUpload">
         <h2>Upload Files</h2>
-        <p class="page-subtitle">Send the latest two Excel files.</p>
+        <p class="page-subtitle">Upload Detailed Sales, Receivable Ageing, and Customer Ledger in one go.</p>
         <button type="button" class="btn btn-primary" (click)="goToUpload()">Go to Upload</button>
       </div>
-      <div class="card card-muted welcome-tile" *ngIf="canAccessInvoicePage">
-        <h2>Invoice Details</h2>
-        <p class="page-subtitle">View detailed sales information and reports.</p>
-        <button
-          type="button"
-          class="btn btn-soft"
-          [disabled]="!analyticsEnabled"
-          (click)="goToSalesDetails()"
-        >
-          Open Invoice Details
-        </button>
-        <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessUploadsList">
+        <h2>Latest Uploads</h2>
+        <p class="page-subtitle">Download the most recent sales, ageing, and ledger files.</p>
+        <button type="button" class="btn btn-soft" (click)="goToUploads()">View latest files</button>
       </div>
-      <div class="card card-muted welcome-tile" *ngIf="canAccessDetailsPage">
-        <h2>Details</h2>
-        <p class="page-subtitle">View summary insights and trends.</p>
-        <button
-          type="button"
-          class="btn btn-soft"
-          [disabled]="!analyticsEnabled"
-          (click)="goToOutstanding()"
-        >
-          Open Details
-        </button>
-        <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessUploadAudit">
+        <h2>Upload Audit Trail</h2>
+        <p class="page-subtitle">History of uploads, stops, and failures.</p>
+        <button type="button" class="btn btn-soft" (click)="goToUploadsAudit()">Open audit trail</button>
       </div>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessHardDelete">
+        <h2>Hard Delete Uploads</h2>
+        <p class="page-subtitle">Remove current sales and ageing data (audit kept).</p>
+        <button type="button" class="btn btn-soft" (click)="goToUploadsPurge()">Open hard delete</button>
+      </div>
+
+      <h3 class="welcome-section-label" *ngIf="canAccessRateList">Pricing</h3>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessRateList">
+        <h2>Rate List</h2>
+        <p class="page-subtitle">Manage rate list entries manually.</p>
+        <button type="button" class="btn btn-soft" (click)="goToRateList()">Open rate list</button>
+      </div>
+
+      <h3
+        class="welcome-section-label"
+        *ngIf="
+          canAccessInvoicePage ||
+          canAccessDetailsPage ||
+          canAccessOutstandingPage ||
+          canAccessSalesVisualization ||
+          canAccessCreditRisk
+        "
+      >
+        Customers &amp; sales
+      </h3>
+
       <div class="card card-muted welcome-tile" *ngIf="canAccessOutstandingPage">
         <h2>Outstanding Due</h2>
         <p class="page-subtitle">Track amount due, follow-ups, and customer status.</p>
@@ -54,26 +68,99 @@
         </button>
         <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
       </div>
-    
-      <div class="card card-muted welcome-tile" *ngIf="canWhatsappBroadcast">
-        <h2>WhatsApp outreach</h2>
-        <p class="page-subtitle">Compose messages and track wa.me batches per customer.</p>
-        <button type="button" class="btn btn-soft" (click)="goToWhatsappOutreach()">Open WhatsApp outreach</button>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessDetailsPage">
+        <h2>Customer Details</h2>
+        <p class="page-subtitle">Search customers — ledger, notes, limits, and summary.</p>
+        <button
+          type="button"
+          class="btn btn-soft"
+          [disabled]="!analyticsEnabled"
+          (click)="goToOutstanding()"
+        >
+          Open Customer Details
+        </button>
+        <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
       </div>
-
+      <div class="card card-muted welcome-tile" *ngIf="canAccessInvoicePage">
+        <h2>Invoice Details</h2>
+        <p class="page-subtitle">View detailed sales invoice lines and filters.</p>
+        <button
+          type="button"
+          class="btn btn-soft"
+          [disabled]="!analyticsEnabled"
+          (click)="goToSalesDetails()"
+        >
+          Open Invoice Details
+        </button>
+        <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
+      </div>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessSalesVisualization">
+        <h2>Sales Analytics</h2>
+        <p class="page-subtitle">Charts and trends from uploaded sales data.</p>
+        <button
+          type="button"
+          class="btn btn-soft"
+          [disabled]="!analyticsEnabled"
+          (click)="goToSalesVisualization()"
+        >
+          Open sales analytics
+        </button>
+        <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
+      </div>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessCreditRisk">
+        <h2>Credit Risk</h2>
+        <p class="page-subtitle">Who needs follow-up, limits, and can we take this order?</p>
+        <button type="button" class="btn btn-soft" (click)="goToCreditRisk()">Open credit risk</button>
+      </div>
       <div class="card card-muted welcome-tile" *ngIf="canAccessAiAgent">
         <h2>AI Data Agent</h2>
         <p class="page-subtitle">Ask dues, customer lists, notes — export answers as PDF.</p>
         <button type="button" class="btn btn-soft" (click)="goToAiAgent()">Open AI Data Agent</button>
       </div>
-
       <div class="card card-muted welcome-tile" *ngIf="canAccessBillExtract">
         <h2>Bill Reader</h2>
         <p class="page-subtitle">Upload bill photos — extract bill no, amounts, payment, and time.</p>
         <button type="button" class="btn btn-soft" (click)="goToBillExtract()">Open Bill Reader</button>
       </div>
 
+      <h3 class="welcome-section-label" *ngIf="canWhatsappBroadcast || canAccessCustomerLocations">Outreach</h3>
+      <div class="card card-muted welcome-tile" *ngIf="canWhatsappBroadcast">
+        <h2>WhatsApp outreach</h2>
+        <p class="page-subtitle">Compose messages and track wa.me batches per customer.</p>
+        <button type="button" class="btn btn-soft" (click)="goToWhatsappOutreach()">Open WhatsApp outreach</button>
+      </div>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessCustomerLocations">
+        <h2>Customer Locations</h2>
+        <p class="page-subtitle">Map of customer addresses from master data.</p>
+        <button
+          type="button"
+          class="btn btn-soft"
+          [disabled]="!analyticsEnabled"
+          (click)="goToCustomerLocations()"
+        >
+          Open customer locations
+        </button>
+        <p class="status-text" [class.failed]="!analyticsEnabled">{{ analyticsMessage }}</p>
+      </div>
+
+      <h3 class="welcome-section-label" *ngIf="canAccessDashboard || canAccessSessions || canAccessAccessControl">
+        Administration
+      </h3>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessDashboard">
+        <h2>Operations Overview</h2>
+        <p class="page-subtitle">Data health, users, uploads, and outreach at a glance.</p>
+        <button type="button" class="btn btn-soft" (click)="goToDashboard()">Open operations overview</button>
+      </div>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessSessions">
+        <h2>Sessions</h2>
+        <p class="page-subtitle">View and manage active user sessions.</p>
+        <button type="button" class="btn btn-soft" (click)="goToSessions()">Open sessions</button>
+      </div>
+      <div class="card card-muted welcome-tile" *ngIf="canAccessAccessControl">
+        <h2>Access Control</h2>
+        <p class="page-subtitle">Users, roles, and permissions.</p>
+        <button type="button" class="btn btn-soft" (click)="goToAccessControl()">Open access control</button>
+      </div>
     </div>
   </div>
 </section>
-

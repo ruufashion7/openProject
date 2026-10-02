@@ -276,16 +276,20 @@ public class UploadJobService {
             String displayName,
             Path tempFile1,
             Path tempFile2,
+            Path tempFile3,
             String originalFilename1,
             String originalFilename2,
+            String originalFilename3,
             long size1,
-            long size2
+            long size2,
+            long size3
     ) {
         pruneCompletedJobs();
         String jobId = UUID.randomUUID().toString();
         if (!persistence.tryAcquireDistributedLock(jobId, lockLeaseDuration())) {
             deleteQuietly(tempFile1);
             deleteQuietly(tempFile2);
+            deleteQuietly(tempFile3);
             String blocker = persistence.getActiveLockJobId(Instant.now()).orElse(null);
             if (blocker == null) {
                 blocker = persistence.getCurrentLockJobId().orElse(null);
@@ -299,10 +303,14 @@ public class UploadJobService {
             persistence.releaseDistributedLock(jobId);
             deleteQuietly(tempFile1);
             deleteQuietly(tempFile2);
+            deleteQuietly(tempFile3);
             return StartJobOutcome.blocked(findProcessingJobId());
         }
 
-        UploadJob job = new UploadJob(jobId, userId, displayName, Instant.now(), originalFilename1, originalFilename2);
+        UploadJob job = new UploadJob(
+                jobId, userId, displayName, Instant.now(),
+                originalFilename1, originalFilename2, originalFilename3
+        );
         jobs.put(jobId, job);
         job.state = "processing";
         job.phase = PHASE_PARSING;
@@ -316,10 +324,13 @@ public class UploadJobService {
                             job,
                             tempFile1,
                             tempFile2,
+                            tempFile3,
                             originalFilename1,
                             originalFilename2,
+                            originalFilename3,
                             size1,
-                            size2
+                            size2,
+                            size3
                     )
             );
             currentUploadFuture.set(future);
@@ -329,6 +340,7 @@ public class UploadJobService {
             uploadInProgress.set(false);
             deleteQuietly(tempFile1);
             deleteQuietly(tempFile2);
+            deleteQuietly(tempFile3);
             throw ex;
         }
 
@@ -431,10 +443,13 @@ public class UploadJobService {
             UploadJob job,
             Path tempFile1,
             Path tempFile2,
+            Path tempFile3,
             String originalFilename1,
             String originalFilename2,
+            String originalFilename3,
             long size1,
-            long size2
+            long size2,
+            long size3
     ) {
         final AtomicReference<Instant> lastMongoCancelCheck = new AtomicReference<>(Instant.EPOCH);
         UploadCancelChecker checker = () -> {
@@ -462,8 +477,10 @@ public class UploadJobService {
             List<UploadFileInfo> stored = uploadStorageService.storeFiles(
                     tempFile1,
                     tempFile2,
+                    tempFile3,
                     originalFilename1,
                     originalFilename2,
+                    originalFilename3,
                     checker,
                     () -> {
                         if (job.abandoned) {
@@ -472,7 +489,8 @@ public class UploadJobService {
                         job.phase = PHASE_SAVING;
                         job.message = "Replacing previous data and saving to the database…";
                         persistJobSnapshot(job);
-                    }
+                    },
+                    job.displayName
             );
             if (job.abandoned) {
                 return;
@@ -486,6 +504,7 @@ public class UploadJobService {
 
             securityAuditService.logFileUpload(job.userId, originalFilename1, size1, true);
             securityAuditService.logFileUpload(job.userId, originalFilename2, size2, true);
+            securityAuditService.logFileUpload(job.userId, originalFilename3, size3, true);
             drivePaymentDateSyncTrigger.onUploadComplete();
         } catch (UploadCancellationException ex) {
             if (job.abandoned) {
@@ -584,6 +603,7 @@ public class UploadJobService {
         } finally {
             deleteQuietly(tempFile1);
             deleteQuietly(tempFile2);
+            deleteQuietly(tempFile3);
             currentUploadFuture.set(null);
             if (job.abandoned) {
                 jobs.remove(job.id);
@@ -839,6 +859,7 @@ public class UploadJobService {
         final Instant createdAt;
         final String originalFilename1;
         final String originalFilename2;
+        final String originalFilename3;
         volatile Instant completedAt;
         volatile String state;
         volatile String phase;
@@ -856,7 +877,8 @@ public class UploadJobService {
                 String displayName,
                 Instant createdAt,
                 String originalFilename1,
-                String originalFilename2
+                String originalFilename2,
+                String originalFilename3
         ) {
             this.id = id;
             this.userId = userId;
@@ -864,6 +886,7 @@ public class UploadJobService {
             this.createdAt = createdAt;
             this.originalFilename1 = originalFilename1 == null ? "" : originalFilename1;
             this.originalFilename2 = originalFilename2 == null ? "" : originalFilename2;
+            this.originalFilename3 = originalFilename3 == null ? "" : originalFilename3;
         }
     }
 }

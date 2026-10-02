@@ -22,12 +22,36 @@ const MESSAGE_TEMPLATE_STORAGE_PREFIX = 'whatsapp-outreach-message-template-v1';
 /** Pre–per-user key; migrated once into the current user’s key when empty. */
 const LEGACY_MESSAGE_TEMPLATE_STORAGE_KEY = 'whatsapp-outreach-message-template-v1';
 const PERSIST_TEMPLATE_DEBOUNCE_MS = 400;
+/** One browser tab for all Open WhatsApp clicks (navigate in place instead of many tabs). */
+const WHATSAPP_CHAT_WINDOW_NAME = 'openproject-whatsapp-chat';
 
 function normalizeCustomerKey(displayName: string): string {
   return (displayName || '')
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_');
+}
+
+/** Prefer web.whatsapp.com/send so an existing WhatsApp Web tab can be reused. */
+function toWhatsappWebSendUrl(waMeUrl: string): string {
+  try {
+    const parsed = new URL(waMeUrl);
+    if (parsed.hostname !== 'wa.me' && parsed.hostname !== 'api.whatsapp.com') {
+      return waMeUrl;
+    }
+    const pathPhone = parsed.pathname.replace(/\D/g, '');
+    const text = parsed.searchParams.get('text');
+    const web = new URL('https://web.whatsapp.com/send');
+    if (pathPhone) {
+      web.searchParams.set('phone', pathPhone);
+    }
+    if (text) {
+      web.searchParams.set('text', text);
+    }
+    return web.toString();
+  } catch {
+    return waMeUrl;
+  }
 }
 
 @Component({
@@ -99,8 +123,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
   recentBatchesSectionExpanded = false;
 
   private persistTemplateTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Avoid re-loading from localStorage on every navigation to composer (would overwrite in-memory draft). */
-  private restoredTemplateFromStorage = false;
+  private restoringLatestBatchTemplate = false;
 
   constructor(
     private api: ApiService,
@@ -123,12 +146,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
         this.loadBatch(bid);
       } else {
         this.batch = null;
-        if (!this.restoredTemplateFromStorage) {
-          this.restoreMessageTemplateFromStorage();
-          this.restoredTemplateFromStorage = true;
-        }
-        this.loadCards();
-        this.loadBatchSummaries();
+        this.enterComposerMode();
       }
     });
   }
@@ -216,28 +234,85 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
     return `${MESSAGE_TEMPLATE_STORAGE_PREFIX}:user:${suffix}`;
   }
 
-  private restoreMessageTemplateFromStorage(): void {
+  /** Composer step: restore draft, then last batch message if still empty. */
+  private enterComposerMode(): void {
+    const hadDraft = this.restoreMessageTemplateFromStorage();
+    if (!hadDraft && !this.messageTemplate.trim()) {
+      this.restoreMessageTemplateFromLatestBatch();
+    }
+    this.loadCards();
+    this.loadBatchSummaries();
+  }
+
+  /** @returns true if a non-empty draft was loaded */
+  private restoreMessageTemplateFromStorage(): boolean {
     if (typeof localStorage === 'undefined') {
-      return;
+      return false;
     }
     try {
-      const key = this.messageTemplateStorageKey();
-      let raw = localStorage.getItem(key);
-      if ((raw == null || raw === '') && localStorage.getItem(LEGACY_MESSAGE_TEMPLATE_STORAGE_KEY)) {
-        const legacy = localStorage.getItem(LEGACY_MESSAGE_TEMPLATE_STORAGE_KEY);
-        if (legacy != null && legacy.length > 0) {
-          localStorage.setItem(key, legacy);
-          localStorage.removeItem(LEGACY_MESSAGE_TEMPLATE_STORAGE_KEY);
-          raw = legacy;
+      const primary = this.messageTemplateStorageKey();
+      const keys = [
+        primary,
+        `${MESSAGE_TEMPLATE_STORAGE_PREFIX}:user:_`,
+        LEGACY_MESSAGE_TEMPLATE_STORAGE_KEY
+      ];
+      let raw: string | null = null;
+      let hitKey: string | null = null;
+      for (const k of keys) {
+        const v = localStorage.getItem(k);
+        if (v != null && v.length > 0) {
+          raw = v;
+          hitKey = k;
+          break;
         }
       }
       if (raw == null) {
-        return;
+        return false;
+      }
+      if (hitKey !== primary && hitKey != null) {
+        localStorage.setItem(primary, raw);
+        if (hitKey === LEGACY_MESSAGE_TEMPLATE_STORAGE_KEY) {
+          localStorage.removeItem(LEGACY_MESSAGE_TEMPLATE_STORAGE_KEY);
+        }
       }
       this.messageTemplate = raw.length > MAX_TEMPLATE ? raw.slice(0, MAX_TEMPLATE) : raw;
+      return this.messageTemplate.trim().length > 0;
     } catch {
-      /* quota / private mode */
+      return false;
     }
+  }
+
+  private restoreMessageTemplateFromLatestBatch(): void {
+    if (this.restoringLatestBatchTemplate || !this.permission.canAccessWhatsappBroadcast()) {
+      return;
+    }
+    this.restoringLatestBatchTemplate = true;
+    this.api.listWhatsappBroadcasts().subscribe({
+      next: (rows) => {
+        const id = rows?.[0]?.id;
+        if (!id || this.messageTemplate.trim()) {
+          this.restoringLatestBatchTemplate = false;
+          return;
+        }
+        this.api.getWhatsappBroadcast(id).subscribe({
+          next: (b) => {
+            this.restoringLatestBatchTemplate = false;
+            const t = (b?.messageTemplate || '').trim();
+            if (!t || this.messageTemplate.trim()) {
+              return;
+            }
+            this.messageTemplate = t.length > MAX_TEMPLATE ? t.slice(0, MAX_TEMPLATE) : t;
+            this.persistMessageTemplateToStorage();
+          },
+          error: () => {
+            this.restoringLatestBatchTemplate = false;
+          }
+        });
+      },
+      error: () => {
+        this.restoringLatestBatchTemplate = false;
+      }
+    });
   }
 
   private persistMessageTemplateToStorage(): void {
@@ -303,6 +378,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
           (x) => (x.customer || '').toLowerCase().trim() !== 'total'
         );
         this.loadingCards = false;
+        this.applyCreditRiskPrefill();
         this.refreshRecipientPickList();
       },
       error: () => {
@@ -403,7 +479,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
       .slice(0, 8)
       .map((card) => ({
         name: card.customer || '',
-        phone: card.phoneNumber || ''
+        phone: formatPhoneDisplay(card.phoneNumber)
       }));
     this.showRecipientSuggestions = this.recipientSearchSuggestions.length > 0;
   }
@@ -549,6 +625,7 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
           queryParams: { batch: b.id },
           replaceUrl: true
         });
+        this.flushPersistMessageTemplate();
         this.notifications.showSuccess('Batch created. Open WhatsApp for each customer and mark status when done.', 5000);
         this.loadBatchSummaries();
       },
@@ -607,7 +684,13 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
     }
     this.api.getWhatsappWaLink(this.batch.id, rec.id, true).subscribe({
       next: (res) => {
-        window.open(res.url, '_blank', 'noopener,noreferrer');
+        const url = toWhatsappWebSendUrl(res.url);
+        const chat = window.open(url, WHATSAPP_CHAT_WINDOW_NAME);
+        if (!chat) {
+          window.location.assign(url);
+        } else {
+          chat.focus();
+        }
         this.loadBatch(this.batch!.id);
       },
       error: () => this.notifications.showError('Could not open WhatsApp link.')
@@ -636,11 +719,40 @@ export class WhatsappOutreachComponent implements OnInit, OnDestroy {
     this.batch = null;
     this.clearSelection();
     this.router.navigate([], { queryParams: {}, replaceUrl: true });
-    this.loadCards();
-    this.loadBatchSummaries();
+    this.enterComposerMode();
   }
 
   channelLabel(mode: string): string {
     return mode === 'CLOUD_API' ? 'Cloud API (when enabled)' : 'WhatsApp link (wa.me)';
+  }
+
+  private applyCreditRiskPrefill(): void {
+    const raw = sessionStorage.getItem('whatsapp-outreach-prefill-names');
+    if (!raw) {
+      return;
+    }
+    sessionStorage.removeItem('whatsapp-outreach-prefill-names');
+    const msg = sessionStorage.getItem('whatsapp-outreach-prefill-message');
+    if (msg) {
+      sessionStorage.removeItem('whatsapp-outreach-prefill-message');
+      this.messageTemplate = msg;
+      this.schedulePersistMessageTemplate();
+    }
+    let names: string[] = [];
+    try {
+      names = JSON.parse(raw) as string[];
+    } catch {
+      return;
+    }
+    const nameSet = new Set(names.map((n) => (n || '').trim().toLowerCase()));
+    for (const card of this.cards) {
+      const key = normalizeCustomerKey(card.customer);
+      if (nameSet.has((card.customer || '').trim().toLowerCase())) {
+        this.selectedCustomers.add(key);
+      }
+    }
+    this.messageSectionExpanded = true;
+    this.recipientsSectionExpanded = true;
+    this.notifications.showSuccess(`Pre-selected ${this.selectedCustomers.size} customer(s) from Credit Risk.`);
   }
 }

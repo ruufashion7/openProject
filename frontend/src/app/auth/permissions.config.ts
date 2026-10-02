@@ -219,6 +219,37 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
         description: 'Upload bill photos and extract bill no, amounts, payment, salesman, and time',
         kind: 'page',
         routes: ['/bill-extract']
+      },
+      {
+        key: 'creditRiskPage',
+        label: 'Credit Risk',
+        description: 'Customer risk score, credit exposure, and order/payment decision',
+        kind: 'page',
+        routes: ['/credit-risk']
+      },
+      {
+        key: 'creditRiskConfigEdit',
+        label: 'Edit Credit Risk Config',
+        description: 'Change scoring thresholds and hard-block rules',
+        kind: 'action',
+        routes: ['/credit-risk'],
+        requiresAny: ['creditRiskPage']
+      },
+      {
+        key: 'creditRiskManualHold',
+        label: 'Manual Credit Hold',
+        description: 'Place or clear finance manual hold on a customer',
+        kind: 'action',
+        routes: ['/credit-risk'],
+        requiresAny: ['creditRiskPage']
+      },
+      {
+        key: 'creditRiskDecisionOverride',
+        label: 'Override Order Decision',
+        description: 'Override blocked/approval decisions with audit trail',
+        kind: 'action',
+        routes: ['/credit-risk'],
+        requiresAny: ['creditRiskPage']
       }
     ]
   },
@@ -264,6 +295,7 @@ export const ROUTE_PERMISSIONS: Record<string, keyof import('./auth.service').Us
   '/outstanding-due': 'outstandingPage',
   '/ai-agent': 'aiAgentPage',
   '/bill-extract': 'billExtractPage',
+  '/credit-risk': 'creditRiskPage',
   '/whatsapp-outreach': 'whatsappBroadcast',
   '/customer-locations': 'customerLocations',
   '/access-control': 'admin',

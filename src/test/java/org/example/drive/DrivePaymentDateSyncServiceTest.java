@@ -6,7 +6,6 @@ import org.example.payment.OutstandingDueCustomerResolver;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
-import org.example.payment.PaymentDateRules;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -123,7 +122,7 @@ class DrivePaymentDateSyncServiceTest {
 
         ArgumentCaptor<PaymentDateOverride> captor = ArgumentCaptor.forClass(PaymentDateOverride.class);
         verify(paymentDateOverrideRepository).save(captor.capture());
-        assertEquals(PaymentDateRules.normalizeOverdueToToday("18-08"), captor.getValue().nextPaymentDate());
+        assertEquals("18-08", captor.getValue().nextPaymentDate());
     }
 
     @Test
@@ -247,7 +246,7 @@ class DrivePaymentDateSyncServiceTest {
         ArgumentCaptor<PaymentDateOverride> captor = ArgumentCaptor.forClass(PaymentDateOverride.class);
         verify(paymentDateOverrideRepository).save(captor.capture());
         PaymentDateOverride saved = captor.getValue();
-        assertEquals(PaymentDateRules.normalizeOverdueToToday("18-08"), saved.nextPaymentDate());
+        assertEquals("18-08", saved.nextPaymentDate());
         assertEquals(1, saved.notes().size());
         assertEquals("Call Monday", saved.notes().getFirst().note());
         assertEquals("Google Drive", saved.notes().getFirst().createdBy());

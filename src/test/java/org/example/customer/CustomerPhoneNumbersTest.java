@@ -41,9 +41,15 @@ class CustomerPhoneNumbersTest {
     }
 
     @Test
-    void driveExcelText_stripsIndianCountryCode() {
-        assertEquals("9876543210", CustomerPhoneNumbers.driveExcelText("919876543210"));
-        assertEquals("9876543210", CustomerPhoneNumbers.driveExcelText("9876543210"));
+    void displayForm_indianMobile_plus91SpaceTenDigits() {
+        assertEquals("+91 9876543210", CustomerPhoneNumbers.displayForm("919876543210"));
+        assertEquals("+91 9876543210", CustomerPhoneNumbers.displayForm("9876543210"));
+        assertEquals("+91 9876543210", CustomerPhoneNumbers.displayForm("+91 9876543210"));
+    }
+
+    @Test
+    void driveExcelText_matchesDisplayForm() {
+        assertEquals(CustomerPhoneNumbers.displayForm("9876543210"), CustomerPhoneNumbers.driveExcelText("9876543210"));
     }
 
     @Test

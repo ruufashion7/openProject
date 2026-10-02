@@ -28,6 +28,16 @@ export class WelcomeComponent implements OnInit {
   canWhatsappBroadcast = false;
   canAccessAiAgent = false;
   canAccessBillExtract = false;
+  canAccessUploadsList = false;
+  canAccessUploadAudit = false;
+  canAccessHardDelete = false;
+  canAccessRateList = false;
+  canAccessSalesVisualization = false;
+  canAccessCreditRisk = false;
+  canAccessCustomerLocations = false;
+  canAccessDashboard = false;
+  canAccessSessions = false;
+  canAccessAccessControl = false;
 
   constructor(
     private auth: AuthService,
@@ -45,6 +55,16 @@ export class WelcomeComponent implements OnInit {
     this.canWhatsappBroadcast = this.permissionService.canAccessWhatsappBroadcast();
     this.canAccessAiAgent = this.permissionService.canAccessAiAgent();
     this.canAccessBillExtract = this.permissionService.canAccessBillExtract();
+    this.canAccessUploadsList = this.permissionService.canAccessUploadsList();
+    this.canAccessUploadAudit = this.permissionService.canAccessUploadAudit();
+    this.canAccessHardDelete = this.permissionService.canAccessHardDelete();
+    this.canAccessRateList = this.permissionService.canAccessRateList();
+    this.canAccessSalesVisualization = this.permissionService.canAccessSalesVisualization();
+    this.canAccessCreditRisk = this.permissionService.canAccessCreditRisk();
+    this.canAccessCustomerLocations = this.permissionService.canAccessCustomerLocations();
+    this.canAccessDashboard = this.permissionService.canAccessRoute('/dashboard');
+    this.canAccessSessions = this.permissionService.canAccessRoute('/sessions');
+    this.canAccessAccessControl = this.permissionService.canAccessRoute('/access-control');
 
     this.api.getUploadStatus().subscribe({
       next: (status) => {
@@ -57,7 +77,7 @@ export class WelcomeComponent implements OnInit {
         } else if (!status.hasDetailed && status.hasReceivable) {
           this.analyticsMessage = 'Missing: DetailedSalesInvoices file.';
         } else {
-          this.analyticsMessage = 'Upload both files to enable analytics.';
+          this.analyticsMessage = 'Upload all three files (Detailed Sales, Receivable Ageing, Customer Ledger) to enable analytics.';
         }
       },
       error: (err: HttpErrorResponse) => {
@@ -112,5 +132,51 @@ export class WelcomeComponent implements OnInit {
       return;
     }
     this.router.navigateByUrl('/sales-details');
+  }
+
+  goToUploads(): void {
+    this.router.navigateByUrl('/uploads');
+  }
+
+  goToUploadsAudit(): void {
+    this.router.navigateByUrl('/uploads-audit');
+  }
+
+  goToUploadsPurge(): void {
+    this.router.navigateByUrl('/uploads-purge');
+  }
+
+  goToRateList(): void {
+    this.router.navigateByUrl('/rate-list');
+  }
+
+  goToSalesVisualization(): void {
+    if (!this.analyticsEnabled) {
+      return;
+    }
+    this.router.navigateByUrl('/sales-visualization');
+  }
+
+  goToCreditRisk(): void {
+    this.router.navigateByUrl('/credit-risk');
+  }
+
+  goToCustomerLocations(): void {
+    if (!this.analyticsEnabled) {
+      return;
+    }
+    this.router.navigateByUrl('/customer-locations');
+  }
+
+  goToDashboard(): void {
+    this.router.navigateByUrl('/dashboard');
+  }
+
+  goToSessions(): void {
+    this.router.navigateByUrl('/sessions');
+  }
+
+  goToAccessControl(): void {
+    this.router.navigateByUrl('/access-control');
   }
 }

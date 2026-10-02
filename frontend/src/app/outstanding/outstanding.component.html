@@ -86,7 +86,7 @@
                   (click)="selectPhone(phone)"
                   (mouseenter)="highlightedIndex = customerSuggestions.length + i"
                 >
-                  <span class="suggestion-text" [innerHTML]="highlightMatch(phone, customerQuery)"></span>
+                  <span class="suggestion-text" [innerHTML]="highlightMatch(formatPhoneDisplay(phone), customerQuery)"></span>
                 </button>
               </li>
             </ul>
@@ -96,12 +96,22 @@
 
       <div class="customer-highlight-card" *ngIf="selectedCustomerName || selectedPhoneNumber">
         <div class="highlight-card-content">
-          <h2 class="highlighted-name">{{ selectedCustomerName || selectedPhoneNumber }}</h2>
+          <h2 class="highlighted-name">{{ selectedCustomerName || formatPhoneDisplay(selectedPhoneNumber) }}</h2>
           <button type="button" class="btn btn-close-highlight" (click)="clearCustomerSelection()" aria-label="Close" title="Clear selected customer">
             ×
           </button>
           <!-- Always show for a selected customer (including ₹0 / no receivable summary). -->
           <div class="customer-board-actions" *ngIf="selectedCustomerName">
+            <div class="customer-board-action" *ngIf="permissionService.canAccessCreditRisk()">
+              <span class="customer-board-action-label">Credit risk</span>
+              <button
+                type="button"
+                class="btn btn-board-action"
+                (click)="openCreditRisk()"
+              >
+                Open credit risk
+              </button>
+            </div>
             <div class="customer-board-action" [class.is-active]="isCurrentCustomerExcluded">
               <span class="customer-board-action-label">
                 {{ isCurrentCustomerExcluded ? 'Ignored on Outstanding Due' : 'On Outstanding Due board' }}

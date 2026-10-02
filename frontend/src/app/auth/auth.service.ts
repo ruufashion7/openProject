@@ -30,6 +30,10 @@ export interface UserPermissions {
   uploadAuditPage: boolean;
   aiAgentPage: boolean;
   billExtractPage: boolean;
+  creditRiskPage: boolean;
+  creditRiskConfigEdit: boolean;
+  creditRiskManualHold: boolean;
+  creditRiskDecisionOverride: boolean;
 }
 
 interface SessionData {

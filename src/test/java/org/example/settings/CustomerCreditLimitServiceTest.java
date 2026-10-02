@@ -90,6 +90,11 @@ class CustomerCreditLimitServiceTest {
                 null,
                 null,
                 overrideLimit,
+                false,
+                null,
+                null,
+                null,
+                null,
                 null
         );
     }

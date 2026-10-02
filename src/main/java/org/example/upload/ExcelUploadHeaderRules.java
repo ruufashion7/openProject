@@ -143,6 +143,143 @@ public final class ExcelUploadHeaderRules {
                 || normalized.equals("due");
     }
 
+    /** Invoice due date column (credit-risk engine). */
+    public static boolean isDueDateHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        String normalized = header.trim().toLowerCase(Locale.ROOT);
+        return normalized.equals("due date")
+                || normalized.equals("invoice due date")
+                || (normalized.contains("due") && normalized.contains("date") && !normalized.contains("payment"));
+    }
+
+    /** Payment terms in days. */
+    public static boolean isPaymentTermsHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        String normalized = header.trim().toLowerCase(Locale.ROOT);
+        return normalized.contains("payment term")
+                || normalized.equals("credit days")
+                || normalized.equals("due days")
+                || normalized.equals("terms days");
+    }
+
+    public static boolean isPaymentStatusHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        String normalized = header.trim().toLowerCase(Locale.ROOT);
+        return normalized.equals("payment status")
+                || normalized.equals("txn status")
+                || normalized.equals("transaction status");
+    }
+
+    /** Customer Ledger export (Credit Risk payments upload). */
+    public static boolean isTransactionTypeHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        return header.trim().equalsIgnoreCase("Transaction Type");
+    }
+
+    public static boolean isVoucherDateHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        return header.trim().equalsIgnoreCase("Voucher Date");
+    }
+
+    public static boolean isAccountingDateHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        return header.trim().equalsIgnoreCase("Accounting Date");
+    }
+
+    public static boolean isLedgerCreditHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        return header.trim().equalsIgnoreCase("Credit");
+    }
+
+    public static boolean isLedgerDebitHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        return header.trim().equalsIgnoreCase("Debit");
+    }
+
+    /**
+     * Header row shape for Customer Ledger.xlsx (title row optional above).
+     */
+    public static boolean isCustomerLedgerHeaderRow(List<String> headers) {
+        if (headers == null || headers.isEmpty()) {
+            return false;
+        }
+        boolean customer = headers.stream().anyMatch(h -> h != null && h.trim().equalsIgnoreCase("Customer"));
+        boolean txn = headers.stream().anyMatch(ExcelUploadHeaderRules::isTransactionTypeHeader);
+        boolean date = headers.stream().anyMatch(h ->
+                isVoucherDateHeader(h) || isAccountingDateHeader(h));
+        boolean amount = headers.stream().anyMatch(h ->
+                h != null && h.trim().equalsIgnoreCase("Amount"));
+        return customer && txn && date && amount;
+    }
+
+    public static boolean isInvoiceStatusHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        String normalized = header.trim().toLowerCase(Locale.ROOT);
+        return normalized.equals("status")
+                || normalized.equals("invoice status")
+                || normalized.equals("voucher status");
+    }
+
+    public static boolean isCreditNoteHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        String normalized = header.trim().toLowerCase(Locale.ROOT);
+        return normalized.contains("credit note") || normalized.equals("cn amount");
+    }
+
+    public static boolean isMarginHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        String normalized = header.trim().toLowerCase(Locale.ROOT);
+        return normalized.contains("margin") || normalized.contains("gross profit") || normalized.equals("gp%");
+    }
+
+    /** Payment event date column (Customer Ledger: Voucher / Accounting Date). */
+    public static boolean isPaymentDateHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        if (isVoucherDateHeader(header) || isAccountingDateHeader(header)) {
+            return true;
+        }
+        String normalized = header.trim().toLowerCase(Locale.ROOT);
+        return normalized.equals("payment date")
+                || normalized.equals("txn date")
+                || normalized.equals("transaction date")
+                || normalized.equals("cheque date");
+    }
+
+    public static boolean isPaymentAmountHeader(String header) {
+        if (header == null) {
+            return false;
+        }
+        String normalized = header.trim().toLowerCase(Locale.ROOT);
+        return normalized.equals("payment amount")
+                || normalized.equals("paid amount")
+                || normalized.equals("amount paid")
+                || (normalized.contains("payment") && normalized.contains("amount"));
+    }
+
     /**
      * True if at least one sheet looks like Detailed Sales Invoices (customer + identifiers + amounts).
      */

@@ -27,6 +27,7 @@ import { SecurityService } from '../security/security.service';
 export class UploadComponent implements OnInit, OnDestroy {
   file1?: File;
   file2?: File;
+  file3?: File;
   /** This browser session's upload attempt (idle until user submits or resumes an active job). */
   sessionStatus: 'idle' | 'loading' | 'success' | 'failed' | 'cancelled' = 'idle';
   message = '';
@@ -128,7 +129,7 @@ export class UploadComponent implements OnInit, OnDestroy {
     }
   }
 
-  onFileChange(event: Event, slot: 'file1' | 'file2'): void {
+  onFileChange(event: Event, slot: 'file1' | 'file2' | 'file3'): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) {
@@ -145,8 +146,10 @@ export class UploadComponent implements OnInit, OnDestroy {
 
     if (slot === 'file1') {
       this.file1 = file;
-    } else {
+    } else if (slot === 'file2') {
       this.file2 = file;
+    } else {
+      this.file3 = file;
     }
   }
 
@@ -156,9 +159,9 @@ export class UploadComponent implements OnInit, OnDestroy {
     this.pollUi = null;
     this.ownJobId = null;
 
-    if (!this.file1 || !this.file2) {
+    if (!this.file1 || !this.file2 || !this.file3) {
       this.sessionStatus = 'failed';
-      this.message = 'Please select both files before uploading.';
+      this.message = 'Please select all three files before uploading.';
       return;
     }
 
@@ -187,7 +190,7 @@ export class UploadComponent implements OnInit, OnDestroy {
             throw err;
           }
           this.message = 'Sending files to server…';
-          return this.api.uploadFiles(this.file1!, this.file2!);
+          return this.api.uploadFiles(this.file1!, this.file2!, this.file3!);
         }),
         switchMap((accepted) => {
           this.ownJobId = accepted.jobId;
@@ -449,5 +452,11 @@ export class UploadComponent implements OnInit, OnDestroy {
 
   get showSessionStatus(): boolean {
     return this.sessionStatus !== 'idle';
+  }
+
+  /** Order matches file1 / file2 / file3 on a full batch upload. */
+  uploadFileRoleLabel(index: number): string {
+    const labels = ['Detailed Sales', 'Receivable Ageing', 'Customer Ledger'];
+    return labels[index] ?? `File ${index + 1}`;
   }
 }

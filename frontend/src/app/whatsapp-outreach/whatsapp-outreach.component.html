@@ -1,9 +1,9 @@
 <section class="page wo-page">
-  <div class="page-header-modern wo-header">
+  <div class="page-header page-header--split wo-header">
     <div>
-      <a routerLink="/welcome" class="wo-back">← Welcome</a>
-      <h1 class="page-title-modern">WhatsApp outreach</h1>
-      <p class="page-subtitle-modern">
+      <a routerLink="/welcome" class="page-back-link">← Welcome</a>
+      <h1 class="page-title">WhatsApp outreach</h1>
+      <p class="page-subtitle">
         Two steps: (1) pick recipients and write one message here; (2) after you create a batch, this page shows a table with
         <strong>Open WhatsApp</strong> per row. Compose once, then open <strong>wa.me</strong> per customer (free). Cloud API can use the same batches later.
       </p>
@@ -13,7 +13,7 @@
     </div>
   </div>
 
-  <div class="wo-banner" *ngIf="!batch">
+  <div class="info-banner wo-banner" *ngIf="!batch">
     <p>
       <strong>How it works:</strong> Select customers, write your message (tokens like <code>{{ placeholderHint }}</code> — use the insert buttons under the message box). Click
       <strong>Create batch &amp; continue</strong> — then <strong>step 2</strong> appears: a progress table with Open WhatsApp, Copy, and status buttons for each customer. In WhatsApp, tap Send; then mark <em>Sent</em> or <em>Failed</em> here.
@@ -231,7 +231,9 @@
   <div class="wo-modal" *ngIf="showConfirm" role="dialog" aria-modal="true">
     <h3>Confirm batch</h3>
     <p>You are about to create a batch for <strong>{{ selectedCustomers.size }}</strong> customers.</p>
-    <p class="wo-muted">Each chat still opens in WhatsApp for a human to press Send (wa.me). This screen tracks progress.</p>
+    <p class="wo-muted">
+      Each click opens the same WhatsApp Web tab (new chat per customer). Press Send in WhatsApp, then mark status here.
+    </p>
     <div class="wo-modal-actions">
       <button type="button" class="btn btn-ghost" (click)="cancelConfirm()">Cancel</button>
       <button type="button" class="btn btn-primary" (click)="submitBatch()" [disabled]="saving">
@@ -273,7 +275,7 @@
         <tbody>
           <tr *ngFor="let r of filteredRecipients">
             <td>{{ r.displayName }}</td>
-            <td class="wo-mono">{{ r.phoneDigits }}</td>
+            <td class="wo-mono">{{ formatPhoneDisplay(r.phoneDigits) }}</td>
             <td>
               <span class="wo-status" [ngClass]="statusClass(r.status)">{{ statusLabel(r.status) }}</span>
             </td>

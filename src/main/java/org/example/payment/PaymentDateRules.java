@@ -2,14 +2,11 @@ package org.example.payment;
 
 import java.time.DateTimeException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 
 /**
- * Shared rules for the year-less DD-MM payment dates used by the app.
+ * Shared helpers for the year-less DD-MM payment dates used by the app.
  */
 public final class PaymentDateRules {
-
-    private static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern("dd-MM");
 
     private PaymentDateRules() {
     }
@@ -21,17 +18,6 @@ public final class PaymentDateRules {
     static boolean isPast(String value, LocalDate today) {
         LocalDate date = inCurrentYear(value, today);
         return date != null && date.isBefore(today);
-    }
-
-    public static String normalizeOverdueToToday(String value) {
-        return normalizeOverdueToToday(value, LocalDate.now());
-    }
-
-    static String normalizeOverdueToToday(String value, LocalDate today) {
-        if (value == null || value.isBlank() || !isPast(value, today)) {
-            return value;
-        }
-        return today.format(DAY_MONTH);
     }
 
     private static LocalDate inCurrentYear(String value, LocalDate today) {

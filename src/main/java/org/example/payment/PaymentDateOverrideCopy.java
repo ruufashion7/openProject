@@ -21,8 +21,8 @@ public final class PaymentDateOverrideCopy {
     }
 
     public static PaymentDateOverride withExcluded(PaymentDateOverride src, boolean excluded, String excludedBy) {
-        return new PaymentDateOverride(
-                src.id(),
+        return from(
+                src,
                 src.customerKey(),
                 src.customerName(),
                 src.nextPaymentDate() != null ? src.nextPaymentDate() : "",
@@ -43,13 +43,17 @@ public final class PaymentDateOverrideCopy {
                 src.retainedAt(),
                 src.retainedBy(),
                 src.creditLimitOverride(),
-                Instant.now()
+                src.manualHold(),
+                src.manualHoldReason(),
+                src.manualHoldAt(),
+                src.manualHoldBy(),
+                src.paymentTermsDays()
         );
     }
 
     public static PaymentDateOverride withRetained(PaymentDateOverride src, boolean retained, String retainedBy) {
-        return new PaymentDateOverride(
-                src.id(),
+        return from(
+                src,
                 src.customerKey(),
                 src.customerName(),
                 src.nextPaymentDate() != null ? src.nextPaymentDate() : "",
@@ -70,7 +74,11 @@ public final class PaymentDateOverrideCopy {
                 retained ? Instant.now() : null,
                 retained ? retainedBy : null,
                 src.creditLimitOverride(),
-                Instant.now()
+                src.manualHold(),
+                src.manualHoldReason(),
+                src.manualHoldAt(),
+                src.manualHoldBy(),
+                src.paymentTermsDays()
         );
     }
 
@@ -141,8 +149,8 @@ public final class PaymentDateOverrideCopy {
     }
 
     public static PaymentDateOverride withCreditLimitOverride(PaymentDateOverride src, Double creditLimitOverride) {
-        return new PaymentDateOverride(
-                src.id(),
+        return from(
+                src,
                 src.customerKey(),
                 src.customerName(),
                 src.nextPaymentDate() != null ? src.nextPaymentDate() : "",
@@ -163,7 +171,78 @@ public final class PaymentDateOverrideCopy {
                 src.retainedAt(),
                 src.retainedBy(),
                 creditLimitOverride,
-                Instant.now()
+                src.manualHold(),
+                src.manualHoldReason(),
+                src.manualHoldAt(),
+                src.manualHoldBy(),
+                src.paymentTermsDays()
+        );
+    }
+
+    public static PaymentDateOverride withManualHold(
+            PaymentDateOverride src,
+            boolean hold,
+            String reason,
+            String heldBy
+    ) {
+        return from(
+                src,
+                src.customerKey(),
+                src.customerName(),
+                src.nextPaymentDate() != null ? src.nextPaymentDate() : "",
+                src.phoneNumber(),
+                src.whatsAppStatus(),
+                src.customerCategory(),
+                src.isActive(),
+                src.needsFollowUp() != null ? src.needsFollowUp() : false,
+                src.address(),
+                src.place(),
+                src.latitude(),
+                src.longitude(),
+                src.notes() != null ? src.notes() : List.of(),
+                src.excluded(),
+                src.excludedAt(),
+                src.excludedBy(),
+                src.retained(),
+                src.retainedAt(),
+                src.retainedBy(),
+                src.creditLimitOverride(),
+                hold,
+                hold ? reason : null,
+                hold ? Instant.now() : null,
+                hold ? heldBy : null,
+                src.paymentTermsDays()
+        );
+    }
+
+    public static PaymentDateOverride withPaymentTermsDays(PaymentDateOverride src, Integer paymentTermsDays) {
+        return from(
+                src,
+                src.customerKey(),
+                src.customerName(),
+                src.nextPaymentDate() != null ? src.nextPaymentDate() : "",
+                src.phoneNumber(),
+                src.whatsAppStatus(),
+                src.customerCategory(),
+                src.isActive(),
+                src.needsFollowUp() != null ? src.needsFollowUp() : false,
+                src.address(),
+                src.place(),
+                src.latitude(),
+                src.longitude(),
+                src.notes() != null ? src.notes() : List.of(),
+                src.excluded(),
+                src.excludedAt(),
+                src.excludedBy(),
+                src.retained(),
+                src.retainedAt(),
+                src.retainedBy(),
+                src.creditLimitOverride(),
+                src.manualHold(),
+                src.manualHoldReason(),
+                src.manualHoldAt(),
+                src.manualHoldBy(),
+                paymentTermsDays
         );
     }
 
@@ -187,6 +266,11 @@ public final class PaymentDateOverrideCopy {
                 null,
                 null,
                 false,
+                null,
+                null,
+                null,
+                false,
+                null,
                 null,
                 null,
                 null,
@@ -261,8 +345,8 @@ public final class PaymentDateOverrideCopy {
             Instant retainedAt,
             String retainedBy
     ) {
-        return new PaymentDateOverride(
-                src.id(),
+        return from(
+                src,
                 customerKey != null ? customerKey : src.customerKey(),
                 customerName != null ? customerName : src.customerName(),
                 nextPaymentDate != null ? nextPaymentDate : (src.nextPaymentDate() != null ? src.nextPaymentDate() : ""),
@@ -283,7 +367,11 @@ public final class PaymentDateOverrideCopy {
                 retainedAt != null ? retainedAt : src.retainedAt(),
                 retainedBy != null ? retainedBy : src.retainedBy(),
                 src.creditLimitOverride(),
-                Instant.now()
+                src.manualHold(),
+                src.manualHoldReason(),
+                src.manualHoldAt(),
+                src.manualHoldBy(),
+                src.paymentTermsDays()
         );
     }
 
@@ -308,8 +396,8 @@ public final class PaymentDateOverrideCopy {
             Double longitude,
             List<CustomerNote> notes
     ) {
-        return new PaymentDateOverride(
-                src.id(),
+        return from(
+                src,
                 customerKey,
                 customerName,
                 nextPaymentDate != null ? nextPaymentDate : "",
@@ -330,7 +418,11 @@ public final class PaymentDateOverrideCopy {
                 src.retainedAt(),
                 src.retainedBy(),
                 src.creditLimitOverride(),
-                Instant.now()
+                src.manualHold(),
+                src.manualHoldReason(),
+                src.manualHoldAt(),
+                src.manualHoldBy(),
+                src.paymentTermsDays()
         );
     }
 
@@ -361,6 +453,66 @@ public final class PaymentDateOverrideCopy {
                 null,
                 null,
                 null
+        );
+    }
+
+    @SuppressWarnings("java:S107")
+    private static PaymentDateOverride from(
+            PaymentDateOverride src,
+            String customerKey,
+            String customerName,
+            String nextPaymentDate,
+            String phoneNumber,
+            String whatsAppStatus,
+            String customerCategory,
+            Boolean active,
+            Boolean needsFollowUp,
+            String address,
+            String place,
+            Double latitude,
+            Double longitude,
+            List<CustomerNote> notes,
+            Boolean excluded,
+            Instant excludedAt,
+            String excludedBy,
+            Boolean retained,
+            Instant retainedAt,
+            String retainedBy,
+            Double creditLimitOverride,
+            Boolean manualHold,
+            String manualHoldReason,
+            Instant manualHoldAt,
+            String manualHoldBy,
+            Integer paymentTermsDays
+    ) {
+        return new PaymentDateOverride(
+                src.id(),
+                customerKey,
+                customerName,
+                nextPaymentDate,
+                phoneNumber,
+                whatsAppStatus,
+                customerCategory,
+                active,
+                needsFollowUp,
+                address,
+                place,
+                latitude,
+                longitude,
+                notes,
+                excluded,
+                excludedAt,
+                excludedBy,
+                retained,
+                retainedAt,
+                retainedBy,
+                creditLimitOverride,
+                manualHold,
+                manualHoldReason,
+                manualHoldAt,
+                manualHoldBy,
+                paymentTermsDays,
+                Instant.now()
         );
     }
 }

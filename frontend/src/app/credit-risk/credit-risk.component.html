@@ -1,0 +1,590 @@
+<section class="page credit-risk-page">
+  <app-page-state
+    *ngIf="status === 'loading' || status === 'failed'"
+    [kind]="status === 'loading' ? 'loading' : 'error'"
+    [message]="message"
+  ></app-page-state>
+
+  <div class="page-header" *ngIf="status !== 'failed'">
+    <div>
+      <h1 class="page-title">Credit Risk</h1>
+      <p class="page-subtitle">
+        See who needs follow-up, then open a customer to check limits, overdue, and whether you can take a new order.
+      </p>
+    </div>
+  </div>
+
+  <ng-container *ngIf="status !== 'failed'">
+    <div class="info-banner cr-howto">
+      <strong>Quick guide:</strong>
+      Use <em>Ready for orders</em> to grow sales, or <em>Who needs attention</em> for follow-up.
+      Tap <em>Take order</em> on a row, then <em>Check order</em> before confirming a new sale.
+      Dispatch/OMS: <code>POST /api/credit-risk/orders/evaluate</code> before releasing stock.
+    </div>
+
+    <section class="card cr-insights" *ngIf="committee || committeeLoading">
+      <h2 class="section-title">Today at a glance</h2>
+      <p class="cr-lead" *ngIf="committeeLoading">Loading summary…</p>
+      <div class="cr-insight-grid" *ngIf="committee as c">
+        <div class="cr-insight-stat">
+          <span class="label">Overdue in queue</span>
+          <span class="value">₹{{ c.totalOverdueInQueue | number:'1.0-0' }}</span>
+        </div>
+        <div class="cr-insight-stat">
+          <span class="label">Limit &gt; 90% used</span>
+          <span class="value">{{ c.highUtilizationCount }}</span>
+        </div>
+        <div class="cr-insight-stat">
+          <span class="label">Wind down</span>
+          <span class="value">{{ c.windDownCount }}</span>
+        </div>
+        <div class="cr-insight-stat">
+          <span class="label">Supply stopped</span>
+          <span class="value">{{ c.manualHoldCount }}</span>
+        </div>
+      </div>
+      <div class="inline-actions cr-insight-actions" *ngIf="collectToday.length || canWhatsapp">
+        <button type="button" class="btn btn-secondary" (click)="exportCollectTodayCsv()" [disabled]="!collectToday.length">
+          Download collect list (CSV)
+        </button>
+        <button type="button" class="btn btn-primary" *ngIf="canWhatsapp" (click)="startWhatsappCollectCampaign()">
+          WhatsApp collect list
+        </button>
+      </div>
+      <p class="cr-muted" *ngIf="!collectLoading && !collectToday.length">No collection priorities right now.</p>
+    </section>
+
+    <!-- Step 1: Queue -->
+    <section class="card cr-queue">
+      <div class="cr-queue-head">
+        <div>
+          <h2 class="section-title">{{ queueSectionTitle() }}</h2>
+          <p class="cr-lead">{{ queueSectionLead() }}</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          [disabled]="rebuilding"
+          (click)="rebuildSnapshots()"
+          title="Recalculate scores from latest uploads"
+        >
+          {{ rebuilding ? 'Refreshing…' : 'Refresh list' }}
+        </button>
+      </div>
+      <div class="cr-tabs" role="tablist" aria-label="Queue filter">
+        <button type="button" role="tab" [class.active]="queueTab === 'ALL'" (click)="setQueueTab('ALL')">
+          {{ queueTabLabel('ALL') }}
+        </button>
+        <button type="button" role="tab" [class.active]="queueTab === 'READY'" (click)="setQueueTab('READY')">
+          {{ queueTabLabel('READY') }}
+        </button>
+        <button type="button" role="tab" [class.active]="queueTab === 'BLOCKED'" (click)="setQueueTab('BLOCKED')">
+          {{ queueTabLabel('BLOCKED') }}
+        </button>
+        <button type="button" role="tab" [class.active]="queueTab === 'NEED_PAYMENT'" (click)="setQueueTab('NEED_PAYMENT')">
+          {{ queueTabLabel('NEED_PAYMENT') }}
+        </button>
+        <button type="button" role="tab" [class.active]="queueTab === 'NEED_APPROVAL'" (click)="setQueueTab('NEED_APPROVAL')">
+          {{ queueTabLabel('NEED_APPROVAL') }}
+        </button>
+        <button type="button" role="tab" [class.active]="queueTab === 'WATCH'" (click)="setQueueTab('WATCH')">
+          {{ queueTabLabel('WATCH') }}
+        </button>
+        <button type="button" role="tab" [class.active]="queueTab === 'WIND_DOWN'" (click)="setQueueTab('WIND_DOWN')">
+          {{ queueTabLabel('WIND_DOWN') }}
+        </button>
+      </div>
+      <div class="search-container cr-queue-search">
+        <div class="search-input-wrapper">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input
+            class="search-input-modern"
+            type="text"
+            [(ngModel)]="queueSearch"
+            (input)="onQueueSearchInput()"
+            placeholder="Search by customer name or phone..."
+            autocomplete="off"
+          />
+          <button
+            *ngIf="queueSearch"
+            type="button"
+            class="btn-clear-search"
+            (click)="clearQueueSearch()"
+            title="Clear"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      <p class="cr-muted cr-queue-count" *ngIf="!queueLoading && queue.length">
+        Showing {{ filteredQueue.length }} of {{ queue.length }} in this tab
+      </p>
+      <p class="cr-muted" *ngIf="queueLoading">Loading list…</p>
+      <p class="cr-muted" *ngIf="!queueLoading && !filteredQueue.length">
+        <ng-container *ngIf="queueTab === 'READY'; else queueEmptyDefault">
+          No customers in the ready list yet. Refresh list after upload, or they may all be on other tabs.
+        </ng-container>
+        <ng-template #queueEmptyDefault>
+          No customers in this list. Try another tab or refresh after uploading sales, ageing, and ledger files.
+        </ng-template>
+      </p>
+      <div class="cr-queue-table" *ngIf="filteredQueue.length">
+        <div class="cr-queue-cols head" role="row">
+          <button
+            type="button"
+            class="cr-sort-col"
+            [attr.aria-sort]="queueSortAria('customer')"
+            (click)="toggleQueueSort('customer')"
+          >
+            Customer <span class="cr-sort-arrow" aria-hidden="true">{{ queueSortArrow('customer') }}</span>
+          </button>
+          <button
+            type="button"
+            class="cr-sort-col"
+            [attr.aria-sort]="queueSortAria('action')"
+            (click)="toggleQueueSort('action')"
+          >
+            Action <span class="cr-sort-arrow" aria-hidden="true">{{ queueSortArrow('action') }}</span>
+          </button>
+          <button
+            type="button"
+            class="cr-sort-col"
+            [attr.aria-sort]="queueSortAria('risk')"
+            (click)="toggleQueueSort('risk')"
+          >
+            Risk <span class="cr-sort-arrow" aria-hidden="true">{{ queueSortArrow('risk') }}</span>
+          </button>
+          <button
+            type="button"
+            class="cr-sort-col"
+            [attr.aria-sort]="queueSortAria('overdue')"
+            (click)="toggleQueueSort('overdue')"
+          >
+            Overdue <span class="cr-sort-arrow" aria-hidden="true">{{ queueSortArrow('overdue') }}</span>
+          </button>
+          <button
+            type="button"
+            class="cr-sort-col"
+            [attr.aria-sort]="queueSortAria('onTime')"
+            (click)="toggleQueueSort('onTime')"
+          >
+            Pays on time <span class="cr-sort-arrow" aria-hidden="true">{{ queueSortArrow('onTime') }}</span>
+          </button>
+          <button
+            type="button"
+            class="cr-sort-col"
+            [attr.aria-sort]="queueSortAria('delay')"
+            (click)="toggleQueueSort('delay')"
+          >
+            Avg delay <span class="cr-sort-arrow" aria-hidden="true">{{ queueSortArrow('delay') }}</span>
+          </button>
+          <span class="cr-sort-col-spacer" aria-hidden="true"></span>
+        </div>
+        <div class="cr-queue-row-wrap" *ngFor="let row of filteredQueue">
+          <button type="button" class="cr-queue-row" (click)="openFromQueue(row)">
+            <span class="name">{{ row.customerName }}</span>
+            <span class="bucket">{{ actionBucketLabel(row.actionBucket) }}</span>
+            <span class="risk">{{ riskCategoryLabel(row.riskCategory) }} · {{ row.riskScore | number:'1.0-0' }}</span>
+            <span class="amt">₹{{ row.overdueAmount | number:'1.0-0' }}</span>
+            <span class="pay">{{ row.onTimePaymentPercentage != null ? (row.onTimePaymentPercentage | number:'1.0-1') + '%' : '—' }}</span>
+            <span class="delay">{{ row.averagePaymentDelayDays != null ? (row.averagePaymentDelayDays | number:'1.0-1') + ' d' : '—' }}</span>
+          </button>
+          <button
+            type="button"
+            class="btn cr-queue-take"
+            [class.btn-primary]="isLikelyOkForOrder(row)"
+            [class.btn-secondary]="!isLikelyOkForOrder(row)"
+            (click)="takeOrderFromQueue(row, $event)"
+            title="Open order check with typical order amount"
+          >
+            Take order
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 2: Lookup -->
+    <section class="card cr-lookup">
+      <h2 class="section-title">2. Check one customer</h2>
+      <p class="cr-lead">Search by name or phone, pick a suggestion, or press Enter.</p>
+      <div class="cr-toolbar">
+        <div class="search-container">
+          <div class="search-input-wrapper">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input
+              class="search-input-modern"
+              type="text"
+              [(ngModel)]="customerQuery"
+              (input)="onSearchInput()"
+              (focus)="onSearchFocus()"
+              (keydown.enter)="loadSelected()"
+              placeholder="Search by customer name or phone..."
+              autocomplete="off"
+            />
+            <button
+              *ngIf="customerQuery"
+              type="button"
+              class="btn-clear-search"
+              (click)="clearSearch()"
+              title="Clear"
+            >
+              ×
+            </button>
+          </div>
+          <div class="search-suggestions" *ngIf="showSuggestions && customerSuggestions.length">
+            <button
+              type="button"
+              class="suggestion-item"
+              *ngFor="let s of customerSuggestions"
+              (mousedown)="selectSuggestion(s)"
+            >
+              {{ s }}
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn btn-primary" (click)="loadSelected()" [disabled]="customerLoading">
+          {{ customerLoading ? 'Loading…' : 'Check this customer' }}
+        </button>
+        <label class="cr-file-btn btn btn-secondary" title="Upload Excel with Customer and Order Amount columns">
+          {{ excelUploading ? 'Working…' : 'Many orders (Excel)' }}
+          <input
+            type="file"
+            accept=".xlsx,.xls"
+            [disabled]="excelUploading"
+            (change)="onOrderExcelSelected($event)"
+            hidden
+          />
+        </label>
+        <button
+          *ngIf="canConfigEdit"
+          type="button"
+          class="btn btn-secondary"
+          (click)="openConfig()"
+        >
+          Rules (admin)
+        </button>
+      </div>
+      <p class="cr-muted cr-error" *ngIf="customerLoadError">{{ customerLoadError }}</p>
+    </section>
+
+    <section class="card cr-empty" *ngIf="!summary && !customerLoading && !customerLoadError">
+      <p class="cr-empty-title">No customer selected</p>
+      <p class="cr-muted">Choose someone from the list above or search here to see credit limit, overdue, and order advice.</p>
+    </section>
+
+    <div class="info-banner cr-warnings-banner" *ngIf="summary?.dataQualityWarnings?.length">
+      <strong>Missing data for accurate scores:</strong>
+      <ul class="cr-warning-list">
+        <li *ngFor="let w of summary!.dataQualityWarnings">{{ dataWarningLabel(w) }}</li>
+      </ul>
+    </div>
+
+    <div class="cr-grid" *ngIf="summary as s">
+      <article class="card cr-panel cr-hero">
+      <h2>{{ s.customerName }}</h2>
+      <div class="inline-actions cr-customer-links">
+        <button type="button" class="btn btn-primary" (click)="startTakeOrderForCustomer()">Take order</button>
+        <button type="button" class="btn btn-secondary" (click)="openOutstandingDue(s.customerName)">Outstanding Due</button>
+        <button type="button" class="btn btn-secondary" (click)="openCustomerDetails(s.customerName)">Customer Details</button>
+        <a class="btn btn-secondary" routerLink="/rate-list">Rate list</a>
+      </div>
+      <p class="cr-meta">
+          Category {{ s.customerCategory || '—' }}
+          · With you {{ s.customerTenureDays }} days
+          · {{ s.phoneNumber ? formatPhoneDisplay(s.phoneNumber) : 'No phone on file' }}
+        </p>
+        <div class="cr-score-row">
+          <div class="cr-score-block">
+            <span class="label">Overall risk (0–100)</span>
+            <span class="value">{{ s.riskScore | number:'1.0-0' }}</span>
+            <span class="cat">{{ riskCategoryLabel(s.riskCategory) }}</span>
+            <span class="cr-hint">{{ riskScoreHint(s.riskScore) }}</span>
+          </div>
+          <div class="cr-score-block">
+            <span class="label">Payment behaviour</span>
+            <span class="value">{{ s.paymentScore | number:'1.0-0' }}/60</span>
+            <span class="cat">{{ s.paymentBehaviour }}</span>
+          </div>
+          <div class="cr-score-block">
+            <span class="label">Business value</span>
+            <span class="value">{{ s.businessScore | number:'1.0-0' }}/40</span>
+            <span class="cat">{{ s.businessValue }}</span>
+          </div>
+        </div>
+        <div class="cr-alerts" *ngIf="s.alerts?.length">
+          <span class="alert-chip" *ngFor="let a of s.alerts">{{ alertLabel(a) }}</span>
+        </div>
+      </article>
+
+      <article class="card cr-panel">
+        <h3 class="section-title">Money &amp; limits</h3>
+        <p class="cr-lead">Outstanding, overdue, and how much credit headroom is left.</p>
+        <dl class="cr-dl">
+          <div><dt>Credit limit</dt><dd>{{ s.creditLimit != null ? ('₹' + (s.creditLimit | number:'1.0-0')) : 'Not set' }}</dd></div>
+          <div><dt>Total outstanding</dt><dd>₹{{ s.currentOutstanding | number:'1.0-0' }}</dd></div>
+          <div><dt>Overdue</dt><dd>₹{{ s.overdueAmount | number:'1.0-0' }} ({{ s.overdueInvoiceCount }} invoices, oldest {{ s.maximumOverdueDays }} days)</dd></div>
+          <div><dt>Limit used</dt><dd>{{ s.creditUtilization != null ? (s.creditUtilization | number:'1.0-0') + '%' : '—' }}</dd></div>
+          <div><dt>Pays on time</dt><dd>{{ s.onTimePaymentPercentage | number:'1.0-1' }}%</dd></div>
+          <div><dt>Average delay</dt><dd>{{ s.averagePaymentDelayDays | number:'1.0-1' }} days</dd></div>
+          <div><dt>Sales (last 90 days)</dt><dd>₹{{ s.salesLast90Days | number:'1.0-0' }}</dd></div>
+          <div><dt>Suggested limit</dt><dd>{{ s.recommendedCreditLimit != null ? ('₹' + (s.recommendedCreditLimit | number:'1.0-0')) : '—' }}</dd></div>
+          <div><dt>Bounces / failures (90d)</dt><dd>{{ s.paymentFailuresLast90Days }}</dd></div>
+          <div>
+            <dt>Promised pay date</dt>
+            <dd>
+              {{ s.nextPaymentDate || 'Not set' }}
+              <span class="tag bad" *ngIf="s.brokenPaymentPromises > 0"> overdue / missed</span>
+            </dd>
+          </div>
+          <div *ngIf="s.openPaymentPromiseCount">
+            <dt>Cash to collect</dt>
+            <dd class="bad-text">₹{{ s.openPaymentPromiseAmount | number:'1.0-0' }} ({{ s.openPaymentPromiseCount }} open)</dd>
+          </div>
+        </dl>
+        <p class="cr-muted">Promised pay date is set on <strong>Outstanding Due</strong> (payment date column).</p>
+        <button
+          *ngIf="canApplyLimit && s.recommendedCreditLimit != null"
+          type="button"
+          class="btn btn-primary"
+          [disabled]="applyingLimit"
+          (click)="applyRecommendedLimit()"
+        >
+          {{ applyingLimit ? 'Applying…' : 'Apply suggested limit to customer' }}
+        </button>
+        <div class="cr-terms-row">
+          <label class="cr-label">
+            Credit days for this customer
+            <input type="number" [(ngModel)]="paymentTermsInput" min="0" placeholder="Leave blank = category default" />
+          </label>
+          <button type="button" class="btn btn-secondary" (click)="savePaymentTerms()">Save credit days</button>
+        </div>
+      </article>
+
+      <article class="card cr-panel" id="cr-take-order">
+        <h3 class="section-title">Can we take this order?</h3>
+        <p class="cr-lead">
+          Enter the new order value to get a clear yes / no / pay-first answer. Use this before you confirm the sale in your OMS.
+        </p>
+        <label class="cr-label">
+          New order amount (₹)
+          <input type="text" [(ngModel)]="orderAmount" inputmode="decimal" placeholder="e.g. 50000" />
+        </label>
+        <label class="cr-label">
+          Order reference (optional)
+          <input type="text" [(ngModel)]="orderReferenceId" placeholder="OMS or internal ref" />
+        </label>
+        <label class="check">
+          <input type="checkbox" [(ngModel)]="reserveExposure" [disabled]="!orderReferenceId.trim()" />
+          Reserve this amount against their limit (needs a reference)
+        </label>
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="evaluating"
+          (click)="evaluateOrder()"
+        >
+          {{ evaluating ? 'Checking…' : 'Check order' }}
+        </button>
+
+        <div class="cr-decision" *ngIf="decision as d" [attr.data-tone]="decisionClass(d.orderDecision)">
+          <p class="cr-fastpath" *ngIf="summary && isFastPathOrder(summary, d)">
+            Fast path — reliable customer with headroom on limit.
+          </p>
+          <p class="cr-verdict"><strong>Supply order?</strong> {{ orderDecisionLabel(d.orderDecision) }}</p>
+          <p class="cr-verdict"><strong>Payment before supply?</strong> {{ paymentDecisionLabel(d.paymentDecision) }}</p>
+          <p *ngIf="d.requiredPayment > 0" class="cr-verdict">
+            <strong>Collect first:</strong> ₹{{ d.requiredPayment | number:'1.0-0' }}
+          </p>
+          <p class="cr-muted">
+            After this order: ₹{{ d.projectedExposure | number:'1.0-0' }} outstanding
+            <span *ngIf="d.creditLimit != null"> (limit ₹{{ d.creditLimit | number:'1.0-0' }})</span>
+          </p>
+          <ul class="cr-reasons" *ngIf="d.reasons?.length">
+            <li *ngFor="let r of d.reasons">
+              <span class="sev">{{ severityLabel(r.severity) }}</span>
+              {{ r.message }}
+            </li>
+          </ul>
+          <button
+            type="button"
+            class="linkish cr-tech-toggle"
+            *ngIf="d.reasons?.length"
+            (click)="showTechnicalReasons = !showTechnicalReasons"
+          >
+            {{ showTechnicalReasons ? 'Hide' : 'Show' }} technical codes
+          </button>
+          <ul class="cr-reasons cr-reasons-tech" *ngIf="showTechnicalReasons && d.reasons?.length">
+            <li *ngFor="let r of d.reasons"><code>{{ r.code }}</code> ({{ r.severity }})</li>
+          </ul>
+          <p class="cr-muted" *ngIf="!d.reasons?.length">No extra rules triggered for this amount.</p>
+          <div class="cr-override" *ngIf="canOverrideDecision && d.auditId">
+            <h4>Manager override</h4>
+            <label class="cr-label">
+              New supply decision
+              <select [(ngModel)]="overrideDecision">
+                <option value="TAKE_ORDER">Allow order</option>
+                <option value="TAKE_ORDER_WITH_APPROVAL">Allow with approval</option>
+                <option value="TAKE_ORDER_AFTER_PAYMENT">Allow after payment</option>
+                <option value="DO_NOT_TAKE_ORDER">Block order</option>
+              </select>
+            </label>
+            <label class="cr-label">Reason <input type="text" [(ngModel)]="overrideReason" /></label>
+            <button type="button" class="btn btn-secondary" [disabled]="overriding" (click)="submitOverride()">
+              {{ overriding ? 'Saving…' : 'Save override' }}
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <article class="card cr-panel" *ngIf="canManualHold">
+        <h3 class="section-title">Stop supply (manual hold)</h3>
+        <p class="cr-lead">Blocks new orders until you clear the hold — use for disputes or special cases.</p>
+        <p>
+          Status:
+          <strong [class.bad-text]="s.manualHold">{{ s.manualHold ? 'Supply stopped' : 'Normal' }}</strong>
+          <span *ngIf="s.manualHoldReason"> — {{ s.manualHoldReason }}</span>
+        </p>
+        <label class="cr-label" *ngIf="!s.manualHold">
+          Reason (required)
+          <input type="text" [(ngModel)]="holdReason" placeholder="Why supply is stopped" />
+        </label>
+        <button type="button" class="btn btn-secondary" (click)="toggleManualHold()">
+          {{ s.manualHold ? 'Allow supply again' : 'Stop supply' }}
+        </button>
+      </article>
+
+      <article class="card cr-panel">
+        <h3 class="section-title">Cash to collect (per deal)</h3>
+        <p class="cr-lead">
+          Link to an invoice, an amount, or both. Invoice must match this customer in your latest Detailed Sales upload.
+        </p>
+        <div class="cr-promise-form">
+          <label class="cr-label">
+            Invoice (voucher no.)
+            <input type="text" [(ngModel)]="cashInvoice" placeholder="Optional — e.g. SI-2401" autocomplete="off" />
+          </label>
+          <label class="cr-label">
+            Amount ₹
+            <input type="text" [(ngModel)]="cashAmount" inputmode="decimal" placeholder="Optional if invoice only" />
+          </label>
+          <label class="cr-label">
+            Collect within (days)
+            <input type="number" [(ngModel)]="cashDays" min="0" max="3650" />
+          </label>
+          <label class="cr-label cr-label-wide">
+            Note
+            <input type="text" [(ngModel)]="cashNote" maxlength="200" placeholder="e.g. casual shirt cash" />
+          </label>
+          <button type="button" class="btn btn-primary" [disabled]="savingCash" (click)="addCashCollect()">
+            {{ savingCash ? 'Saving…' : 'Add reminder' }}
+          </button>
+        </div>
+        <p class="cr-muted cr-promise-hint">
+          Invoice only → we use that invoice’s <strong>current due</strong>. Amount only → general cash reminder.
+          Both → amount must not exceed the invoice due.
+        </p>
+        <ul class="cr-promise-list" *ngIf="promises.length">
+          <li *ngFor="let p of promises">
+            <span>
+              <ng-container *ngIf="p.voucherNo">Inv {{ p.voucherNo }} · </ng-container>
+              ₹{{ p.promiseAmount | number:'1.0-0' }} by {{ p.promiseDate }}
+            </span>
+            <span class="tag" *ngIf="p.fulfilled">Collected</span>
+            <span class="tag bad" *ngIf="p.broken && !p.fulfilled">Missed</span>
+            <span class="note" *ngIf="p.note">{{ p.note }}</span>
+            <span class="actions">
+              <button type="button" class="linkish" *ngIf="!p.fulfilled" (click)="markCashCollected(p)">Mark collected</button>
+              <button type="button" class="linkish" *ngIf="!p.broken && !p.fulfilled" (click)="markCashBroken(p)">Mark missed</button>
+              <button type="button" class="linkish" (click)="deleteCashCollect(p)">Remove</button>
+            </span>
+          </li>
+        </ul>
+        <p class="cr-muted" *ngIf="!promises.length">No cash reminders for this customer.</p>
+      </article>
+
+      <article class="card cr-panel cr-wide">
+        <div class="cr-breakdown-head">
+          <h3 class="section-title">How the score is calculated</h3>
+          <button type="button" class="btn btn-secondary" (click)="showScoreBreakdown = !showScoreBreakdown">
+            {{ showScoreBreakdown ? 'Hide details' : 'Show details' }}
+          </button>
+        </div>
+        <div class="cr-breakdown" *ngIf="showScoreBreakdown">
+          <div>
+            <h4>Payment (max 60)</h4>
+            <table>
+              <tr *ngFor="let c of s.paymentComponents">
+                <td>{{ parameterLabel(c.parameter) }}</td>
+                <td>{{ c.rawValue }}</td>
+                <td>{{ c.scoreObtained }}/{{ c.maximumScore }}</td>
+              </tr>
+            </table>
+          </div>
+          <div>
+            <h4>Business (max 40)</h4>
+            <table>
+              <tr *ngFor="let c of s.businessComponents">
+                <td>{{ parameterLabel(c.parameter) }}</td>
+                <td>{{ c.rawValue }}</td>
+                <td>{{ c.scoreObtained }}/{{ c.maximumScore }}</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        <p class="cr-muted" *ngIf="!showScoreBreakdown">Optional detail for managers — payment history and sales drive the score above.</p>
+      </article>
+
+      <article class="card cr-panel cr-wide" *ngIf="limitHistory.length || decisionAudits.length">
+        <h3 class="section-title">History</h3>
+        <div class="cr-history-cols">
+          <div *ngIf="limitHistory.length">
+            <h4>Credit limit changes</h4>
+            <ul class="cr-history-list">
+              <li *ngFor="let h of limitHistory">
+                ₹{{ h.previousLimit != null ? (h.previousLimit | number:'1.0-0') : '—' }}
+                → ₹{{ h.newLimit != null ? (h.newLimit | number:'1.0-0') : '—' }}
+                <span class="cr-muted"> · {{ h.changedBy }} · {{ h.changedAt | date:'medium' }}</span>
+              </li>
+            </ul>
+          </div>
+          <div *ngIf="decisionAudits.length">
+            <h4>Order checks</h4>
+            <ul class="cr-history-list">
+              <li *ngFor="let a of decisionAudits">
+                ₹{{ a.orderAmount | number:'1.0-0' }} — {{ orderDecisionLabel(a.overrideOrderDecision || a.orderDecision) }}
+                <span class="cr-muted"> · {{ a.decidedAt | date:'short' }}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <section class="card cr-config" *ngIf="showConfig && config as cfg">
+      <h3 class="section-title">Risk rules (admin)</h3>
+      <p class="cr-lead">Change only if you understand credit policy. Wrong settings affect every customer.</p>
+      <div class="cr-config-grid">
+        <label>Hard block after overdue (days) <input type="number" [(ngModel)]="cfg.overdueHardBlockDays" /></label>
+        <label>When limit is exceeded
+          <select [(ngModel)]="cfg.creditLimitBreachMode">
+            <option value="BY_RISK_CATEGORY">By risk category (softer for reliable customers)</option>
+            <option value="TAKE_ORDER_AFTER_PAYMENT">Require payment first</option>
+            <option value="HARD_BLOCK">Always block</option>
+          </select>
+        </label>
+        <label>Unusual order size (× average) <input type="number" [(ngModel)]="cfg.unusualOrderMultiplier" /></label>
+        <label>Low on-time % threshold <input type="number" [(ngModel)]="cfg.lowOnTimePaymentPercent" /></label>
+        <label>Overdue invoice count alert <input type="number" [(ngModel)]="cfg.multipleOverdueInvoiceThreshold" /></label>
+        <label class="check"><input type="checkbox" [(ngModel)]="cfg.enableNoPaymentAgainstDueRule" /> Block if due but no payment</label>
+        <label class="check"><input type="checkbox" [(ngModel)]="cfg.enablePaymentFailureRule" /> Use bounce / failure history</label>
+        <label class="check"><input type="checkbox" [(ngModel)]="cfg.enablePaymentPromiseRule" /> Use promised pay dates</label>
+        <label class="check"><input type="checkbox" [(ngModel)]="cfg.enableLowMarginWithOverdueRule" /> Flag low margin + overdue</label>
+        <label>Low margin % threshold <input type="number" [(ngModel)]="cfg.lowMarginPercentThreshold" /></label>
+      </div>
+      <button type="button" class="btn btn-primary" [disabled]="savingConfig" (click)="saveConfig()">
+        {{ savingConfig ? 'Saving…' : 'Save rules' }}
+      </button>
+      <button type="button" class="btn btn-secondary" (click)="showConfig = false">Close</button>
+    </section>
+  </ng-container>
+</section>

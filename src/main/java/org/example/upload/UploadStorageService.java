@@ -10,6 +10,9 @@ import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.example.creditrisk.CreditPaymentEventService;
+import org.example.creditrisk.CreditPaymentEventUpload;
+import org.example.creditrisk.CreditRiskService;
 import org.example.payment.CustomerMasterPhoneIngestService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -48,53 +51,65 @@ public class UploadStorageService {
     private final ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository;
     private final UploadAuditEntryRepository uploadAuditEntryRepository;
     private final CustomerMasterPhoneIngestService customerMasterPhoneIngestService;
+    private final CreditRiskService creditRiskService;
+    private final CreditPaymentEventService creditPaymentEventService;
 
     public UploadStorageService(DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository,
                                 ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository,
                                 UploadAuditEntryRepository uploadAuditEntryRepository,
-                                CustomerMasterPhoneIngestService customerMasterPhoneIngestService) {
+                                CustomerMasterPhoneIngestService customerMasterPhoneIngestService,
+                                CreditRiskService creditRiskService,
+                                CreditPaymentEventService creditPaymentEventService) {
         this.detailedSalesInvoicesUploadRepository = detailedSalesInvoicesUploadRepository;
         this.receivableAgeingReportUploadRepository = receivableAgeingReportUploadRepository;
         this.uploadAuditEntryRepository = uploadAuditEntryRepository;
         this.customerMasterPhoneIngestService = customerMasterPhoneIngestService;
+        this.creditRiskService = creditRiskService;
+        this.creditPaymentEventService = creditPaymentEventService;
     }
 
-    public List<UploadFileInfo> storeFiles(MultipartFile file1, MultipartFile file2) throws IOException {
+    public List<UploadFileInfo> storeFiles(MultipartFile file1, MultipartFile file2, MultipartFile file3) throws IOException {
         SalesReceivableExcelUploadValidation.validateMultipartOrThrow(file1);
         SalesReceivableExcelUploadValidation.validateMultipartOrThrow(file2);
+        SalesReceivableExcelUploadValidation.validateMultipartOrThrow(file3);
         return storeFiles(
                 file1.getInputStream(), file1.getOriginalFilename(),
                 file2.getInputStream(), file2.getOriginalFilename(),
+                file3.getInputStream(), file3.getOriginalFilename(),
                 UploadCancelChecker.NONE,
-                null
+                null,
+                ""
         );
     }
 
     /**
-     * Same as {@link #storeFiles(MultipartFile, MultipartFile)} but reads from temp paths (e.g. async upload after multipart is saved to disk).
-     */
-    public List<UploadFileInfo> storeFiles(Path tempFile1, Path tempFile2, String originalFilename1, String originalFilename2)
-            throws IOException {
-        return storeFiles(tempFile1, tempFile2, originalFilename1, originalFilename2, UploadCancelChecker.NONE, null);
-    }
-
-    /**
-     * Async path: {@code checker} runs during parse; {@code onSavingPhaseStarted} runs after successful parse, after a final cancel check,
-     * and immediately before DB deletes (cancellation is not honored once this runs).
+     * Async upload after multipart is saved to temp files.
      */
     public List<UploadFileInfo> storeFiles(
             Path tempFile1,
             Path tempFile2,
+            Path tempFile3,
             String originalFilename1,
             String originalFilename2,
+            String originalFilename3,
             UploadCancelChecker cancelChecker,
-            Runnable onSavingPhaseStarted
+            Runnable onSavingPhaseStarted,
+            String ledgerUploadedBy
     ) throws IOException {
         SalesReceivableExcelUploadValidation.validateOriginalFilenameOrThrow(originalFilename1);
         SalesReceivableExcelUploadValidation.validateOriginalFilenameOrThrow(originalFilename2);
+        SalesReceivableExcelUploadValidation.validateOriginalFilenameOrThrow(originalFilename3);
         try (InputStream is1 = Files.newInputStream(tempFile1);
-             InputStream is2 = Files.newInputStream(tempFile2)) {
-            return storeFiles(is1, originalFilename1, is2, originalFilename2, cancelChecker, onSavingPhaseStarted);
+             InputStream is2 = Files.newInputStream(tempFile2);
+             InputStream is3 = Files.newInputStream(tempFile3)) {
+            return storeFiles(
+                    is1, originalFilename1,
+                    is2, originalFilename2,
+                    is3, originalFilename3,
+                    cancelChecker,
+                    onSavingPhaseStarted,
+                    ledgerUploadedBy
+            );
         }
     }
 
@@ -103,14 +118,19 @@ public class UploadStorageService {
             String originalFilename1,
             InputStream inputStream2,
             String originalFilename2,
+            InputStream inputStream3,
+            String originalFilename3,
             UploadCancelChecker cancelChecker,
-            Runnable onSavingPhaseStarted
+            Runnable onSavingPhaseStarted,
+            String ledgerUploadedBy
     ) throws IOException {
         Instant uploadedAt = Instant.now();
         UploadedExcelFile detailedFile = parseExcel(inputStream1, originalFilename1, cancelChecker);
         UploadedExcelFile receivableFile = parseExcel(inputStream2, originalFilename2, cancelChecker);
+        UploadedExcelFile ledgerFile = creditPaymentEventService.parseCustomerLedgerExcel(inputStream3, originalFilename3);
 
         ExcelUploadHeaderRules.validateUploadPairOrThrow(detailedFile, receivableFile);
+        org.example.creditrisk.CustomerLedgerExcelUploadValidation.validateParsedOrThrow(ledgerFile);
 
         cancelChecker.checkCancelled();
         if (onSavingPhaseStarted != null) {
@@ -124,7 +144,6 @@ public class UploadStorageService {
 
         List<UploadFileInfo> fileInfos = new ArrayList<>();
 
-        // Save new data first so a failure does not wipe existing uploads.
         logger.info("Saving DetailedSalesInvoices upload: {}", detailedFile.originalFilename());
         DetailedSalesInvoicesUpload detailedDoc = detailedSalesInvoicesUploadRepository.save(
                 new DetailedSalesInvoicesUpload(null, uploadedAt, detailedFile)
@@ -138,6 +157,15 @@ public class UploadStorageService {
                 new ReceivableAgeingReportUpload(null, uploadedAt, receivableFile)
         );
         fileInfos.add(new UploadFileInfo(receivableDoc.id(), receivableFile.originalFilename()));
+
+        cancelChecker.checkCancelled();
+
+        logger.info("Saving CustomerLedger upload: {}", ledgerFile.originalFilename());
+        CreditPaymentEventUpload ledgerDoc = creditPaymentEventService.saveLedgerUpload(
+                ledgerFile,
+                ledgerUploadedBy != null ? ledgerUploadedBy : ""
+        );
+        fileInfos.add(new UploadFileInfo(ledgerDoc.id(), ledgerFile.originalFilename()));
 
         cancelChecker.checkCancelled();
 
@@ -158,6 +186,9 @@ public class UploadStorageService {
         uploadAuditEntryRepository.save(
                 new UploadAuditEntry(null, "ADDED", "receivable", receivableFile.originalFilename(), uploadedAt, "")
         );
+        uploadAuditEntryRepository.save(
+                new UploadAuditEntry(null, "ADDED", "customer_ledger", ledgerFile.originalFilename(), uploadedAt, "")
+        );
         enforceUploadAuditRetention();
 
         cancelChecker.checkCancelled();
@@ -166,6 +197,13 @@ public class UploadStorageService {
             customerMasterPhoneIngestService.syncPhonesFromUploadFiles(detailedFile, receivableFile);
         } catch (RuntimeException ex) {
             logger.error("customer_master phone ingest failed after upload; data is saved but phones may be stale", ex);
+        }
+
+        try {
+            Map<String, Object> snap = creditRiskService.rebuildSnapshots();
+            logger.info("Credit risk snapshots rebuilt after upload: {}", snap);
+        } catch (RuntimeException ex) {
+            logger.error("Credit risk snapshot rebuild failed after upload; uploads are saved", ex);
         }
 
         logger.info("Upload completed.");

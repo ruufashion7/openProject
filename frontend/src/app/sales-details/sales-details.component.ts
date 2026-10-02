@@ -9,6 +9,7 @@ import { AuthService } from '../auth/auth.service';
 import { PermissionService } from '../auth/permission.service';
 import { NotificationService } from '../shared/notification.service';
 import { PageStateComponent } from '../shared/page-state/page-state.component';
+import { formatPhoneDisplay } from '../shared/phone.util';
 
 @Component({
   selector: 'app-sales-details',
@@ -18,6 +19,7 @@ import { PageStateComponent } from '../shared/page-state/page-state.component';
   styleUrl: './sales-details.component.css'
 })
 export class SalesDetailsComponent implements OnInit, OnDestroy {
+  formatPhoneDisplay = formatPhoneDisplay;
   status: 'idle' | 'loading' | 'failed' = 'idle';
   message = '';
   ready = false;

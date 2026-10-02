@@ -70,6 +70,12 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
+    path: 'credit-risk',
+    loadComponent: () =>
+      import('./credit-risk/credit-risk.component').then((m) => m.CreditRiskComponent),
+    canActivate: [authGuard]
+  },
+  {
     path: 'customer-locations',
     loadComponent: () =>
       import('./customer-locations/customer-locations.component').then((m) => m.CustomerLocationsComponent),

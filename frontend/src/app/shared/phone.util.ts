@@ -9,8 +9,16 @@ export function normalizePhoneDigits(raw: string | null | undefined): string {
   return digits;
 }
 
+/** User-facing format, e.g. +91 9699767058 */
 export function formatPhoneDisplay(raw: string | null | undefined): string {
-  return normalizePhoneDigits(raw);
+  const digits = normalizePhoneDigits(raw);
+  if (!digits) {
+    return '';
+  }
+  if (digits.length === 10) {
+    return `+91 ${digits}`;
+  }
+  return `+${digits}`;
 }
 
 export function phoneDigitsMatch(stored: string | null | undefined, queryDigits: string): boolean {
