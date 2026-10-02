@@ -25,6 +25,8 @@ import org.example.upload.UploadedExcelFileEntryResponse;
 import org.example.upload.UploadPurgeResponse;
 import org.example.upload.SalesReceivableExcelUploadValidation;
 import org.example.upload.UploadStatusResponse;
+import org.example.creditrisk.CreditPaymentEventUpload;
+import org.example.creditrisk.CreditPaymentEventUploadRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -55,6 +57,7 @@ public class UploadController {
     private final UploadJobService uploadJobService;
     private final DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository;
     private final ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository;
+    private final CreditPaymentEventUploadRepository creditPaymentEventUploadRepository;
     private final UploadAuditEntryRepository uploadAuditEntryRepository;
     private final ObjectMapper objectMapper;
     private final SecurityAuditService securityAuditService;
@@ -64,6 +67,7 @@ public class UploadController {
                             UploadJobService uploadJobService,
                             DetailedSalesInvoicesUploadRepository detailedSalesInvoicesUploadRepository,
                             ReceivableAgeingReportUploadRepository receivableAgeingReportUploadRepository,
+                            CreditPaymentEventUploadRepository creditPaymentEventUploadRepository,
                             UploadAuditEntryRepository uploadAuditEntryRepository,
                             ObjectMapper objectMapper,
                             SecurityAuditService securityAuditService) {
@@ -72,6 +76,7 @@ public class UploadController {
         this.uploadJobService = uploadJobService;
         this.detailedSalesInvoicesUploadRepository = detailedSalesInvoicesUploadRepository;
         this.receivableAgeingReportUploadRepository = receivableAgeingReportUploadRepository;
+        this.creditPaymentEventUploadRepository = creditPaymentEventUploadRepository;
         this.uploadAuditEntryRepository = uploadAuditEntryRepository;
         this.objectMapper = objectMapper;
         this.securityAuditService = securityAuditService;
@@ -81,7 +86,8 @@ public class UploadController {
     public ResponseEntity<?> upload(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam("file1") MultipartFile file1,
-            @RequestParam("file2") MultipartFile file2
+            @RequestParam("file2") MultipartFile file2,
+            @RequestParam("file3") MultipartFile file3
     ) {
         SessionInfo session = authSessionService.validate(extractToken(authHeader));
         if (session == null) {
@@ -106,19 +112,31 @@ public class UploadController {
                     .body(new UploadResponse("failed", "File 2: " + validationError, List.of()));
         }
 
-        logger.info("Upload request received. file1={}, file2={}", file1.getOriginalFilename(), file2.getOriginalFilename());
+        validationError = SalesReceivableExcelUploadValidation.validateMultipart(file3);
+        if (validationError != null) {
+            securityAuditService.logFileUpload(session.userId(), file3.getOriginalFilename(), file3.getSize(), false);
+            return ResponseEntity.badRequest()
+                    .body(new UploadResponse("failed", "File 3 (CustomerLedger): " + validationError, List.of()));
+        }
+
+        logger.info("Upload request received. file1={}, file2={}, file3={}",
+                file1.getOriginalFilename(), file2.getOriginalFilename(), file3.getOriginalFilename());
 
         Path temp1 = null;
         Path temp2 = null;
+        Path temp3 = null;
         try {
             temp1 = Files.createTempFile("upload-detailed-", ".xlsx");
             temp2 = Files.createTempFile("upload-receivable-", ".xlsx");
+            temp3 = Files.createTempFile("upload-ledger-", ".xlsx");
             file1.transferTo(temp1);
             file2.transferTo(temp2);
+            file3.transferTo(temp3);
         } catch (IOException ex) {
             logger.error("Failed to store multipart files to temp.", ex);
             deleteTempQuietly(temp1);
             deleteTempQuietly(temp2);
+            deleteTempQuietly(temp3);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new UploadResponse("failed", "Could not read upload. Please try again.", List.of()));
         }
@@ -128,10 +146,13 @@ public class UploadController {
                 session.displayName(),
                 temp1,
                 temp2,
+                temp3,
                 file1.getOriginalFilename(),
                 file2.getOriginalFilename(),
+                file3.getOriginalFilename(),
                 file1.getSize(),
-                file2.getSize()
+                file2.getSize(),
+                file3.getSize()
         );
 
         if (outcome.jobId().isEmpty()) {
@@ -313,7 +334,7 @@ public class UploadController {
         }
 
         // SECURITY: Validate path variables to prevent path traversal
-        if (type == null || (!type.equals("detailed") && !type.equals("receivable"))) {
+        if (!isKnownUploadType(type)) {
             return ResponseEntity.badRequest().build();
         }
 
@@ -353,7 +374,7 @@ public class UploadController {
         }
 
         // SECURITY: Validate path variable
-        if (type == null || (!type.equals("detailed") && !type.equals("receivable"))) {
+        if (!isKnownUploadType(type)) {
             return ResponseEntity.badRequest().build();
         }
 
@@ -448,6 +469,10 @@ public class UploadController {
             return receivableAgeingReportUploadRepository.findById(id)
                     .map(UploadedExcelFileDownloadResponse::from);
         }
+        if ("customer_ledger".equalsIgnoreCase(type)) {
+            return creditPaymentEventUploadRepository.findById(id)
+                    .map(UploadedExcelFileDownloadResponse::from);
+        }
         return Optional.empty();
     }
 
@@ -458,6 +483,10 @@ public class UploadController {
         }
         if ("receivable".equalsIgnoreCase(type)) {
             ReceivableAgeingReportUpload latest = receivableAgeingReportUploadRepository.findTopByOrderByUploadedAtDesc();
+            return latest == null ? Optional.empty() : Optional.of(UploadedExcelFileDownloadResponse.from(latest));
+        }
+        if ("customer_ledger".equalsIgnoreCase(type)) {
+            CreditPaymentEventUpload latest = creditPaymentEventUploadRepository.findTopByOrderByUploadedAtDesc();
             return latest == null ? Optional.empty() : Optional.of(UploadedExcelFileDownloadResponse.from(latest));
         }
         return Optional.empty();
@@ -477,7 +506,18 @@ public class UploadController {
                 entries.add(UploadedExcelFileEntryResponse.from(latest));
             }
         }
+        if (type == null || type.isBlank() || "customer_ledger".equalsIgnoreCase(type)) {
+            CreditPaymentEventUpload latest = creditPaymentEventUploadRepository.findTopByOrderByUploadedAtDesc();
+            if (latest != null) {
+                entries.add(UploadedExcelFileEntryResponse.from(latest));
+            }
+        }
         return entries;
+    }
+
+    private static boolean isKnownUploadType(String type) {
+        return type != null
+                && (type.equals("detailed") || type.equals("receivable") || type.equals("customer_ledger"));
     }
 }
 

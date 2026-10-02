@@ -109,7 +109,7 @@ public final class SessionPermissions {
         if (p == null) {
             return false;
         }
-        return p.isInvoicePage() || p.isDetailsPage() || p.isOutstandingPage();
+        return p.isInvoicePage() || p.isDetailsPage() || p.isOutstandingPage() || p.isCreditRiskPage();
     }
 
     /** Phone search on Details or Outstanding flows. */
@@ -186,5 +186,30 @@ public final class SessionPermissions {
     /** Bill photo extract page and APIs. */
     public static boolean canAccessBillExtract(SessionInfo session) {
         return has(session, UserPermissions::isBillExtractPage);
+    }
+
+    public static boolean canAccessCreditRisk(SessionInfo session) {
+        return has(session, UserPermissions::isCreditRiskPage);
+    }
+
+    public static boolean canEditCreditRiskConfig(SessionInfo session) {
+        if (!canAccessCreditRisk(session)) {
+            return false;
+        }
+        return has(session, UserPermissions::isCreditRiskConfigEdit);
+    }
+
+    public static boolean canSetCreditRiskManualHold(SessionInfo session) {
+        if (!canAccessCreditRisk(session)) {
+            return false;
+        }
+        return has(session, UserPermissions::isCreditRiskManualHold);
+    }
+
+    public static boolean canOverrideCreditRiskDecision(SessionInfo session) {
+        if (!canAccessCreditRisk(session)) {
+            return false;
+        }
+        return has(session, UserPermissions::isCreditRiskDecisionOverride);
     }
 }

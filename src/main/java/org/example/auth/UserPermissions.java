@@ -37,6 +37,14 @@ public class UserPermissions {
     private boolean aiAgentPage;
     /** Upload bill photos and extract bill no / amounts / payment via vision LLM. */
     private boolean billExtractPage;
+    /** Customer credit risk / order decision page. */
+    private boolean creditRiskPage;
+    /** Edit credit risk engine thresholds/scoring config. */
+    private boolean creditRiskConfigEdit;
+    /** Set/clear finance manual hold on customer. */
+    private boolean creditRiskManualHold;
+    /** Override blocked/approval order decisions (audited). */
+    private boolean creditRiskDecisionOverride;
 
     public UserPermissions() {
         // Default all permissions to false
@@ -49,7 +57,9 @@ public class UserPermissions {
                           boolean customerCategoryEdit, boolean customerLimitEdit, boolean customerNotesEdit, boolean customerLocationEdit,
                           boolean whatsappBroadcast, boolean uploadsListPage, boolean uploadAuditPage,
                           boolean customerExcludeEdit, boolean customerRetainEdit, boolean aiAgentPage,
-                          boolean billExtractPage) {
+                          boolean billExtractPage,
+                          boolean creditRiskPage, boolean creditRiskConfigEdit,
+                          boolean creditRiskManualHold, boolean creditRiskDecisionOverride) {
         this.fileUpload = fileUpload;
         this.hardDelete = hardDelete;
         this.invoicePage = invoicePage;
@@ -74,6 +84,10 @@ public class UserPermissions {
         this.customerRetainEdit = customerRetainEdit;
         this.aiAgentPage = aiAgentPage;
         this.billExtractPage = billExtractPage;
+        this.creditRiskPage = creditRiskPage;
+        this.creditRiskConfigEdit = creditRiskConfigEdit;
+        this.creditRiskManualHold = creditRiskManualHold;
+        this.creditRiskDecisionOverride = creditRiskDecisionOverride;
     }
 
     public boolean isFileUpload() {
@@ -266,5 +280,37 @@ public class UserPermissions {
 
     public void setBillExtractPage(boolean billExtractPage) {
         this.billExtractPage = billExtractPage;
+    }
+
+    public boolean isCreditRiskPage() {
+        return creditRiskPage;
+    }
+
+    public void setCreditRiskPage(boolean creditRiskPage) {
+        this.creditRiskPage = creditRiskPage;
+    }
+
+    public boolean isCreditRiskConfigEdit() {
+        return creditRiskConfigEdit;
+    }
+
+    public void setCreditRiskConfigEdit(boolean creditRiskConfigEdit) {
+        this.creditRiskConfigEdit = creditRiskConfigEdit;
+    }
+
+    public boolean isCreditRiskManualHold() {
+        return creditRiskManualHold;
+    }
+
+    public void setCreditRiskManualHold(boolean creditRiskManualHold) {
+        this.creditRiskManualHold = creditRiskManualHold;
+    }
+
+    public boolean isCreditRiskDecisionOverride() {
+        return creditRiskDecisionOverride;
+    }
+
+    public void setCreditRiskDecisionOverride(boolean creditRiskDecisionOverride) {
+        this.creditRiskDecisionOverride = creditRiskDecisionOverride;
     }
 }

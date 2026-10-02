@@ -155,7 +155,7 @@ export interface UploadCancelResponse {
 
 export interface UploadEntry {
   id: string;
-  type: 'detailed' | 'receivable';
+  type: 'detailed' | 'receivable' | 'customer_ledger';
   originalFilename: string;
   uploadedAt: string;
 }
@@ -163,7 +163,7 @@ export interface UploadEntry {
 export interface UploadAuditEntry {
   id: string;
   action: 'ADDED' | 'DELETED' | 'STOPPED' | 'CANCELLED' | 'FAILED';
-  type: 'detailed' | 'receivable';
+  type: 'detailed' | 'receivable' | 'customer_ledger';
   originalFilename: string;
   uploadedAt: string;
   message?: string;
@@ -429,10 +429,11 @@ export class ApiService {
    * Starts an async upload. Returns 202 with {@link UploadJobAcceptedResponse}; poll {@link getUploadJobStatus}.
    * 400/409 errors return {@link UploadResponse} in the error body.
    */
-  uploadFiles(file1: File, file2: File): Observable<UploadJobAcceptedResponse> {
+  uploadFiles(file1: File, file2: File, file3: File): Observable<UploadJobAcceptedResponse> {
     const formData = new FormData();
     formData.append('file1', file1);
     formData.append('file2', file2);
+    formData.append('file3', file3);
     return this.http.post<UploadJobAcceptedResponse>(`${this.baseUrl}/upload`, formData, {
       headers: this.auth.getAuthHeaders()
     });
@@ -479,7 +480,7 @@ export class ApiService {
 
   downloadUploadJson(type: UploadEntry['type'], id: string): Observable<Blob> {
     // SECURITY: Validate path parameters
-    if (type !== 'detailed' && type !== 'receivable') {
+    if (type !== 'detailed' && type !== 'receivable' && type !== 'customer_ledger') {
       throw new Error('Invalid upload type');
     }
     if (!SecurityService.validateId(id)) {
@@ -1093,6 +1094,408 @@ export class ApiService {
       headers: this.auth.getAuthHeaders()
     });
   }
+
+  getCreditRiskSummary(customer: string, phone?: string): Observable<CreditRiskSummary> {
+    return this.http.post<CreditRiskSummary>(
+      `${this.baseUrl}/credit-risk/customers/summary`,
+      { customer, phone },
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  evaluateCreditRiskOrder(body: {
+    customer?: string;
+    customerKey?: string;
+    orderAmount: number;
+    referenceId?: string;
+    reserveExposure?: boolean;
+  }): Observable<CreditRiskOrderDecision> {
+    return this.http.post<CreditRiskOrderDecision>(
+      `${this.baseUrl}/credit-risk/orders/evaluate`,
+      body,
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  evaluateCreditRiskOrderExcel(file: File, reserveExposure = false): Observable<Blob> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('reserveExposure', String(reserveExposure));
+    return this.http.post(`${this.baseUrl}/credit-risk/orders/evaluate-excel`, form, {
+      headers: this.auth.getAuthHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  getCreditRiskConfig(): Observable<CreditRiskConfig> {
+    return this.http.get<CreditRiskConfig>(`${this.baseUrl}/credit-risk/config`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  updateCreditRiskConfig(config: CreditRiskConfig): Observable<CreditRiskConfig> {
+    return this.http.put<CreditRiskConfig>(`${this.baseUrl}/credit-risk/config`, config, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  setCreditRiskManualHold(customerKey: string, hold: boolean, reason?: string): Observable<{
+    customerKey: string;
+    manualHold: boolean;
+    manualHoldReason: string;
+  }> {
+    return this.http.post<{ customerKey: string; manualHold: boolean; manualHoldReason: string }>(
+      `${this.baseUrl}/credit-risk/customers/manual-hold`,
+      { customerKey, hold, reason },
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  listCreditRiskSnapshots(): Observable<CreditRiskSnapshot[]> {
+    return this.http.get<CreditRiskSnapshot[]>(`${this.baseUrl}/credit-risk/customers`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  listCreditRiskActionQueue(bucket: string = 'ALL'): Observable<CreditRiskSnapshot[]> {
+    return this.http.get<CreditRiskSnapshot[]>(`${this.baseUrl}/credit-risk/queue`, {
+      headers: this.auth.getAuthHeaders(),
+      params: { bucket }
+    });
+  }
+
+  getCreditRiskCommitteeSummary(): Observable<CreditRiskCommitteeSummary> {
+    return this.http.get<CreditRiskCommitteeSummary>(`${this.baseUrl}/credit-risk/insights/committee`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  getCreditRiskCollectToday(): Observable<CreditRiskCollectTodayItem[]> {
+    return this.http.get<CreditRiskCollectTodayItem[]>(`${this.baseUrl}/credit-risk/insights/collect-today`, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  getCreditRiskLimitHistory(customerKey: string): Observable<CreditLimitAuditEntry[]> {
+    return this.http.get<CreditLimitAuditEntry[]>(`${this.baseUrl}/credit-risk/customers/limit-history`, {
+      headers: this.auth.getAuthHeaders(),
+      params: { customerKey }
+    });
+  }
+
+  getCreditRiskAudit(customerKey?: string, limit = 50): Observable<CreditDecisionAuditEntry[]> {
+    const params: Record<string, string> = { limit: String(limit) };
+    if (customerKey) {
+      params['customerKey'] = customerKey;
+    }
+    return this.http.get<CreditDecisionAuditEntry[]>(`${this.baseUrl}/credit-risk/audit`, {
+      headers: this.auth.getAuthHeaders(),
+      params
+    });
+  }
+
+  overrideCreditRiskOrder(auditId: string, newDecision: string, reason: string): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/credit-risk/orders/override`, { auditId, newDecision, reason }, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  rebuildCreditRiskSnapshots(): Observable<{ rebuilt: number; failed: number }> {
+    return this.http.post<{ rebuilt: number; failed: number }>(
+      `${this.baseUrl}/credit-risk/snapshots/rebuild`,
+      {},
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  applyCreditRiskRecommendedLimit(customerKey: string, customer?: string): Observable<{
+    customerKey: string;
+    customerName: string;
+    appliedCreditLimit: number;
+  }> {
+    return this.http.post<{ customerKey: string; customerName: string; appliedCreditLimit: number }>(
+      `${this.baseUrl}/credit-risk/customers/apply-recommended-limit`,
+      { customerKey, customer },
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  setCreditRiskPaymentTerms(customerKey: string, paymentTermsDays: number | null): Observable<{
+    customerKey: string;
+    paymentTermsDays: number;
+  }> {
+    return this.http.post<{ customerKey: string; paymentTermsDays: number }>(
+      `${this.baseUrl}/credit-risk/customers/payment-terms`,
+      { customerKey, paymentTermsDays },
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  uploadCreditRiskPayments(file: File): Observable<{
+    id: string;
+    uploadedAt: string;
+    filename: string;
+    format?: string;
+    dataRowCount?: number;
+  }> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http.post<{ id: string; uploadedAt: string; filename: string; format?: string; dataRowCount?: number }>(
+      `${this.baseUrl}/credit-risk/payments/upload`,
+      form,
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  listCreditRiskPromises(customerKey: string): Observable<CreditPaymentPromise[]> {
+    return this.http.get<CreditPaymentPromise[]>(`${this.baseUrl}/credit-risk/promises`, {
+      headers: this.auth.getAuthHeaders(),
+      params: { customerKey }
+    });
+  }
+
+  createCreditRiskPromise(body: {
+    customerKey: string;
+    customerName?: string;
+    voucherNo?: string;
+    promiseDate?: string;
+    daysUntil?: number;
+    promiseAmount?: number;
+    note?: string;
+  }): Observable<CreditPaymentPromise> {
+    return this.http.post<CreditPaymentPromise>(`${this.baseUrl}/credit-risk/promises`, body, {
+      headers: this.auth.getAuthHeaders()
+    });
+  }
+
+  updateCreditRiskPromiseStatus(
+    id: string,
+    fulfilled: boolean,
+    broken: boolean
+  ): Observable<CreditPaymentPromise> {
+    return this.http.post<CreditPaymentPromise>(
+      `${this.baseUrl}/credit-risk/promises/status`,
+      { id, fulfilled, broken },
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+
+  deleteCreditRiskPromise(id: string): Observable<{ deleted: boolean }> {
+    return this.http.post<{ deleted: boolean }>(
+      `${this.baseUrl}/credit-risk/promises/delete`,
+      { id },
+      { headers: this.auth.getAuthHeaders() }
+    );
+  }
+}
+
+export interface CreditRiskScoreComponent {
+  parameter: string;
+  rawValue: string;
+  scoreObtained: number;
+  maximumScore: number;
+  reason: string;
+}
+
+export interface CreditRiskDecisionReason {
+  code: string;
+  severity: string;
+  message: string;
+}
+
+export interface CreditRiskSummary {
+  customerKey: string;
+  customerName: string;
+  customerCategory: string | null;
+  phoneNumber: string | null;
+  manualHold: boolean;
+  manualHoldReason: string | null;
+  paymentTermsDays?: number | null;
+  customerTenureDays: number;
+  lifetimeSales: number;
+  salesLast30Days: number;
+  salesLast90Days: number;
+  salesLast180Days: number;
+  salesLast365Days: number;
+  totalOrders: number;
+  ordersLast30Days: number;
+  ordersLast90Days: number;
+  averageOrderValue: number;
+  averageOrderValueLast90Days: number;
+  creditLimit: number | null;
+  creditLimitSource: string | null;
+  currentOutstanding: number;
+  overdueAmount: number;
+  overdueInvoiceCount: number;
+  maximumOverdueDays: number;
+  creditUtilization: number | null;
+  totalInvoices: number;
+  paidInvoices: number;
+  unpaidInvoices: number;
+  onTimePaymentPercentage: number;
+  averagePaymentDelayDays: number;
+  maximumPaymentDelayDays: number;
+  paymentFailuresLast90Days: number;
+  brokenPaymentPromises: number;
+  openPaymentPromiseCount?: number;
+  openPaymentPromiseAmount?: number;
+  nextPaymentDate?: string | null;
+  lastPaymentDate: string | null;
+  lastPaymentAmount: number;
+  lastOrderDate: string | null;
+  lastOrderAmount: number;
+  paymentScore: number;
+  businessScore: number;
+  riskScore: number;
+  riskCategory: string;
+  paymentBehaviour: string;
+  businessValue: string;
+  recommendedCreditLimit: number | null;
+  paymentComponents: CreditRiskScoreComponent[];
+  businessComponents: CreditRiskScoreComponent[];
+  dataQualityWarnings: string[];
+  alerts: string[];
+}
+
+export interface CreditRiskOrderDecision {
+  customerKey: string;
+  customerName: string;
+  orderAmount: number;
+  orderDecision: string;
+  paymentDecision: string;
+  creditLimit: number | null;
+  currentOutstanding: number;
+  overdueAmount: number;
+  creditUtilization: number | null;
+  projectedExposure: number;
+  requiredPayment: number;
+  reservedExposure: number;
+  paymentScore: number;
+  businessScore: number;
+  riskScore: number;
+  riskCategory: string;
+  paymentBehaviour: string;
+  businessValue: string;
+  recommendedCreditLimit: number | null;
+  reasons: CreditRiskDecisionReason[];
+  paymentComponents: CreditRiskScoreComponent[];
+  businessComponents: CreditRiskScoreComponent[];
+  dataQualityWarnings: string[];
+  alerts: string[];
+  auditId: string | null;
+}
+
+export interface CreditRiskConfig {
+  id?: string;
+  overdueHardBlockDays: number;
+  noPaymentAgainstDueDays: number;
+  newCustomerMaxTenureDays: number;
+  newCustomerInvoiceThreshold: number;
+  creditLimitBreachMode: string;
+  overdueHardBlockDaysByCategory?: Record<string, number>;
+  defaultPaymentTermsDaysByCategory?: Record<string, number>;
+  multipleOverdueInvoiceThreshold: number;
+  highOverduePercentThreshold: number;
+  lowOnTimePaymentPercent: number;
+  repeatedLatePaymentCount: number;
+  paymentFailureWindowDays: number;
+  paymentFailureCountThreshold: number;
+  creditUtilizationWatchPercent: number;
+  creditUtilizationHighPercent: number;
+  unusualOrderMultiplier: number;
+  enablePaymentPromiseRule: boolean;
+  enablePaymentFailureRule: boolean;
+  enableNoPaymentAgainstDueRule: boolean;
+  redistributeMarginWeight: boolean;
+  enableLowMarginWithOverdueRule?: boolean;
+  lowMarginPercentThreshold?: number;
+  riskCategoryVeryReliableMin: number;
+  riskCategoryReliableMin: number;
+  riskCategoryWatchMin: number;
+  riskCategoryRiskyMin: number;
+}
+
+export interface CreditRiskCommitteeSummary {
+  countsByBucket: Record<string, number>;
+  totalOverdueInQueue: number;
+  highUtilizationCount: number;
+  windDownCount: number;
+  manualHoldCount: number;
+  topOverdue: CreditRiskCollectTodayItem[];
+}
+
+export interface CreditRiskCollectTodayItem {
+  customerKey: string;
+  customerName: string;
+  phoneNumber: string | null;
+  overdueAmount: number;
+  actionBucket: string | null;
+  nextPaymentDate: string | null;
+  riskScore: number;
+  riskCategory: string;
+}
+
+export interface CreditDecisionAuditEntry {
+  id: string;
+  customerKey: string;
+  customerName?: string;
+  orderAmount?: number;
+  orderDecision?: string;
+  paymentDecision?: string;
+  decidedAt?: string;
+  decidedBy?: string;
+  referenceId?: string;
+  overrideOrderDecision?: string;
+  overrideReason?: string;
+  overrideBy?: string;
+  overrideAt?: string;
+}
+
+export interface CreditLimitAuditEntry {
+  id: string;
+  customerKey: string;
+  customerName: string;
+  previousLimit: number | null;
+  newLimit: number | null;
+  source: string;
+  changedBy: string;
+  changedAt: string;
+}
+
+export interface CreditRiskSnapshot {
+  customerKey: string;
+  customerName: string;
+  customerCategory?: string | null;
+  phoneNumber?: string | null;
+  riskScore: number;
+  riskCategory: string;
+  currentOutstanding: number;
+  creditLimit: number | null;
+  overdueAmount: number;
+  overdueInvoiceCount?: number;
+  maximumOverdueDays?: number;
+  creditUtilization?: number | null;
+  onTimePaymentPercentage?: number;
+  averagePaymentDelayDays?: number;
+  salesLast90Days?: number;
+  averageOrderValue?: number;
+  actionBucket?: string | null;
+  suggestedOrderDecision?: string | null;
+  manualHold?: boolean;
+  recommendedCreditLimit?: number | null;
+  alerts?: string[];
+}
+
+export interface CreditPaymentPromise {
+  id: string;
+  customerKey: string;
+  customerName?: string | null;
+  voucherNo?: string | null;
+  promiseDate: string;
+  promiseAmount: number;
+  fulfilled: boolean;
+  broken: boolean;
+  note?: string | null;
 }
 
 export interface BillExtractStatus {

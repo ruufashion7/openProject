@@ -63,6 +63,11 @@ class CustomerMasterPhoneIngestServiceTest {
                         p.retainedAt(),
                         p.retainedBy(),
                         p.creditLimitOverride(),
+                        p.manualHold(),
+                        p.manualHoldReason(),
+                        p.manualHoldAt(),
+                        p.manualHoldBy(),
+                        p.paymentTermsDays(),
                         p.updatedAt()
                 );
             }
@@ -105,6 +110,11 @@ class CustomerMasterPhoneIngestServiceTest {
                 null,
                 null,
                 false,
+                null,
+                null,
+                null,
+                false,
+                null,
                 null,
                 null,
                 null,

@@ -116,5 +116,15 @@ public class UserPermissionsV2Migration implements ApplicationRunner {
         q9.addCriteria(Criteria.where("permissions.billExtractPage").exists(false));
         Update u9 = new Update().set("permissions.billExtractPage", false);
         mongoTemplate.updateMulti(q9, u9, User.class);
+
+        Query q10 = new Query();
+        q10.addCriteria(Criteria.where("permissions").exists(true));
+        q10.addCriteria(Criteria.where("permissions.creditRiskPage").exists(false));
+        Update u10 = new Update()
+                .set("permissions.creditRiskPage", false)
+                .set("permissions.creditRiskConfigEdit", false)
+                .set("permissions.creditRiskManualHold", false)
+                .set("permissions.creditRiskDecisionOverride", false);
+        mongoTemplate.updateMulti(q10, u10, User.class);
     }
 }

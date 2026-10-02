@@ -6,7 +6,6 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.example.payment.DriveSheetCustomer;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
-import org.example.payment.PaymentDateRules;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -53,7 +52,7 @@ class PaymentDateWorkbookWriterTest {
 
         PaymentDateWorkbookParseResult parsed = PaymentDateWorkbookParser.parse(result.bytes(), "");
         assertEquals(1, parsed.rows().size());
-        assertEquals(PaymentDateRules.normalizeOverdueToToday("19-08"), parsed.rows().getFirst().nextPaymentDate());
+        assertEquals("19-08", parsed.rows().getFirst().nextPaymentDate());
         assertEquals("abc traders", parsed.rows().getFirst().customerKey());
     }
 
@@ -222,7 +221,7 @@ class PaymentDateWorkbookWriterTest {
 
         PaymentDateWorkbookParseResult parsed = PaymentDateWorkbookParser.parse(result.bytes(), "");
         assertEquals(1, parsed.rows().size());
-        assertEquals("9876543210", parsed.rows().getFirst().phoneNumber());
+        assertEquals("+91 9876543210", parsed.rows().getFirst().phoneNumber());
     }
 
     @Test
@@ -311,7 +310,7 @@ class PaymentDateWorkbookWriterTest {
     }
 
     @Test
-    void applyUpdates_writesCanonicalPhoneAsTenDigits() throws Exception {
+    void applyUpdates_writesCanonicalPhoneAsDisplayForm() throws Exception {
         byte[] bytes;
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("Dates");
@@ -340,7 +339,7 @@ class PaymentDateWorkbookWriterTest {
         assertEquals(1, result.updatedRows());
 
         PaymentDateWorkbookParseResult parsed = PaymentDateWorkbookParser.parse(result.bytes(), "");
-        assertEquals("9876543210", parsed.rows().getFirst().phoneNumber());
+        assertEquals("+91 9876543210", parsed.rows().getFirst().phoneNumber());
     }
 
     @Test

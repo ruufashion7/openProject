@@ -2,7 +2,7 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">Upload Files</h1>
-      <p class="page-subtitle">Upload two Excel files in one action. Only one import runs at a time for everyone.</p>
+      <p class="page-subtitle">Upload three Excel files in one action. Only one import runs at a time for everyone.</p>
     </div>
   </div>
 
@@ -47,7 +47,9 @@
         Started by {{ lastServerOutcome.startedByDisplayName }}
       </p>
       <ul *ngIf="lastServerOutcome.files?.length">
-        <li *ngFor="let f of lastServerOutcome.files">{{ f.filename }} (id: {{ f.id }})</li>
+        <li *ngFor="let f of lastServerOutcome.files; let i = index">
+          <strong>{{ uploadFileRoleLabel(i) }}:</strong> {{ f.filename }} (id: {{ f.id }})
+        </li>
       </ul>
     </div>
 
@@ -59,13 +61,18 @@
     <div class="inputs">
       <label>
         DetailedSalesInvoices
-        <input type="file" (change)="onFileChange($event, 'file1')" [disabled]="uploadBlocked" />
+        <input type="file" accept=".xlsx" (change)="onFileChange($event, 'file1')" [disabled]="uploadBlocked" />
         <span class="filename">{{ file1?.name || 'No file selected' }}</span>
       </label>
       <label>
         ReceivableAgeingReport
-        <input type="file" (change)="onFileChange($event, 'file2')" [disabled]="uploadBlocked" />
+        <input type="file" accept=".xlsx" (change)="onFileChange($event, 'file2')" [disabled]="uploadBlocked" />
         <span class="filename">{{ file2?.name || 'No file selected' }}</span>
+      </label>
+      <label>
+        CustomerLedger
+        <input type="file" accept=".xlsx" (change)="onFileChange($event, 'file3')" [disabled]="uploadBlocked" />
+        <span class="filename">{{ file3?.name || 'No file selected' }}</span>
       </label>
     </div>
 

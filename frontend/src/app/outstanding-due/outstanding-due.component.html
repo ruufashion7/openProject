@@ -1,10 +1,9 @@
-<section class="outstanding-due-page">
-  <!-- Header -->
-  <div class="page-header-modern">
+<section class="page page--wide outstanding-due-page">
+  <div class="page-header page-header--split">
     <div class="header-content">
       <div>
-        <h1 class="page-title-modern">Outstanding Due</h1>
-        <p class="page-subtitle-modern">Manage outstanding amounts, due dates, and customer follow-ups</p>
+        <h1 class="page-title">Outstanding Due</h1>
+        <p class="page-subtitle">Manage outstanding amounts, due dates, and customer follow-ups</p>
       </div>
       <div class="header-actions">
         <button
@@ -46,11 +45,11 @@
         >
           <span>📌</span>
         </button>
-        <button class="btn-primary-modern" (click)="downloadExcel()" title="Download Excel">
+        <button class="btn btn-primary" (click)="downloadExcel()" title="Download Excel">
           <span>📥</span>
           <span>Excel</span>
         </button>
-        <button class="btn-primary-modern" (click)="downloadPDF()" title="Download PDF">
+        <button class="btn btn-primary" (click)="downloadPDF()" title="Download PDF">
           <span>📄</span>
           <span>PDF</span>
         </button>
@@ -123,7 +122,7 @@
 
     <div class="ignored-add-row" *ngIf="canEditPaymentDate">
       <button
-        class="btn-primary-modern"
+        class="btn btn-primary"
         type="button"
         (click)="runDriveSync()"
         [disabled]="driveSyncing || !driveSync?.configured"
@@ -198,7 +197,7 @@
           </div>
         </div>
       </div>
-      <button class="btn-primary-modern" (click)="excludeCustomerByName()" [disabled]="!ignoreCustomerInput.trim()">
+      <button class="btn btn-primary" (click)="excludeCustomerByName()" [disabled]="!ignoreCustomerInput.trim()">
         Ignore
       </button>
     </div>
@@ -274,7 +273,7 @@
           </div>
         </div>
       </div>
-      <button class="btn-primary-modern" (click)="retainCustomerByName()" [disabled]="!retainCustomerInput.trim()">
+      <button class="btn btn-primary" (click)="retainCustomerByName()" [disabled]="!retainCustomerInput.trim()">
         Retain
       </button>
     </div>
@@ -760,7 +759,7 @@
         <label>A<input type="text" [(ngModel)]="categoryLimitEdits['A']" /></label>
         <label>B<input type="text" [(ngModel)]="categoryLimitEdits['B']" /></label>
         <label>C<input type="text" [(ngModel)]="categoryLimitEdits['C']" /></label>
-        <button type="button" class="btn-primary-modern" [disabled]="savingCategoryLimits" (click)="saveCategoryCreditLimits()">
+        <button type="button" class="btn btn-primary" [disabled]="savingCategoryLimits" (click)="saveCategoryCreditLimits()">
           Save limits
         </button>
       </div>
@@ -817,14 +816,14 @@
   <div class="error-state" *ngIf="status === 'failed'">
     <div class="error-icon">⚠️</div>
     <p>{{ message }}</p>
-    <button class="btn-primary-modern" (click)="loadData()">Retry</button>
+    <button class="btn btn-primary" (click)="loadData()">Retry</button>
   </div>
 
   <!-- Empty State -->
   <div class="empty-state" *ngIf="status === 'idle' && filteredCards.length === 0 && cards.length > 0">
     <div class="empty-icon">🔍</div>
     <p>No customers match your filters</p>
-    <button class="btn-primary-modern" (click)="clearFilters()">Clear Filters</button>
+    <button class="btn btn-primary" (click)="clearFilters()">Clear Filters</button>
   </div>
 
   <!-- Cards Grid -->
@@ -1059,6 +1058,13 @@
       <div class="card-footer">
         <button class="btn-card-action" (click)="openCustomerDetails(card); $event.stopPropagation()">
           View details
+        </button>
+        <button
+          *ngIf="permissionService.canAccessCreditRisk()"
+          class="btn-card-action"
+          (click)="openCreditRisk(card); $event.stopPropagation()"
+        >
+          Credit risk
         </button>
       </div>
     </div>

@@ -7,7 +7,6 @@ import org.example.payment.OutstandingDueCustomerResolver;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
-import org.example.payment.PaymentDateRules;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -343,7 +342,7 @@ public class DrivePaymentDateSyncService {
             }
             PaymentDateOverride existing = matched.get();
             String currentDate = existing.nextPaymentDate() == null ? "" : existing.nextPaymentDate().trim();
-            String effectiveDriveDate = PaymentDateRules.normalizeOverdueToToday(row.nextPaymentDate());
+            String effectiveDriveDate = row.nextPaymentDate() == null ? "" : row.nextPaymentDate().trim();
             boolean dateChanged = !effectiveDriveDate.isBlank() && !Objects.equals(currentDate, effectiveDriveDate);
             String driveNote = CustomerNotes.normalizeText(row.note());
             boolean notesChanged = !driveNote.isEmpty() && !CustomerNotes.containsSameText(existing.notes(), driveNote);

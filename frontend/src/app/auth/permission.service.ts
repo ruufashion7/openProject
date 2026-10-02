@@ -124,6 +124,22 @@ export class PermissionService {
     return this.hasPermission('billExtractPage');
   }
 
+  canAccessCreditRisk(): boolean {
+    return this.hasPermission('creditRiskPage');
+  }
+
+  canEditCreditRiskConfig(): boolean {
+    return this.canAccessCreditRisk() && this.hasPermission('creditRiskConfigEdit');
+  }
+
+  canSetCreditRiskManualHold(): boolean {
+    return this.canAccessCreditRisk() && this.hasPermission('creditRiskManualHold');
+  }
+
+  canOverrideCreditRiskDecision(): boolean {
+    return this.canAccessCreditRisk() && this.hasPermission('creditRiskDecisionOverride');
+  }
+
   // Check if user can access a route
   canAccessRoute(route: string): boolean {
     if (route === '/uploads') {

@@ -2,7 +2,7 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">Latest Uploads</h1>
-      <p class="page-subtitle">Only the most recent files are available for download.</p>
+      <p class="page-subtitle">Latest Detailed Sales, Receivable Ageing, and Customer Ledger (.xlsx).</p>
     </div>
   </div>
 
@@ -49,6 +49,24 @@
         </div>
         <ng-template #noReceivable>
           <p class="page-subtitle">No receivable upload yet.</p>
+        </ng-template>
+      </div>
+
+      <div class="card card-muted">
+        <div class="latest-header">
+          <span class="badge">Customer Ledger</span>
+          <button class="btn btn-primary" type="button" (click)="downloadLatest('customer_ledger')"
+                  [disabled]="!getEntry('customer_ledger')">
+            Download Latest
+          </button>
+        </div>
+        <div *ngIf="getEntry('customer_ledger') as entry; else noLedger">
+          <p class="latest-file">{{ entry.originalFilename }}</p>
+          <p class="page-subtitle">Uploaded {{ entry.uploadedAt | date:'medium' }}</p>
+          <p class="mono">{{ entry.id }}</p>
+        </div>
+        <ng-template #noLedger>
+          <p class="page-subtitle">No customer ledger upload yet. Run a full 3-file upload from Upload Files.</p>
         </ng-template>
       </div>
     </div>

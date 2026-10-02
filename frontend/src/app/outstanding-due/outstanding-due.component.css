@@ -1,92 +1,7 @@
-/* Modern Outstanding Due page */
+/* Outstanding Due — layout; shared chrome in styles.css (.page, .page-header, .btn, .card) */
 
 .outstanding-due-page {
-  padding: 24px;
-  max-width: 1600px;
-  margin: 0 auto;
   min-height: calc(100vh - 64px);
-}
-
-/* Header */
-.page-header-modern {
-  margin-bottom: 32px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
-.page-title-modern {
-  font-size: 32px;
-  font-weight: 800;
-  margin: 0 0 8px 0;
-  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.page-subtitle-modern {
-  font-size: 14px;
-  color: #64748b;
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.btn-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  border: 2px solid #e2e8f0;
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 18px;
-}
-
-.btn-icon:hover {
-  border-color: #2563eb;
-  background: #eff6ff;
-  transform: translateY(-2px);
-}
-
-.btn-icon.active {
-  border-color: #2563eb;
-  background: #dbeafe;
-}
-
-.btn-primary-modern {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 10px;
-  border: none;
-  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
-  color: #fff;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-}
-
-.btn-primary-modern:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
 }
 
 /* Stats Grid */
@@ -1670,14 +1585,6 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .outstanding-due-page {
-    padding: 16px;
-  }
-
-  .page-title-modern {
-    font-size: 24px;
-  }
-
   .header-content {
     flex-direction: column;
   }
@@ -1687,7 +1594,7 @@
     justify-content: space-between;
   }
 
-  .btn-primary-modern {
+  .header-actions .btn.btn-primary {
     flex: 1;
     justify-content: center;
   }

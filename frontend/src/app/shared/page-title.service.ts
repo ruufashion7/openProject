@@ -7,6 +7,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/rate-list': 'Rate List',
   '/sales-details': 'Invoice Details',
   '/sales-visualization': 'Sales Analytics',
+  '/credit-risk': 'Credit Risk',
   '/outstanding': 'Customer Details',
   '/outstanding-due': 'Outstanding Due',
   '/ai-agent': 'AI Data Agent',

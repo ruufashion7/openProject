@@ -8,7 +8,6 @@ import org.example.customer.CustomerPhoneNumbers;
 import org.example.payment.PaymentDateOverride;
 import org.example.payment.PaymentDateOverrideCopy;
 import org.example.payment.PaymentDateOverrideRepository;
-import org.example.payment.PaymentDateRules;
 import org.example.payment.CustomerExclusionService;
 import org.example.settings.CreditLimitResolution;
 import org.example.settings.CustomerCreditLimitService;
@@ -289,12 +288,20 @@ public class AnalyticsController {
         String q = query.trim().toLowerCase(Locale.ROOT);
         Set<String> results = new LinkedHashSet<>();
         
+        String qDigits = q.replaceAll("\\D", "");
         List<PaymentDateOverride> allOverrides = paymentDateOverrideRepository.findAll();
         for (PaymentDateOverride override : allOverrides) {
             if (override.phoneNumber() != null && !override.phoneNumber().isBlank()) {
                 String phone = override.phoneNumber().trim();
-                if (phone.toLowerCase(Locale.ROOT).contains(q)) {
-                    results.add(phone);
+                String display = CustomerPhoneNumbers.displayForm(phone);
+                boolean matches = phone.toLowerCase(Locale.ROOT).contains(q)
+                        || display.toLowerCase(Locale.ROOT).contains(q);
+                if (!matches && !qDigits.isEmpty()) {
+                    String canon = CustomerPhoneNumbers.normalizeDigitsKey(phone);
+                    matches = canon != null && canon.contains(qDigits);
+                }
+                if (matches) {
+                    results.add(display);
                     if (results.size() >= limit) {
                         return ResponseEntity.ok(new ArrayList<>(results));
                     }
@@ -441,7 +448,7 @@ public class AnalyticsController {
         PaymentDateOverride paymentDateOverride = customerKey.isBlank() ? null 
                 : paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
         String nextPaymentDate = paymentDateOverride != null
-                ? PaymentDateRules.normalizeOverdueToToday(paymentDateOverride.nextPaymentDate())
+                ? paymentDateOverride.nextPaymentDate()
                 : null;
         String whatsAppStatus = paymentDateOverride != null ? paymentDateOverride.whatsAppStatus() : null;
         String customerCategory = paymentDateOverride != null ? paymentDateOverride.customerCategory() : null;
@@ -618,7 +625,7 @@ public class AnalyticsController {
             customerKey = normalizeCustomer(foundCustomerName);
             paymentDateOverride = paymentDateOverrideRepository.findFirstByCustomerKeyOrderByIdAsc(customerKey).orElse(null);
             if (paymentDateOverride != null) {
-                nextPaymentDate = PaymentDateRules.normalizeOverdueToToday(paymentDateOverride.nextPaymentDate());
+                nextPaymentDate = paymentDateOverride.nextPaymentDate();
                 whatsAppStatus = paymentDateOverride.whatsAppStatus();
                 needsFollowUp = paymentDateOverride.needsFollowUp() != null ? paymentDateOverride.needsFollowUp() : false;
                 customerCategory = paymentDateOverride.customerCategory();
@@ -950,7 +957,7 @@ public class AnalyticsController {
                 .filter(override -> override.nextPaymentDate() != null)
                 .collect(Collectors.toMap(
                         PaymentDateOverride::customerKey,
-                        override -> PaymentDateRules.normalizeOverdueToToday(override.nextPaymentDate()),
+                        override -> override.nextPaymentDate(),
                         (a, b) -> a));
         Map<String, String> whatsAppStatuses = paymentDateOverrides.values().stream()
                 .filter(override -> override.whatsAppStatus() != null)
@@ -1109,10 +1116,6 @@ public class AnalyticsController {
             if (!isValidDayMonth(nextPaymentDate)) {
                 return ResponseEntity.badRequest()
                     .body(Map.of("error", "Invalid date", "message", "Date is not valid (e.g., day must be 1-31, month 1-12)"));
-            }
-            if (PaymentDateRules.isPast(nextPaymentDate)) {
-                return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Past date not allowed", "message", "Payment date cannot be before today"));
             }
 
             String phoneNumber = request.phoneNumber() == null ? null : request.phoneNumber().trim();

@@ -32,6 +32,13 @@ public record PaymentDateOverride(
         String retainedBy,
         /** Per-customer override; null uses category default from app_settings. */
         Double creditLimitOverride,
+        /** Finance/admin hard block — order decision MANUAL_HOLD. */
+        Boolean manualHold,
+        String manualHoldReason,
+        Instant manualHoldAt,
+        String manualHoldBy,
+        /** Hybrid due-date step: invoice date + these days when row due/terms missing. */
+        Integer paymentTermsDays,
         Instant updatedAt
 ) {
     public PaymentDateOverride {
@@ -50,6 +57,9 @@ public record PaymentDateOverride(
         if (retained == null) {
             retained = Boolean.FALSE;
         }
+        if (manualHold == null) {
+            manualHold = Boolean.FALSE;
+        }
     }
 
     public boolean isActive() {
@@ -62,5 +72,9 @@ public record PaymentDateOverride(
 
     public boolean isRetained() {
         return Boolean.TRUE.equals(retained);
+    }
+
+    public boolean isManualHold() {
+        return Boolean.TRUE.equals(manualHold);
     }
 }
